@@ -68,7 +68,7 @@ const Login = () => {
           {/* Header Section */}
           <View style={styles.header}>
             <Text style={styles.logo}>🌍</Text>
-            <Text style={styles.title}>EcoClean</Text>
+            <Text style={styles.title}>WasteWise</Text>
             <Text style={styles.subtitle}>Building Cleaner Communities</Text>
           </View>
 
@@ -138,7 +138,7 @@ const Login = () => {
                 style={styles.buttonGradient}
               >
                 <Text style={styles.loginButtonText}>
-                  {loading ? '♻️ Logging in...' : '🚀 Login'}
+                  {loading ? '♻️ Logging in...' : 'Login'}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -165,7 +165,7 @@ const Login = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              Creating sustainable communities together 🌍
+              Creating sustainable communities together 
             </Text>
           </View>
         </ScrollView>

@@ -27,30 +27,30 @@ const HomeScreen = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   const features = [
+    { icon: '🤖', title: 'AI Waste Classification', desc: 'YOLO-powered intelligent waste identification and sorting' },
+    { icon: '📱', title: 'Smart Detection Camera', desc: 'Real-time waste classification through mobile scanning' },
     { icon: '🗑️', title: 'Waste Collection Hub', desc: 'Smart scheduling and route optimization for pickups' },
     { icon: '♻️', title: 'Recycling Center Locator', desc: 'Find nearby recycling facilities and drop-off points' },
-    { icon: '📱', title: 'Digital Waste Tracker', desc: 'Monitor waste generation and disposal patterns' },
+    { icon: '📊', title: 'Digital Waste Tracker', desc: 'Monitor waste generation and classification patterns' },
     { icon: '🚨', title: 'Collection Alerts', desc: 'Real-time notifications for pickup schedules' },
     { icon: '🎥', title: 'Educational Videos', desc: 'Learn proper waste sorting and recycling methods' },
-    { icon: '🎓', title: 'Sustainability Courses', desc: 'Training on waste reduction and environmental awareness' },
+    { icon: '🎓', title: 'Sustainability Courses', desc: 'Training on AI-driven waste reduction practices' },
     { icon: '🤝', title: 'Community Green Network', desc: 'Connect with local environmental initiatives' },
     { icon: '📞', title: 'EcoSupport Helpline', desc: 'Chat with waste management specialists' },
-    { icon: '📊', title: 'Barangay Waste Dashboard', desc: 'Track community waste reduction metrics' },
-    { icon: '📱', title: 'Offline Access', desc: 'Download waste guides for offline reference' },
-    { icon: '🔬', title: 'AI Waste Classifier', desc: 'ML-powered waste identification and sorting' },
-    { icon: '🗺️', title: 'Waste Route Mapping', desc: 'Geotagged collection route management' }
+    { icon: '📈', title: 'Barangay Analytics Dashboard', desc: 'AI insights on community waste patterns' },
+    { icon: '🔬', title: 'Machine Learning Insights', desc: 'Advanced waste classification and trend analysis' }
   ];
 
   const testimonials = [
-    { name: 'Maria Santos', location: 'Quezon City', text: 'EcoClean helped our barangay reduce waste by 40%!', rating: 5 },
-    { name: 'Juan Dela Cruz', location: 'Makati', text: 'The collection alerts keep our streets clean and organized.', rating: 5 },
-    { name: 'Rosa Mendoza', location: 'Cebu City', text: 'Recycling locator connected us with proper disposal facilities.', rating: 5 }
+    { name: 'Maria Santos', location: 'Quezon City', text: 'Waste-Wise AI helped our barangay improve waste sorting by 85%!', rating: 5 },
+    { name: 'Juan Dela Cruz', location: 'Makati', text: 'The YOLO classification system is incredibly accurate and fast.', rating: 5 },
+    { name: 'Rosa Mendoza', location: 'Cebu City', text: 'Smart waste detection made recycling so much easier for our community.', rating: 5 }
   ];
 
   const heroSlides = [
-    { icon: '🌍', text: 'Smart Waste Management' },
-    { icon: '♻️', text: 'Maximize Recycling Impact' },
-    { icon: '🚛', text: 'Efficient Collection Routes' }
+    { icon: '🤖', text: 'AI-Driven Waste Classification' },
+    { icon: '🔍', text: 'YOLO Smart Detection' },
+    { icon: '🌱', text: 'Sustainable Practices' }
   ];
 
   useEffect(() => {
@@ -121,7 +121,7 @@ const HomeScreen = ({ navigation }) => {
         }
       ]}>
         <TouchableOpacity style={styles.logo}>
-          <Text style={styles.logoText}>🌍 EcoClean</Text>
+          <Text style={styles.logoText}>🤖 Waste-Wise</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
@@ -143,18 +143,18 @@ const HomeScreen = ({ navigation }) => {
         >
           <View style={styles.heroOverlay} />
           <Animated.View style={[styles.heroContent, { opacity: fadeAnim }]}>
-            <Text style={styles.heroTitle}>Revolutionizing Waste Management with Smart Technology</Text>
+            <Text style={styles.heroTitle}>AI-Driven Solid Waste Classification Using YOLO for Sustainable Waste Management Practices</Text>
             <Text style={styles.heroSubtitle}>
-              Transform your community's waste management with intelligent collection systems, 
-              real-time tracking, advanced recycling networks, and sustainable disposal solutions.
+              Transform your community's waste management with intelligent YOLO-powered classification systems, 
+              real-time AI detection, advanced machine learning insights, and sustainable disposal solutions.
             </Text>
             
             <View style={styles.ctaContainer}>
               <TouchableOpacity style={styles.ctaButton} onPress={handleLogin}>
-                <Text style={styles.ctaButtonText}>Start Managing Smart</Text>
+                <Text style={styles.ctaButtonText}>Start Smart Classification</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.secondaryCta}>
-                <Text style={styles.secondaryCtaText}>Watch Demo</Text>
+                <Text style={styles.secondaryCtaText}>Watch AI Demo</Text>
               </TouchableOpacity>
             </View>
 
@@ -186,24 +186,25 @@ const HomeScreen = ({ navigation }) => {
 
         {/* About Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About EcoClean</Text>
+          <Text style={styles.sectionTitle}>About Waste-Wise</Text>
           <Text style={styles.sectionSubtitle}>
-            Bridging the gap between traditional waste management and modern technology to create sustainable environmental solutions.
+            Bridging the gap between traditional waste management and cutting-edge AI technology to create intelligent environmental solutions.
           </Text>
           
           <View style={styles.aboutContent}>
             <View style={styles.aboutText}>
               <Text style={styles.aboutHeading}>Our Mission</Text>
               <Text style={styles.aboutDescription}>
-                EcoClean is dedicated to empowering communities across the Philippines with cutting-edge 
-                digital waste management tools and environmental knowledge. We believe that every community deserves access to modern 
-                technology that can help them reduce waste, improve recycling rates, and create cleaner environments.
+                Waste-Wise is dedicated to empowering communities across the Philippines with advanced 
+                AI-driven waste classification technology and sustainable management tools. We believe that every community deserves access to 
+                intelligent YOLO-powered systems that can accurately identify, sort, and manage waste for cleaner environments.
               </Text>
               
               <Text style={styles.aboutHeading}>What We Do</Text>
               <Text style={styles.aboutDescription}>
-                Our comprehensive platform combines traditional waste management practices with artificial intelligence, 
-                route optimization, recycling networks, and community engagement to create a holistic environmental solution.
+                Our comprehensive platform combines YOLO object detection with traditional waste management practices, 
+                using artificial intelligence, machine learning classification, route optimization, and community engagement 
+                to create a holistic smart environmental solution.
               </Text>
             </View>
           </View>
@@ -212,19 +213,19 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>100K+</Text>
-              <Text style={styles.statLabel}>Households Served</Text>
+              <Text style={styles.statLabel}>Waste Items Classified</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>85%</Text>
-              <Text style={styles.statLabel}>Waste Reduction</Text>
+              <Text style={styles.statNumber}>95%</Text>
+              <Text style={styles.statLabel}>AI Accuracy Rate</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>500+</Text>
-              <Text style={styles.statLabel}>Collection Routes</Text>
+              <Text style={styles.statLabel}>Smart Routes</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>24/7</Text>
-              <Text style={styles.statLabel}>Support</Text>
+              <Text style={styles.statLabel}>AI Support</Text>
             </View>
           </View>
 
@@ -244,9 +245,9 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Services Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Our Services</Text>
+          <Text style={styles.sectionTitle}>Our AI-Powered Services</Text>
           <Text style={styles.sectionSubtitle}>
-            Comprehensive digital waste management solutions designed to maximize your environmental impact.
+            Comprehensive intelligent waste classification solutions designed to maximize your environmental impact through advanced technology.
           </Text>
           
           <FlatList
@@ -259,12 +260,12 @@ const HomeScreen = ({ navigation }) => {
           />
 
           <View style={styles.ctaSection}>
-            <Text style={styles.ctaSectionTitle}>Ready to Transform Your Waste Management?</Text>
+            <Text style={styles.ctaSectionTitle}>Ready to Transform Your Waste Management with AI?</Text>
             <Text style={styles.ctaSectionSubtitle}>
-              Join thousands of communities who are already using EcoClean to reduce waste and improve sustainability.
+              Join thousands of communities who are already using Waste-Wise YOLO technology to classify waste intelligently and improve sustainability.
             </Text>
             <TouchableOpacity style={styles.ctaButton} onPress={handleLogin}>
-              <Text style={styles.ctaButtonText}>Get Started Today 🌍</Text>
+              <Text style={styles.ctaButtonText}>Get Started with AI 🤖</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -273,7 +274,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact Us</Text>
           <Text style={styles.sectionSubtitle}>
-            Have questions? We're here to help you achieve your sustainability goals.
+            Have questions about our AI waste classification system? We're here to help you achieve your sustainability goals.
           </Text>
           
           <View style={styles.contactForm}>
@@ -284,7 +285,7 @@ const HomeScreen = ({ navigation }) => {
             <TextInput style={styles.input} placeholder="Community/Organization" placeholderTextColor="#999" />
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Tell us about your waste management needs..."
+              placeholder="Tell us about your AI waste classification needs..."
               placeholderTextColor="#999"
               multiline
               numberOfLines={4}
@@ -295,14 +296,7 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.contactInfo}>
-            <View style={styles.contactItem}>
-              <Text style={styles.contactIcon}>📍</Text>
-              <View>
-                <Text style={styles.contactTitle}>Head Office</Text>
-                <Text style={styles.contactText}>123 Environmental Drive{'\n'}Quezon City, Metro Manila{'\n'}Philippines 1100</Text>
-              </View>
-            </View>
+         
             
             <View style={styles.contactItem}>
               <Text style={styles.contactIcon}>📞</Text>
@@ -316,21 +310,21 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.contactIcon}>📧</Text>
               <View>
                 <Text style={styles.contactTitle}>Email Support</Text>
-                <Text style={styles.contactText}>support@ecoclean.ph{'\n'}info@ecoclean.ph{'\n'}24/7 Response</Text>
+                <Text style={styles.contactText}>support@wastewise.ph{'\n'}info@wastewise.ph{'\n'}24/7 AI Response</Text>
               </View>
             </View>
           </View>
-        </View>
+      
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerLogo}>🌍 EcoClean</Text>
+          <Text style={styles.footerLogo}> Waste-Wise</Text>
           <Text style={styles.footerText}>
-            Empowering Filipino communities with smart technology for sustainable waste management
+            Empowering Filipino communities with AI-driven YOLO technology for intelligent waste classification and sustainable management
           </Text>
           <Text style={styles.footerCopyright}>
-            © 2025 EcoClean Philippines. All rights reserved.{'\n'}
-            Building a cleaner future for Philippine communities, one neighborhood at a time. ♻️
+            © 2025 Waste-Wise Philippines. All rights reserved.{'\n'}
+            Building a smarter future for Philippine communities through AI innovation, one classification at a time. 🤖♻️
           </Text>
         </View>
       </ScrollView>

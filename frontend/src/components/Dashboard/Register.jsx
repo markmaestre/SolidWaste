@@ -17,7 +17,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { registerUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
@@ -43,7 +42,6 @@ const Register = () => {
   const { loading, error } = useSelector(state => state.auth);
 
   const genderOptions = [
-    { label: 'Select Gender', value: '' },
     { label: 'Male', value: 'Male' },
     { label: 'Female', value: 'Female' },
     { label: 'Other', value: 'Other' },
@@ -73,6 +71,23 @@ const Register = () => {
     });
   };
 
+  const showGenderModal = () => {
+    setShowGenderPicker(true);
+  };
+
+  const hideGenderModal = () => {
+    setShowGenderPicker(false);
+  };
+
+  const selectGender = (value) => {
+    handleChange('gender', value);
+    setShowGenderPicker(false);
+  };
+
+  const getGenderDisplay = () => {
+    return form.gender || 'Select Gender';
+  };
+
   const handleRegister = async () => {
     if (!form.username || !form.email || !form.password || !form.bod || !form.gender || !form.address) {
       Alert.alert('Incomplete Information', 'Please fill in all required fields.');
@@ -84,7 +99,7 @@ const Register = () => {
       if (res?.payload === 'User registered successfully') {
         Alert.alert(
           'Registration Successful', 
-          'Your EcoClean account has been created successfully. Please login to continue.',
+          'Your WasteWise account has been created successfully. Please login to continue.',
           [
             {
               text: 'Continue to Login',
@@ -190,18 +205,23 @@ const Register = () => {
               <TouchableOpacity
                 style={[
                   styles.input,
-                  styles.dateInput,
+                  styles.dropdownButton,
                   focusedField === 'bod' && styles.inputFocused
                 ]}
                 onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.dateText,
-                  !form.bod && styles.placeholderText
-                ]}>
-                  {formatDisplayDate(form.bod)}
-                </Text>
-                <Text style={styles.calendarIcon}>📅</Text>
+                <View style={styles.dropdownContent}>
+                  <View style={styles.dropdownLeft}>
+                    <Text style={[
+                      styles.dropdownText,
+                      !form.bod && styles.placeholderText
+                    ]}>
+                      {formatDisplayDate(form.bod)}
+                    </Text>
+                  </View>
+                  <Text style={styles.chevronIcon}>❯</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -210,18 +230,23 @@ const Register = () => {
               <TouchableOpacity
                 style={[
                   styles.input,
-                  styles.pickerInput,
+                  styles.dropdownButton,
                   focusedField === 'gender' && styles.inputFocused
                 ]}
-                onPress={() => setShowGenderPicker(true)}
+                onPress={showGenderModal}
+                activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.pickerText,
-                  !form.gender && styles.placeholderText
-                ]}>
-                  {form.gender || 'Select Gender'}
-                </Text>
-                <Text style={styles.dropdownIcon}>▼</Text>
+                <View style={styles.dropdownContent}>
+                  <View style={styles.dropdownLeft}>
+                    <Text style={[
+                      styles.dropdownText,
+                      !form.gender && styles.placeholderText
+                    ]}>
+                      {getGenderDisplay()}
+                    </Text>
+                  </View>
+                  <Text style={styles.chevronIcon}>❯</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -301,39 +326,55 @@ const Register = () => {
         animationType="slide"
         onRequestClose={() => setShowGenderPicker(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Gender</Text>
-              <TouchableOpacity
-                onPress={() => setShowGenderPicker(false)}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={form.gender}
-                onValueChange={(value) => {
-                  if (value !== '') {
-                    handleChange('gender', value);
-                    setShowGenderPicker(false);
-                  }
-                }}
-                style={styles.picker}
-              >
-                {genderOptions.map((option, index) => (
-                  <Picker.Item
-                    key={index}
-                    label={option.label}
-                    value={option.value}
-                    color={option.value === '' ? '#9E9E9E' : '#333333'}
-                  />
-                ))}
-              </Picker>
-            </View>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.backdropTouchable} 
+            onPress={() => setShowGenderPicker(false)}
+            activeOpacity={1}
+          />
+        </View>
+        
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHandle} />
+          
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Gender</Text>
+            <TouchableOpacity
+              onPress={() => setShowGenderPicker(false)}
+              style={styles.modalCloseButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
           </View>
+
+          <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
+            {genderOptions.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.optionItem,
+                  form.gender === option.value && styles.selectedOption
+                ]}
+                onPress={() => selectGender(option.value)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={[
+                    styles.optionText,
+                    form.gender === option.value && styles.selectedOptionText
+                  ]}>
+                    {option.label}
+                  </Text>
+                </View>
+                {form.gender === option.value && (
+                  <View style={styles.checkmarkContainer}>
+                    <Text style={styles.checkmark}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -411,7 +452,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderWidth: 1.5,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: '#FAFAFA',
@@ -434,35 +475,38 @@ const styles = StyleSheet.create({
     height: 80,
     paddingTop: 16,
   },
-  dateInput: {
+  dropdownButton: {
+    justifyContent: 'center',
+    paddingVertical: 0,
+  },
+  dropdownContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dateText: {
+  dropdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dropdownIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  dropdownText: {
     fontSize: 16,
     color: '#333333',
     fontWeight: '400',
+    flex: 1,
   },
   placeholderText: {
     color: '#9E9E9E',
   },
-  calendarIcon: {
-    fontSize: 18,
-  },
-  pickerInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  pickerText: {
-    fontSize: 16,
-    color: '#333333',
-    fontWeight: '400',
-  },
-  dropdownIcon: {
-    fontSize: 12,
-    color: '#666666',
+  chevronIcon: {
+    fontSize: 14,
+    color: '#999999',
+    marginLeft: 8,
+    transform: [{ rotate: '90deg' }],
   },
   errorContainer: {
     flexDirection: 'row',
@@ -487,7 +531,7 @@ const styles = StyleSheet.create({
   registerButton: {
     marginTop: 8,
     marginBottom: 24,
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#1976D2',
     shadowOffset: {
@@ -528,34 +572,63 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-  modalOverlay: {
-    flex: 1,
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  },
+  backdropTouchable: {
+    flex: 1,
   },
   modalContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: height * 0.6,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#F0F0F0',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#333333',
   },
   modalCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
@@ -563,12 +636,51 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 16,
     color: '#666666',
+    fontWeight: '600',
+  },
+  optionsList: {
+    paddingTop: 8,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  selectedOption: {
+    backgroundColor: '#E3F2FD',
+    borderBottomColor: '#BBDEFB',
+  },
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingLeft: 8,
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#333333',
     fontWeight: '500',
+    flex: 1,
   },
-  pickerContainer: {
-    paddingHorizontal: 16,
+  selectedOptionText: {
+    color: '#1976D2',
+    fontWeight: '600',
   },
-  picker: {
-    height: 200,
+  checkmarkContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#1976D2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
