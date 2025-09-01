@@ -7,6 +7,8 @@ const initialState = {
   loading: false,
   error: null,
   users: [],
+  emailCheckLoading: false,
+  emailCheckError: null,
 };
 
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
@@ -26,7 +28,6 @@ export const loginUser = createAsyncThunk('users/login', async ({ email, passwor
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Login failed');
   }
 });
-
 
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
   try {
@@ -82,19 +83,36 @@ export const updateUserStatus = createAsyncThunk(
   }
 );
 
+// Fixed checkEmail implementation
+export const checkEmail = createAsyncThunk(
+  'auth/checkEmail',
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/users/check-email', { email });
+      return response.data; // Should return { exists: true/false }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Error checking email');
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    logout: (state) => {
+    logoutUser: (state) => {
       state.user = null;
       state.token = null;
       state.users = [];
+      state.emailCheckError = null;
+    },
+    clearEmailError: (state) => {
+      state.emailCheckError = null;
     },
   },
   extraReducers: (builder) => {
     builder
-
+      // Register User
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -106,8 +124,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-
       
+      // Login User
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -121,8 +139,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-
      
+      // Edit Profile
       .addCase(editProfile.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -135,8 +153,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-
    
+      // Fetch All Users
       .addCase(fetchAllUsers.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -149,8 +167,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-
      
+      // Update User Status
       .addCase(updateUserStatus.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -165,9 +183,24 @@ const authSlice = createSlice({
       .addCase(updateUserStatus.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      
+      // Check Email
+      .addCase(checkEmail.pending, (state) => {
+        state.emailCheckLoading = true;
+        state.emailCheckError = null;
+      })
+      .addCase(checkEmail.fulfilled, (state, action) => {
+        state.emailCheckLoading = false;
+        // The payload should contain { exists: boolean }
+        // We don't need to store this in state as it's a one-time check
+      })
+      .addCase(checkEmail.rejected, (state, action) => {
+        state.emailCheckLoading = false;
+        state.emailCheckError = action.payload;
       });
   },
 });
 
-export const { logout } = authSlice.actions;
+export const { logoutUser, clearEmailError } = authSlice.actions;
 export default authSlice.reducer;

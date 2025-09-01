@@ -121,7 +121,7 @@ const HomeScreen = ({ navigation }) => {
         }
       ]}>
         <TouchableOpacity style={styles.logo}>
-          <Text style={styles.logoText}>🤖 Waste-Wise</Text>
+          <Text style={styles.logoText}> Waste-Wise</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>

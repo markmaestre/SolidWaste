@@ -6,6 +6,7 @@ import store from "../redux/store/store";
 import Dashboard from '../components/Dashboard/Home';
 import Login from '../components/Dashboard/Login'; 
 import Register from '../components/Dashboard/Register';
+import UserDashboard from '../components/User/UserDashboard ';
 
 
 const Stack = createStackNavigator();
@@ -29,6 +30,7 @@ const Navigator = () => {
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Register" component={Register} />
     
+        <Stack.Screen name="UserDashboard" component={UserDashboard} />
 
       </Stack.Navigator>
     </Provider>

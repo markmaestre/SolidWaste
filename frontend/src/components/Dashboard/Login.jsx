@@ -16,7 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
-
+import { Ionicons } from '@expo/vector-icons'; // Importing icons
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,21 +33,36 @@ const Login = () => {
 
   const handleLogin = async () => {
     try {
-      const res = await dispatch(loginUser(form));
-      if (res?.payload?.user?.role === 'admin') {
-        navigation.navigate('AdminDashboard');
-      } else if (res?.payload?.user?.role === 'user') {
-        navigation.navigate('UserDashboard');
+      const resultAction = await dispatch(loginUser(form));
+      
+      // Check if the login was successful
+      if (loginUser.fulfilled.match(resultAction)) {
+        const user = resultAction.payload.user;
+        
+        if (user.role === 'admin') {
+          navigation.navigate('AdminDashboard');
+        } else if (user.role === 'user') {
+          navigation.navigate('UserDashboard');
+        } else {
+          Alert.alert('Login failed', 'Invalid role assigned to user');
+        }
       } else {
-        Alert.alert('Login failed', 'Invalid credentials');
+        // The error message is already in the state from the rejected action
+        console.log('Login failed:', resultAction.error);
       }
     } catch (err) {
       console.log('Login Error:', err);
+      Alert.alert('Error', 'An unexpected error occurred during login');
     }
   };
 
   const navigateToRegister = () => {
     navigation.navigate('Register');
+  };
+
+  const navigateToDashboard = () => {
+   
+    navigation.navigate('Dashboard');
   };
 
   return (
@@ -61,6 +76,15 @@ const Login = () => {
         colors={['#1976D2', '#1E88E5', '#42A5F5']}
         style={styles.gradient}
       >
+        {/* Home Icon in Top Right */}
+        <TouchableOpacity 
+          style={styles.homeIcon}
+          onPress={navigateToDashboard}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="home" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+        
         <ScrollView 
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
@@ -96,7 +120,7 @@ const Login = () => {
               />
             </View>
 
-          
+            {/* Password Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Password</Text>
               <TextInput
@@ -116,7 +140,7 @@ const Login = () => {
               />
             </View>
 
-           
+            {/* Error Message */}
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>⚠️ {error}</Text>
@@ -188,6 +212,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 40,
+  },
+  homeIcon: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   header: {
     alignItems: 'center',
@@ -345,20 +378,5 @@ const styles = StyleSheet.create({
     color: '#E3F2FD',
     textAlign: 'center',
     fontStyle: 'italic',
-  },
-});
-
-export const alternativeStyles = StyleSheet.create({
-  
-  gradient: {
-    flex: 1,
-    backgroundColor: '#1976D2',
-  },
-  
-  buttonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#42A5F5',
   },
 });
