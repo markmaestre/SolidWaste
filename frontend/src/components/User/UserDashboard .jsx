@@ -13,6 +13,7 @@ import {
   SafeAreaView,
   Platform,
   Image,
+  BackHandler,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../../redux/slices/authSlice';
@@ -37,6 +38,33 @@ const UserDashboard = () => {
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const fadeAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+
+  // Handle back button press
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sidebarVisible) {
+        toggleSidebar();
+        return true; // Prevent default behavior
+      }
+      
+      if (logoutModalVisible) {
+        setLogoutModalVisible(false);
+        return true; // Prevent default behavior
+      }
+      
+      // Show exit confirmation instead of logging out
+      if (activeTab === 'Home') {
+        showExitConfirmation();
+        return true; // Prevent default behavior
+      } else {
+        // If not on home tab, go back to home
+        setActiveTab('Home');
+        return true; // Prevent default behavior
+      }
+    });
+
+    return () => backHandler.remove();
+  }, [sidebarVisible, logoutModalVisible, activeTab]);
 
   // Cleanup function to prevent memory leaks
   useEffect(() => {
@@ -143,6 +171,26 @@ const UserDashboard = () => {
     }
   };
 
+  // New function to show exit confirmation instead of logout
+  const showExitConfirmation = () => {
+    Alert.alert(
+      'Exit WasteWise?',
+      'Are you sure you want to exit the app?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Exit',
+          style: 'destructive',
+          onPress: () => BackHandler.exitApp(),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const navigateTo = (screen) => {
     setActiveTab(screen);
     // Add haptic feedback simulation
@@ -163,9 +211,7 @@ const UserDashboard = () => {
           navigation.navigate('EditProfile');
           break;
         case 'Settings':
-          Alert.alert('Settings', 'Settings screen would open here', [
-            { text: 'OK', style: 'default' }
-          ]);
+          // Settings is now handled in renderContent
           break;
         case 'Home':
           // Stay on home
