@@ -9,6 +9,7 @@ const initialState = {
   users: [],
   emailCheckLoading: false,
   emailCheckError: null,
+  profileUpdateLoading: false,
 };
 
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
@@ -29,6 +30,7 @@ export const loginUser = createAsyncThunk('users/login', async ({ email, passwor
   }
 });
 
+// Updated editProfile with image upload support
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
@@ -37,6 +39,7 @@ export const editProfile = createAsyncThunk('users/editProfile', async (formData
     const res = await axiosInstance.put('/users/profile', formData, {
       headers: {
         Authorization: token,
+        'Content-Type': 'multipart/form-data', // Important for file upload
       },
     });
 
@@ -45,6 +48,49 @@ export const editProfile = createAsyncThunk('users/editProfile', async (formData
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Profile update failed');
   }
 });
+
+// New: Get current user profile
+export const getCurrentUser = createAsyncThunk('users/getCurrentUser', async (_, thunkAPI) => {
+  try {
+    const state = thunkAPI.getState();
+    const token = state.auth.token;
+
+    const res = await axiosInstance.get('/users/me', {
+      headers: {
+        Authorization: token,
+      },
+    });
+
+    return res.data.user;
+  } catch (error) {
+    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch user data');
+  }
+});
+
+// New: Update profile picture only
+export const updateProfilePicture = createAsyncThunk(
+  'users/updateProfilePicture',
+  async (imageFile, thunkAPI) => {
+    try {
+      const state = thunkAPI.getState();
+      const token = state.auth.token;
+
+      const formData = new FormData();
+      formData.append('profileImage', imageFile);
+
+      const res = await axiosInstance.put('/users/profile', formData, {
+        headers: {
+          Authorization: token,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return res.data.user;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update profile picture');
+    }
+  }
+);
 
 export const fetchAllUsers = createAsyncThunk('users/fetchAllUsers', async (_, thunkAPI) => {
   try {
@@ -83,13 +129,12 @@ export const updateUserStatus = createAsyncThunk(
   }
 );
 
-// Fixed checkEmail implementation
 export const checkEmail = createAsyncThunk(
   'auth/checkEmail',
   async (email, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/users/check-email', { email });
-      return response.data; // Should return { exists: true/false }
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Error checking email');
     }
@@ -105,9 +150,29 @@ const authSlice = createSlice({
       state.token = null;
       state.users = [];
       state.emailCheckError = null;
+      state.error = null;
     },
     clearEmailError: (state) => {
       state.emailCheckError = null;
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
+    clearProfileUpdateLoading: (state) => {
+      state.profileUpdateLoading = false;
+    },
+    // New: Update user profile locally without API call
+    updateUserProfileLocal: (state, action) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+    },
+    // New: Update user in users list (for admin)
+    updateUserInList: (state, action) => {
+      const updatedUser = action.payload;
+      state.users = state.users.map((user) =>
+        user._id === updatedUser._id ? updatedUser : user
+      );
     },
   },
   extraReducers: (builder) => {
@@ -140,17 +205,48 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
      
-      // Edit Profile
+      // Edit Profile - Enhanced with separate loading state
       .addCase(editProfile.pending, (state) => {
-        state.loading = true;
+        state.profileUpdateLoading = true;
         state.error = null;
       })
       .addCase(editProfile.fulfilled, (state, action) => {
-        state.loading = false;
+        state.profileUpdateLoading = false;
         state.user = { ...state.user, ...action.payload };
+        // Also update in users list if user is admin viewing users
+        state.users = state.users.map((user) =>
+          user._id === action.payload._id ? action.payload : user
+        );
       })
       .addCase(editProfile.rejected, (state, action) => {
+        state.profileUpdateLoading = false;
+        state.error = action.payload;
+      })
+   
+      // Get Current User
+      .addCase(getCurrentUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.loading = false;
+        state.user = action.payload;
+      })
+      .addCase(getCurrentUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+   
+      // Update Profile Picture
+      .addCase(updateProfilePicture.pending, (state) => {
+        state.profileUpdateLoading = true;
+        state.error = null;
+      })
+      .addCase(updateProfilePicture.fulfilled, (state, action) => {
+        state.profileUpdateLoading = false;
+        state.user = { ...state.user, ...action.payload };
+      })
+      .addCase(updateProfilePicture.rejected, (state, action) => {
+        state.profileUpdateLoading = false;
         state.error = action.payload;
       })
    
@@ -179,6 +275,10 @@ const authSlice = createSlice({
         state.users = state.users.map((user) =>
           user._id === updatedUser._id ? updatedUser : user
         );
+        // If updated user is the current user, update local state too
+        if (state.user && state.user._id === updatedUser._id) {
+          state.user = { ...state.user, status: updatedUser.status };
+        }
       })
       .addCase(updateUserStatus.rejected, (state, action) => {
         state.loading = false;
@@ -190,10 +290,8 @@ const authSlice = createSlice({
         state.emailCheckLoading = true;
         state.emailCheckError = null;
       })
-      .addCase(checkEmail.fulfilled, (state, action) => {
+      .addCase(checkEmail.fulfilled, (state) => {
         state.emailCheckLoading = false;
-        // The payload should contain { exists: boolean }
-        // We don't need to store this in state as it's a one-time check
       })
       .addCase(checkEmail.rejected, (state, action) => {
         state.emailCheckLoading = false;
@@ -202,5 +300,13 @@ const authSlice = createSlice({
   },
 });
 
-export const { logoutUser, clearEmailError } = authSlice.actions;
+export const { 
+  logoutUser, 
+  clearEmailError, 
+  clearError, 
+  clearProfileUpdateLoading,
+  updateUserProfileLocal,
+  updateUserInList 
+} = authSlice.actions;
+
 export default authSlice.reducer;

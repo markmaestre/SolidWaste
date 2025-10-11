@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -13,12 +12,14 @@ import {
   Animated,
   SafeAreaView,
   Platform,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { styles } from '../../components/Css/UserDashboard';
 
 const { width, height } = Dimensions.get('window');
 
@@ -157,16 +158,42 @@ const UserDashboard = () => {
 
     // Handle navigation based on screen
     setTimeout(() => {
-      if (screen === 'Settings') {
-        Alert.alert('Settings', 'Settings screen would open here', [
-          { text: 'OK', style: 'default' }
-        ]);
-      } else if (screen !== 'Home') {
-        Alert.alert(screen, `${screen} feature coming soon!`, [
-          { text: 'OK', style: 'default' }
-        ]);
+      switch (screen) {
+        case 'EditProfile':
+          navigation.navigate('EditProfile');
+          break;
+        case 'Settings':
+          Alert.alert('Settings', 'Settings screen would open here', [
+            { text: 'OK', style: 'default' }
+          ]);
+          break;
+        case 'Home':
+          // Stay on home
+          break;
+        default:
+          Alert.alert(screen, `${screen} feature coming soon!`, [
+            { text: 'OK', style: 'default' }
+          ]);
       }
     }, 300);
+  };
+
+  // Get user's profile picture or use default
+  const getProfilePicture = () => {
+    if (user?.profile?.url) {
+      return { uri: user.profile.url };
+    }
+    return null;
+  };
+
+  // Get user's display name
+  const getDisplayName = () => {
+    return user?.username || user?.name || 'WasteWise User';
+  };
+
+  // Get user's role with proper capitalization
+  const getDisplayRole = () => {
+    return user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
   };
 
   const QuickActionCard = ({ icon, title, count, color, onPress }) => (
@@ -227,64 +254,110 @@ const UserDashboard = () => {
         return (
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeText}>Welcome to {'WasteWise'}! </Text>
+              <Text style={styles.welcomeText}>Welcome back, {getDisplayName()}! 🌱</Text>
               <Text style={styles.welcomeSubtext}>Ready to make a difference today?</Text>
+              
+              {/* User Status Card */}
+              <View style={styles.statusCard}>
+                <LinearGradient
+                  colors={['#1976D2', '#42A5F5']}
+                  style={styles.statusGradient}
+                >
+                  <View style={styles.statusHeader}>
+                    <View style={styles.profileImageContainer}>
+                      {getProfilePicture() ? (
+                        <Image 
+                          source={getProfilePicture()} 
+                          style={styles.profileImageSmall}
+                        />
+                      ) : (
+                        <View style={styles.profilePlaceholderSmall}>
+                          <Icon name="person" size={20} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.statusInfo}>
+                      <Text style={styles.statusName}>{getDisplayName()}</Text>
+                      <Text style={styles.statusRole}>{getDisplayRole()}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>12</Text>
+                      <Text style={styles.statLabel}>Recycling</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>8</Text>
+                      <Text style={styles.statLabel}>Points</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>3</Text>
+                      <Text style={styles.statLabel}>Badges</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+              </View>
             </View>
 
-       
-
-        
-            <View style={styles.quickActionsSection}>
+            {/* Quick Actions */}
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickActionsScroll}>
+              <View style={styles.quickActionsGrid}>
                 <QuickActionCard
-                  icon="add-circle"
-                  title="Log Waste"
-                  count="New"
+                  icon="recycling"
+                  title="Recycle Now"
+                  count="5 items"
                   color="#4CAF50"
-                  onPress={() => Alert.alert('Log Waste', 'Waste logging feature coming soon!')}
+                  onPress={() => navigateTo('Recycling')}
                 />
                 <QuickActionCard
-                  icon="location-on"
-                  title="Find Centers"
-                  count="Near"
+                  icon="trending-up"
+                  title="Analytics"
+                  count="View Stats"
                   color="#2196F3"
-                  onPress={() => Alert.alert('Recycling Centers', 'Map feature coming soon!')}
+                  onPress={() => navigateTo('Analytics')}
                 />
                 <QuickActionCard
                   icon="people"
                   title="Community"
-                  count="Join"
+                  count="24 online"
                   color="#FF9800"
-                  onPress={() => Alert.alert('Community', 'Social features coming soon!')}
+                  onPress={() => navigateTo('Community')}
                 />
                 <QuickActionCard
-                  icon="trending-up"
-                  title="Progress"
-                  count="View"
+                  icon="settings"
+                  title="Settings"
+                  count="Manage"
                   color="#9C27B0"
-                  onPress={() => Alert.alert('Progress', 'Analytics coming soon!')}
+                  onPress={() => navigateTo('Settings')}
                 />
-              </ScrollView>
-            </View>
-
-            {/* Enhanced Recent Activity */}
-            <View style={styles.recentActivitySection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent Activity</Text>
-                <TouchableOpacity>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </TouchableOpacity>
               </View>
-              
-              <ActivityBadge type="Plastic Recycling" points="15" time="2 hours ago" />
-              <ActivityBadge type="Paper Collection" points="10" time="Yesterday" />
-              <ActivityBadge type="Glass Sorting" points="20" time="2 days ago" />
-              <ActivityBadge type="Metal Recovery" points="25" time="1 week ago" />
             </View>
 
-          
-     
+            {/* Recent Activity */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Activity</Text>
+              <View style={styles.activitiesList}>
+                <ActivityBadge 
+                  type="Plastic Recycling" 
+                  points={50} 
+                  time="2h ago" 
+                />
+                <ActivityBadge 
+                  type="Paper Collection" 
+                  points={30} 
+                  time="1d ago" 
+                />
+                <ActivityBadge 
+                  type="Glass Sorting" 
+                  points={40} 
+                  time="2d ago" 
+                />
+              </View>
+            </View>
           </ScrollView>
         );
         
@@ -293,13 +366,17 @@ const UserDashboard = () => {
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Text style={styles.sectionTitle}>Account Settings</Text>
             <View style={styles.settingsGroup}>
-              <TouchableOpacity style={styles.settingsItem} activeOpacity={0.7}>
+              <TouchableOpacity 
+                style={styles.settingsItem} 
+                activeOpacity={0.7}
+                onPress={() => navigateTo('EditProfile')}
+              >
                 <View style={styles.settingsIconContainer}>
                   <Icon name="person" size={24} color="#1976D2" />
                 </View>
                 <View style={styles.settingsTextContainer}>
                   <Text style={styles.settingsText}>Edit Profile</Text>
-                  <Text style={styles.settingsSubtext}>Update your personal information</Text>
+                  <Text style={styles.settingsSubtext}>Update your personal information and photo</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color="#999" />
               </TouchableOpacity>
@@ -325,6 +402,49 @@ const UserDashboard = () => {
                 </View>
                 <Icon name="chevron-right" size={20} color="#999" />
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingsItem} activeOpacity={0.7}>
+                <View style={styles.settingsIconContainer}>
+                  <Icon name="help" size={24} color="#9C27B0" />
+                </View>
+                <View style={styles.settingsTextContainer}>
+                  <Text style={styles.settingsText}>Help & Support</Text>
+                  <Text style={styles.settingsSubtext}>Get help and contact support</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Account Info Section */}
+            <View style={styles.settingsGroup}>
+              <Text style={styles.settingsGroupTitle}>Account Information</Text>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{user?.email || 'Not set'}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Member Since</Text>
+                <Text style={styles.infoValue}>
+                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Last Login</Text>
+                <Text style={styles.infoValue}>
+                  {user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Status</Text>
+                <View style={[
+                  styles.statusBadge, 
+                  { backgroundColor: user?.status === 'active' ? '#4CAF50' : '#F44336' }
+                ]}>
+                  <Text style={styles.statusText}>
+                    {user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : 'Active'}
+                  </Text>
+                </View>
+              </View>
             </View>
           </ScrollView>
         );
@@ -356,8 +476,28 @@ const UserDashboard = () => {
         <TouchableOpacity onPress={toggleSidebar} style={styles.menuButton} activeOpacity={0.7}>
           <Icon name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-       
- 
+        
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>WasteWise</Text>
+          <Text style={styles.headerSubtitle}>{activeTab}</Text>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.profileButton}
+          onPress={() => navigateTo('EditProfile')}
+          activeOpacity={0.7}
+        >
+          {getProfilePicture() ? (
+            <Image 
+              source={getProfilePicture()} 
+              style={styles.headerProfileImage}
+            />
+          ) : (
+            <View style={styles.headerProfilePlaceholder}>
+              <Icon name="person" size={20} color="#FFFFFF" />
+            </View>
+          )}
+        </TouchableOpacity>
       </LinearGradient>
 
       {/* Main Content with Scale Animation */}
@@ -390,14 +530,26 @@ const UserDashboard = () => {
               style={styles.sidebarBackground}
             >
               <View style={styles.userInfoSidebar}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                  </Text>
+                <View style={styles.avatarContainer}>
+                  {getProfilePicture() ? (
+                    <Image 
+                      source={getProfilePicture()} 
+                      style={styles.sidebarProfileImage}
+                    />
+                  ) : (
+                    <View style={styles.sidebarAvatar}>
+                      <Text style={styles.sidebarAvatarText}>
+                        {getDisplayName().charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.onlineIndicator} />
                 </View>
-                <Text style={styles.userName}>{user?.name || 'WasteWise'}</Text>
+                <Text style={styles.userName}>{getDisplayName()}</Text>
                 <Text style={styles.userEmail}>{user?.email || ''}</Text>
-             
+                <View style={styles.userRoleBadge}>
+                  <Text style={styles.userRoleText}>{getDisplayRole()}</Text>
+                </View>
               </View>
 
               <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
@@ -476,7 +628,7 @@ const UserDashboard = () => {
         </>
       )}
 
-      {/* Enhanced Logout Modal */}
+      {/* Logout Confirmation Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -514,514 +666,5 @@ const UserDashboard = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  menuButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  headerTitleContainer: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    color: '#E3F2FD',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  logoutButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  mainContentWrapper: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  welcomeSection: {
-    marginBottom: 25,
-  },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1976D2',
-    marginBottom: 8,
-  },
-  welcomeSubtext: {
-    fontSize: 16,
-    color: '#666',
-    opacity: 0.8,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-  statCard: {
-    width: '48%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-  },
-  statGradient: {
-    padding: 20,
-    alignItems: 'center',
-    minHeight: 140,
-    justifyContent: 'center',
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginVertical: 8,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    opacity: 0.9,
-  },
-  statBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  quickActionsSection: {
-    marginBottom: 25,
-  },
-  quickActionsScroll: {
-    paddingLeft: 5,
-  },
-  quickActionCard: {
-    width: 120,
-    height: 100,
-    marginRight: 15,
-    borderRadius: 16,
-    borderWidth: 2,
-    overflow: 'hidden',
-  },
-  quickActionGradient: {
-    flex: 1,
-    padding: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickActionCount: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 2,
-  },
-  quickActionTitle: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
-  },
-  recentActivitySection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 25,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1976D2',
-    textAlign: 'center',
-  },
-  viewAllText: {
-    color: '#1976D2',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  activityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  activityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activityContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  activityText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  activityPoints: {
-    fontSize: 13,
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
-  activityTime: {
-    fontSize: 12,
-    color: '#999',
-  },
-  impactSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  impactGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  impactCard: {
-    alignItems: 'center',
-    flex: 1,
-    padding: 15,
-  },
-  impactNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginVertical: 5,
-  },
-  impactLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  settingsGroup: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  settingsIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 15,
-  },
-  settingsTextContainer: {
-    flex: 1,
-  },
-  settingsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  settingsSubtext: {
-    fontSize: 13,
-    color: '#666',
-  },
-  placeholderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  placeholderText: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
-    fontWeight: '600',
-  },
-  placeholderSubtext: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  sidebar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: width * 0.75,
-    zIndex: 1000,
-  },
-  sidebarBackground: {
-    flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
-  },
-  userInfoSidebar: {
-    alignItems: 'center',
-    paddingBottom: 25,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 20,
-  },
-  avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  avatarText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#1976D2',
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#E3F2FD',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  userStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  userStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  userStatNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  userStatLabel: {
-    fontSize: 12,
-    color: '#E3F2FD',
-    marginTop: 2,
-  },
-  userStatDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 15,
-  },
-  sidebarMenu: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    position: 'relative',
-  },
-  activeMenuItem: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 15,
-  },
-  menuText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    flex: 1,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    right: 16,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginVertical: 15,
-    marginHorizontal: 16,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    zIndex: 999,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 30,
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-  },
-  modalIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E3F2FD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1976D2',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 15,
-  },
-  modalButton: {
-    borderRadius: 12,
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    flex: 1,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cancelButton: {
-    backgroundColor: '#f5f5f5',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  logoutButtonModal: {
-    backgroundColor: '#1976D2',
-  },
-  logoutButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-});
 
 export default UserDashboard;

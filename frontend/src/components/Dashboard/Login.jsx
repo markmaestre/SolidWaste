@@ -16,8 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
-import { Ionicons } from '@expo/vector-icons'; // Importing icons
-
+import { Ionicons } from '@expo/vector-icons'; 
 const { width, height } = Dimensions.get('window');
 
 const Login = () => {

@@ -2,21 +2,33 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const auth = require('../middleware/auth')
-
+const auth = require('../middleware/auth');
+const cloudinary = require('../config/cloudinary'); // ✅ Cloudinary config file
 const router = express.Router();
 
-
+// ==================== REGISTER ====================
 router.post('/register', async (req, res) => {
   const { username, email, password, bod, gender, address, role } = req.body;
+
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already registered' });
     }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const newUser = new User({ username, email, password: hashedPassword, bod, gender, address, role });
+
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      bod,
+      gender,
+      address,
+      role,
+    });
+
     await newUser.save();
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
@@ -24,12 +36,12 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// ==================== LOGIN ====================
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid email or password' });
-
 
     if (user.status === 'banned') {
       return res.status(403).json({ message: 'Account is banned. Contact admin.' });
@@ -41,7 +53,9 @@ router.post('/login', async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
 
     res.json({
       token,
@@ -56,7 +70,7 @@ router.post('/login', async (req, res) => {
         profile: user.profile,
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
-        status: user.status
+        status: user.status,
       },
     });
   } catch (error) {
@@ -64,14 +78,39 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// ==================== UPDATE PROFILE (with Cloudinary) ====================
 router.put('/profile', auth, async (req, res) => {
-  const { username, bod, gender, address, profile } = req.body;
   try {
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user.id,
-      { username, bod, gender, address, profile },
-      { new: true }
-    );
+    const { username, bod, gender, address } = req.body;
+    let profileUrl;
+
+    // ✅ If user uploads an image (base64 or file path)
+    if (req.body.profile) {
+      try {
+        const uploadResponse = await cloudinary.uploader.upload(req.body.profile, {
+          folder: 'user_profiles',
+          resource_type: 'auto',
+        });
+        profileUrl = uploadResponse.secure_url;
+      } catch (uploadError) {
+        return res.status(500).json({ message: 'Error uploading to Cloudinary' });
+      }
+    }
+
+    const updatedFields = {
+      username,
+      bod,
+      gender,
+      address,
+    };
+
+    if (profileUrl) {
+      updatedFields.profile = profileUrl;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.user.id, updatedFields, {
+      new: true,
+    });
 
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
@@ -88,7 +127,7 @@ router.put('/profile', auth, async (req, res) => {
         address: updatedUser.address,
         profile: updatedUser.profile,
         role: updatedUser.role,
-        status: updatedUser.status
+        status: updatedUser.status,
       },
     });
   } catch (error) {
@@ -96,7 +135,7 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
-
+// ==================== GET ALL USERS (Admin only) ====================
 router.get('/all-users', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
@@ -110,12 +149,13 @@ router.get('/all-users', auth, async (req, res) => {
   }
 });
 
+// ==================== BAN / ACTIVATE USER ====================
 router.put('/ban/:id', auth, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Access denied. Admins only.' });
   }
 
-  const { status } = req.body; 
+  const { status } = req.body;
 
   if (!['banned', 'active'].includes(status)) {
     return res.status(400).json({ message: 'Invalid status value' });
