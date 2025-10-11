@@ -7,6 +7,7 @@ import Dashboard from '../components/Dashboard/Home';
 import Login from '../components/Dashboard/Login'; 
 import Register from '../components/Dashboard/Register';
 import UserDashboard from '../components/User/UserDashboard ';
+import EditProfile from '../components/User/EditProfile';
 
 
 const Stack = createStackNavigator();
@@ -31,6 +32,7 @@ const Navigator = () => {
         <Stack.Screen name="Register" component={Register} />
     
         <Stack.Screen name="UserDashboard" component={UserDashboard} />
+        <Stack.Screen name="EditProfile" component={EditProfile} />
 
       </Stack.Navigator>
     </Provider>

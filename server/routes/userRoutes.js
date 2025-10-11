@@ -3,8 +3,22 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const cloudinary = require('../config/cloudinary'); // ✅ Cloudinary config file
+const cloudinary = require('../config/cloudinary');
+const multer = require('multer');
+
 const router = express.Router();
+
+// Configure multer for memory storage (for form-data parsing)
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  }
+});
+
+// Middleware to parse form-data
+const parseFormData = upload.none();
 
 // ==================== REGISTER ====================
 router.post('/register', async (req, res) => {
@@ -78,43 +92,88 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ==================== UPDATE PROFILE (with Cloudinary) ====================
-router.put('/profile', auth, async (req, res) => {
+// ==================== UPDATE PROFILE (FIXED VERSION) ====================
+router.put('/profile', auth, parseFormData, async (req, res) => {
   try {
-    const { username, bod, gender, address } = req.body;
-    let profileUrl;
+    console.log('🔧 Profile update request received for user:', req.user.id);
+    console.log('📦 Request body:', req.body);
 
-    // ✅ If user uploads an image (base64 or file path)
-    if (req.body.profile) {
-      try {
-        const uploadResponse = await cloudinary.uploader.upload(req.body.profile, {
-          folder: 'user_profiles',
-          resource_type: 'auto',
-        });
-        profileUrl = uploadResponse.secure_url;
-      } catch (uploadError) {
-        return res.status(500).json({ message: 'Error uploading to Cloudinary' });
+    const { username, email, bod, gender, address, profile } = req.body;
+    
+    const updatedFields = {};
+
+    // ✅ Handle text fields - only update if they exist and are not empty
+    if (username !== undefined && username !== '') {
+      updatedFields.username = username;
+      console.log('📝 Updating username:', username);
+    }
+    if (email !== undefined && email !== '') {
+      updatedFields.email = email;
+      console.log('📝 Updating email:', email);
+    }
+    if (bod !== undefined && bod !== '') {
+      updatedFields.bod = bod;
+      console.log('📝 Updating bod:', bod);
+    }
+    if (gender !== undefined && gender !== '') {
+      updatedFields.gender = gender;
+      console.log('📝 Updating gender:', gender);
+    }
+    if (address !== undefined && address !== '') {
+      updatedFields.address = address;
+      console.log('📝 Updating address:', address);
+    }
+
+    // ✅ Handle profile image update/removal
+    if (profile !== undefined) {
+      if (profile === '') {
+        // User wants to remove profile picture
+        updatedFields.profile = null;
+        console.log('🗑️ Removing profile picture');
+      } else if (profile && profile.startsWith('data:image')) {
+        // User uploaded new image (base64)
+        try {
+          console.log('📸 Uploading new profile picture to Cloudinary...');
+          const uploadResponse = await cloudinary.uploader.upload(profile, {
+            folder: 'user_profiles',
+            resource_type: 'image',
+          });
+          updatedFields.profile = uploadResponse.secure_url;
+          console.log('✅ Image uploaded to Cloudinary:', uploadResponse.secure_url);
+        } catch (uploadError) {
+          console.error('❌ Cloudinary upload error:', uploadError);
+          return res.status(500).json({ message: 'Error uploading image to Cloudinary' });
+        }
       }
     }
 
-    const updatedFields = {
-      username,
-      bod,
-      gender,
-      address,
-    };
+    console.log('🔄 Fields to update:', updatedFields);
 
-    if (profileUrl) {
-      updatedFields.profile = profileUrl;
+    // Check if there are any fields to update
+    if (Object.keys(updatedFields).length === 0) {
+      return res.status(400).json({ message: 'No fields to update' });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.user.id, updatedFields, {
-      new: true,
-    });
+    // Update user in database
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id, 
+      { $set: updatedFields }, 
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
 
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log('✅ User updated successfully:', {
+      id: updatedUser._id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      profile: updatedUser.profile
+    });
 
     res.json({
       message: 'Profile updated successfully',
@@ -128,10 +187,58 @@ router.put('/profile', auth, async (req, res) => {
         profile: updatedUser.profile,
         role: updatedUser.role,
         status: updatedUser.status,
+        createdAt: updatedUser.createdAt,
+        lastLogin: updatedUser.lastLogin,
       },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error during profile update' });
+    console.error('❌ Profile update error:', error);
+    res.status(500).json({ message: 'Server error during profile update: ' + error.message });
+  }
+});
+
+// ==================== GET CURRENT USER PROFILE ====================
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        gender: user.gender,
+        bod: user.bod,
+        address: user.address,
+        profile: user.profile,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ message: 'Server error fetching user data' });
+  }
+});
+
+// ==================== CHECK EMAIL ====================
+router.post('/check-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const existingUser = await User.findOne({ email });
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+    
+    res.json({ message: 'Email available' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking email' });
   }
 });
 
@@ -162,7 +269,11 @@ router.put('/ban/:id', auth, async (req, res) => {
   }
 
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const user = await User.findByIdAndUpdate(
+      req.params.id, 
+      { status }, 
+      { new: true }
+    ).select('-password');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });

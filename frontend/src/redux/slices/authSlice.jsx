@@ -12,6 +12,7 @@ const initialState = {
   profileUpdateLoading: false,
 };
 
+// Register User
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
   try {
     const res = await axiosInstance.post('/users/register', formData);
@@ -21,6 +22,7 @@ export const registerUser = createAsyncThunk('users/register', async (formData, 
   }
 });
 
+// Login User
 export const loginUser = createAsyncThunk('users/login', async ({ email, password }, thunkAPI) => {
   try {
     const res = await axiosInstance.post('/users/login', { email, password });
@@ -30,26 +32,40 @@ export const loginUser = createAsyncThunk('users/login', async ({ email, passwor
   }
 });
 
-// Updated editProfile with image upload support
+// Edit Profile - UPDATED
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
     const token = state.auth.token;
 
+    console.log('🔄 Sending profile update request...');
+    console.log('📤 FormData contents:');
+    
+    // Log FormData contents for debugging
+    for (let [key, value] of formData.entries()) {
+      if (key === 'profile' && value && value.startsWith('data:image')) {
+        console.log(`  ${key}: [Base64 Image Data - ${value.length} chars]`);
+      } else {
+        console.log(`  ${key}:`, value);
+      }
+    }
+
     const res = await axiosInstance.put('/users/profile', formData, {
       headers: {
         Authorization: token,
-        'Content-Type': 'multipart/form-data', // Important for file upload
+        'Content-Type': 'multipart/form-data',
       },
     });
 
+    console.log('✅ Profile update response:', res.data);
     return res.data.user;
   } catch (error) {
+    console.error('❌ Profile update error in thunk:', error);
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Profile update failed');
   }
 });
 
-// New: Get current user profile
+// Get Current User Profile
 export const getCurrentUser = createAsyncThunk('users/getCurrentUser', async (_, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
@@ -67,31 +83,7 @@ export const getCurrentUser = createAsyncThunk('users/getCurrentUser', async (_,
   }
 });
 
-// New: Update profile picture only
-export const updateProfilePicture = createAsyncThunk(
-  'users/updateProfilePicture',
-  async (imageFile, thunkAPI) => {
-    try {
-      const state = thunkAPI.getState();
-      const token = state.auth.token;
-
-      const formData = new FormData();
-      formData.append('profileImage', imageFile);
-
-      const res = await axiosInstance.put('/users/profile', formData, {
-        headers: {
-          Authorization: token,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      return res.data.user;
-    } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update profile picture');
-    }
-  }
-);
-
+// Fetch All Users (Admin)
 export const fetchAllUsers = createAsyncThunk('users/fetchAllUsers', async (_, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
@@ -109,6 +101,7 @@ export const fetchAllUsers = createAsyncThunk('users/fetchAllUsers', async (_, t
   }
 });
 
+// Update User Status
 export const updateUserStatus = createAsyncThunk(
   'users/updateUserStatus',
   async ({ id, status }, thunkAPI) => {
@@ -129,6 +122,7 @@ export const updateUserStatus = createAsyncThunk(
   }
 );
 
+// Check Email
 export const checkEmail = createAsyncThunk(
   'auth/checkEmail',
   async (email, { rejectWithValue }) => {
@@ -161,18 +155,20 @@ const authSlice = createSlice({
     clearProfileUpdateLoading: (state) => {
       state.profileUpdateLoading = false;
     },
-    // New: Update user profile locally without API call
     updateUserProfileLocal: (state, action) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
       }
     },
-    // New: Update user in users list (for admin)
     updateUserInList: (state, action) => {
       const updatedUser = action.payload;
       state.users = state.users.map((user) =>
         user._id === updatedUser._id ? updatedUser : user
       );
+    },
+    setCredentials: (state, action) => {
+      state.user = action.payload.user;
+      state.token = action.payload.token;
     },
   },
   extraReducers: (builder) => {
@@ -205,17 +201,17 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
      
-      // Edit Profile - Enhanced with separate loading state
+      // Edit Profile - UPDATED
       .addCase(editProfile.pending, (state) => {
         state.profileUpdateLoading = true;
         state.error = null;
       })
       .addCase(editProfile.fulfilled, (state, action) => {
         state.profileUpdateLoading = false;
-        state.user = { ...state.user, ...action.payload };
+        state.user = action.payload;
         // Also update in users list if user is admin viewing users
         state.users = state.users.map((user) =>
-          user._id === action.payload._id ? action.payload : user
+          user._id === action.payload.id ? action.payload : user
         );
       })
       .addCase(editProfile.rejected, (state, action) => {
@@ -233,20 +229,6 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
-      })
-   
-      // Update Profile Picture
-      .addCase(updateProfilePicture.pending, (state) => {
-        state.profileUpdateLoading = true;
-        state.error = null;
-      })
-      .addCase(updateProfilePicture.fulfilled, (state, action) => {
-        state.profileUpdateLoading = false;
-        state.user = { ...state.user, ...action.payload };
-      })
-      .addCase(updateProfilePicture.rejected, (state, action) => {
-        state.profileUpdateLoading = false;
         state.error = action.payload;
       })
    
@@ -276,7 +258,7 @@ const authSlice = createSlice({
           user._id === updatedUser._id ? updatedUser : user
         );
         // If updated user is the current user, update local state too
-        if (state.user && state.user._id === updatedUser._id) {
+        if (state.user && state.user.id === updatedUser._id) {
           state.user = { ...state.user, status: updatedUser.status };
         }
       })
@@ -306,7 +288,8 @@ export const {
   clearError, 
   clearProfileUpdateLoading,
   updateUserProfileLocal,
-  updateUserInList 
+  updateUserInList,
+  setCredentials
 } = authSlice.actions;
 
 export default authSlice.reducer;
