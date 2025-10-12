@@ -16,7 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
-import { Ionicons } from '@expo/vector-icons'; 
+
 const { width, height } = Dimensions.get('window');
 
 const Login = () => {
@@ -60,7 +60,6 @@ const Login = () => {
   };
 
   const navigateToDashboard = () => {
-   
     navigation.navigate('Dashboard');
   };
 
@@ -69,19 +68,25 @@ const Login = () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#1976D2" />
+      <StatusBar barStyle="light-content" backgroundColor="#0D47A1" />
       
       <LinearGradient
-        colors={['#1976D2', '#1E88E5', '#42A5F5']}
+        colors={['#0D47A1', '#1565C0', '#1976D2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        {/* Home Icon in Top Right */}
+        {/* Decorative Elements */}
+        <View style={styles.topCircle} />
+        <View style={styles.bottomCircle} />
+        
+        {/* Home Button */}
         <TouchableOpacity 
-          style={styles.homeIcon}
+          style={styles.homeButton}
           onPress={navigateToDashboard}
           activeOpacity={0.7}
         >
-          <Ionicons name="home" size={28} color="#FFFFFF" />
+          <Text style={styles.homeButtonText}>HOME</Text>
         </TouchableOpacity>
         
         <ScrollView 
@@ -90,21 +95,37 @@ const Login = () => {
         >
           {/* Header Section */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🌍</Text>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoBox}>
+                <Text style={styles.logoLetter}>W</Text>
+              </View>
+            </View>
             <Text style={styles.title}>WasteWise</Text>
             <Text style={styles.subtitle}>Building Cleaner Communities</Text>
+            <View style={styles.underline} />
           </View>
 
           {/* Login Form */}
           <View style={styles.formContainer}>
-            <Text style={styles.welcomeText}>Welcome Back!</Text>
+            <View style={styles.formHeader}>
+              <Text style={styles.welcomeText}>Welcome Back!</Text>
+              <Text style={styles.welcomeSubtext}>Please sign in to continue</Text>
+            </View>
             
+            {/* Error Message */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <View style={styles.errorDot} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
               <TextInput
                 placeholder="Enter your email"
-                placeholderTextColor="#90CAF9"
+                placeholderTextColor="#90A4AE"
                 style={[
                   styles.input,
                   focusedField === 'email' && styles.inputFocused
@@ -121,10 +142,10 @@ const Login = () => {
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>PASSWORD</Text>
               <TextInput
                 placeholder="Enter your password"
-                placeholderTextColor="#90CAF9"
+                placeholderTextColor="#90A4AE"
                 style={[
                   styles.input,
                   focusedField === 'password' && styles.inputFocused
@@ -139,13 +160,6 @@ const Login = () => {
               />
             </View>
 
-            {/* Error Message */}
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>⚠️ {error}</Text>
-              </View>
-            )}
-
             {/* Login Button */}
             <TouchableOpacity
               style={[
@@ -157,11 +171,13 @@ const Login = () => {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={loading ? ['#64B5F6', '#64B5F6'] : ['#42A5F5', '#1976D2']}
+                colors={loading ? ['#64B5F6', '#64B5F6'] : ['#1E88E5', '#1565C0']}
                 style={styles.buttonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
               >
                 <Text style={styles.loginButtonText}>
-                  {loading ? '♻️ Logging in...' : 'Login'}
+                  {loading ? 'SIGNING IN...' : 'SIGN IN'}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -169,7 +185,7 @@ const Login = () => {
             {/* Divider */}
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>OR</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -180,15 +196,19 @@ const Login = () => {
                 onPress={navigateToRegister}
                 activeOpacity={0.7}
               >
-                <Text style={styles.registerLink}>Register here</Text>
+                <Text style={styles.registerLink}>Create Account</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Footer */}
           <View style={styles.footer}>
+            <View style={styles.footerLine} />
             <Text style={styles.footerText}>
-              Creating sustainable communities together 
+              Creating sustainable communities together
+            </Text>
+            <Text style={styles.copyrightText}>
+              © 2025 WasteWise. All rights reserved.
             </Text>
           </View>
         </ScrollView>
@@ -206,176 +226,256 @@ const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
+  topCircle: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    top: -100,
+    right: -50,
+  },
+  bottomCircle: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    bottom: -50,
+    left: -50,
+  },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 40,
   },
-  homeIcon: {
+  homeButton: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 50 : 20,
     right: 20,
     zIndex: 10,
-    padding: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  homeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   header: {
     alignItems: 'center',
     marginBottom: 40,
   },
-  logo: {
-    fontSize: 60,
-    marginBottom: 10,
+  logoContainer: {
+    marginBottom: 16,
+  },
+  logoBox: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  logoLetter: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0D47A1',
   },
   title: {
-    fontSize: 32,
+    fontSize: 38,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 5,
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#E3F2FD',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    fontStyle: 'italic',
+    marginBottom: 16,
+    letterSpacing: 0.3,
+  },
+  underline: {
+    width: 70,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 2,
   },
   formContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
     marginBottom: 30,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.35,
+    shadowRadius: 25,
+    elevation: 15,
+  },
+  formHeader: {
+    marginBottom: 28,
+    alignItems: 'center',
   },
   welcomeText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
-    textAlign: 'center',
-    marginBottom: 25,
+    color: '#0D47A1',
+    marginBottom: 6,
+    letterSpacing: 0.3,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1976D2',
-    marginBottom: 8,
-    marginLeft: 5,
-  },
-  input: {
-    height: 55,
-    borderWidth: 2,
-    borderColor: '#BBDEFB',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    backgroundColor: '#E3F2FD',
-    color: '#1976D2',
-  },
-  inputFocused: {
-    borderColor: '#42A5F5',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#42A5F5',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
+  welcomeSubtext: {
+    fontSize: 15,
+    color: '#607D8B',
+    letterSpacing: 0.2,
   },
   errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFEBEE',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#F44336',
+    borderLeftColor: '#E53935',
+  },
+  errorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E53935',
+    marginRight: 12,
   },
   errorText: {
-    color: '#D32F2F',
+    flex: 1,
+    color: '#C62828',
     fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  inputContainer: {
+    marginBottom: 22,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#455A64',
+    marginBottom: 10,
+    letterSpacing: 0.8,
+  },
+  input: {
+    height: 56,
+    borderWidth: 2,
+    borderColor: '#CFD8DC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    backgroundColor: '#F5F5F5',
+    color: '#263238',
     fontWeight: '500',
   },
+  inputFocused: {
+    borderColor: '#1976D2',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   loginButton: {
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 24,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#1976D2',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: '#1565C0',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   loginButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.65,
   },
   buttonGradient: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loginButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    letterSpacing: 1.5,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#BBDEFB',
+    backgroundColor: '#E0E0E0',
   },
   dividerText: {
-    marginHorizontal: 15,
-    fontSize: 14,
-    color: '#64B5F6',
-    fontWeight: '500',
+    marginHorizontal: 16,
+    fontSize: 12,
+    color: '#9E9E9E',
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    flexWrap: 'wrap',
   },
   registerText: {
-    fontSize: 16,
-    color: '#666666',
-    marginRight: 5,
+    fontSize: 15,
+    color: '#607D8B',
+    marginBottom: 12,
+    letterSpacing: 0.2,
   },
   registerLink: {
     fontSize: 16,
-    color: '#1976D2',
+    color: '#1565C0',
     fontWeight: 'bold',
+    letterSpacing: 0.3,
     textDecorationLine: 'underline',
   },
   footer: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 24,
+    paddingBottom: 10,
+  },
+  footerLine: {
+    width: 60,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 1,
+    marginBottom: 14,
   },
   footerText: {
     fontSize: 14,
-    color: '#E3F2FD',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    fontStyle: 'italic',
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  copyrightText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.65)',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });

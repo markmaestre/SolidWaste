@@ -20,7 +20,7 @@ import { logoutUser } from '../../redux/slices/authSlice';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { styles } from '../../components/Css/UserDashboard';
+import { styles } from '../../components/Styles/UserDashboard';
 
 const { width, height } = Dimensions.get('window');
 
@@ -218,6 +218,10 @@ const UserDashboard = () => {
         case 'EditProfile':
           navigation.navigate('EditProfile');
           break;
+        case 'FeedbackSupport':
+          // Navigate to FeedbackSupport screen
+          navigation.navigate('FeedbackSupport');
+          break;
         case 'WasteDetection':
           // Main feature - Waste Detection
           Alert.alert('Waste Detection', 'Open camera for waste detection', [
@@ -257,12 +261,6 @@ const UserDashboard = () => {
         case 'Notifications':
           // Notifications and Alerts
           Alert.alert('Notifications', 'View your notifications and alerts', [
-            { text: 'OK', style: 'default' }
-          ]);
-          break;
-        case 'FeedbackSupport':
-          // Feedback and Support
-          Alert.alert('Feedback & Support', 'Provide feedback or get support', [
             { text: 'OK', style: 'default' }
           ]);
           break;
@@ -784,7 +782,7 @@ const UserDashboard = () => {
                   )}
                 </TouchableOpacity>
 
-                {/* Feedback and Support */}
+                {/* Feedback and Support - UPDATED to navigate to FeedbackSupport screen */}
                 <TouchableOpacity 
                   style={[styles.menuItem, activeTab === 'FeedbackSupport' && styles.activeMenuItem]}
                   onPress={() => navigateTo('FeedbackSupport')}

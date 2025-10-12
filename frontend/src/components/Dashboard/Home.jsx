@@ -1,331 +1,505 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  ImageBackground,
   Dimensions,
   StyleSheet,
   StatusBar,
   TextInput,
-  Animated,
   SafeAreaView,
-  FlatList,
 } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState('home');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [hoveredFeature, setHoveredFeature] = useState(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [activeTab, setActiveTab] = useState('home');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    organization: '',
+    message: ''
+  });
 
-  const features = [
-    { icon: '🤖', title: 'AI Waste Classification', desc: 'YOLO-powered intelligent waste identification and sorting' },
-    { icon: '📱', title: 'Smart Detection Camera', desc: 'Real-time waste classification through mobile scanning' },
-    { icon: '🗑️', title: 'Waste Collection Hub', desc: 'Smart scheduling and route optimization for pickups' },
-    { icon: '♻️', title: 'Recycling Center Locator', desc: 'Find nearby recycling facilities and drop-off points' },
-    { icon: '📊', title: 'Digital Waste Tracker', desc: 'Monitor waste generation and classification patterns' },
-    { icon: '🚨', title: 'Collection Alerts', desc: 'Real-time notifications for pickup schedules' },
-    { icon: '🎥', title: 'Educational Videos', desc: 'Learn proper waste sorting and recycling methods' },
-    { icon: '🎓', title: 'Sustainability Courses', desc: 'Training on AI-driven waste reduction practices' },
-    { icon: '🤝', title: 'Community Green Network', desc: 'Connect with local environmental initiatives' },
-    { icon: '📞', title: 'EcoSupport Helpline', desc: 'Chat with waste management specialists' },
-    { icon: '📈', title: 'Barangay Analytics Dashboard', desc: 'AI insights on community waste patterns' },
-    { icon: '🔬', title: 'Machine Learning Insights', desc: 'Advanced waste classification and trend analysis' }
-  ];
-
-  const testimonials = [
-    { name: 'Maria Santos', location: 'Quezon City', text: 'Waste-Wise AI helped our barangay improve waste sorting by 85%!', rating: 5 },
-    { name: 'Juan Dela Cruz', location: 'Makati', text: 'The YOLO classification system is incredibly accurate and fast.', rating: 5 },
-    { name: 'Rosa Mendoza', location: 'Cebu City', text: 'Smart waste detection made recycling so much easier for our community.', rating: 5 }
-  ];
-
-  const heroSlides = [
-    { icon: '🤖', text: 'AI-Driven Waste Classification' },
-    { icon: '🔍', text: 'YOLO Smart Detection' },
-    { icon: '🌱', text: 'Sustainable Practices' }
-  ];
-
-  useEffect(() => {
-    // Fade in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-
-    // Auto-slide for hero features
-    const interval = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % 3);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: currentSlide,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-  }, [currentSlide]);
-
-  const handleScroll = (event) => {
-    const scrollPosition = event.nativeEvent.contentOffset.y;
-    setIsScrolled(scrollPosition > 50);
+  const handleFormChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
   };
 
-  const handleLogin = () => {
-    navigation.navigate('Login');
+  const handleSubmit = () => {
+    alert('Thank you for contacting us! We will respond within 24 hours.');
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      organization: '',
+      message: ''
+    });
   };
-
-  const renderFeatureCard = ({ item, index }) => (
-    <TouchableOpacity 
-      style={[styles.featureCard, hoveredFeature === index && styles.featureCardHovered]}
-      onPressIn={() => setHoveredFeature(index)}
-      onPressOut={() => setHoveredFeature(null)}
-    >
-      <Text style={styles.featureIcon}>{item.icon}</Text>
-      <Text style={styles.featureTitle}>{item.title}</Text>
-      <Text style={styles.featureDesc}>{item.desc}</Text>
-    </TouchableOpacity>
-  );
-
-  const renderTestimonialCard = ({ item }) => (
-    <View style={styles.testimonialCard}>
-      <Text style={styles.testimonialText}>"{item.text}"</Text>
-      <Text style={styles.stars}>{'⭐'.repeat(item.rating)}</Text>
-      <Text style={styles.testimonialAuthor}>{item.name}</Text>
-      <Text style={styles.testimonialLocation}>{item.location}</Text>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1976d2" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Navigation Bar */}
-      <Animated.View style={[
-        styles.navbar,
-        {
-          backgroundColor: isScrolled ? 'rgba(25, 118, 210, 0.95)' : 'rgba(25, 118, 210, 0.1)',
-          borderBottomWidth: isScrolled ? 1 : 0,
-          borderBottomColor: 'rgba(255,255,255,0.1)'
-        }
-      ]}>
-        <TouchableOpacity style={styles.logo}>
-          <Text style={styles.logoText}> Waste-Wise</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-          <Text style={styles.loginBtnText}>Login</Text>
-        </TouchableOpacity>
-      </Animated.View>
+      {/* Header Navigation */}
+      <View style={styles.header}>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>WasteWise</Text>
+        </View>
 
-      <ScrollView
+        <View style={styles.navLinks}>
+          <TouchableOpacity 
+            style={styles.navLink}
+            onPress={() => setActiveTab('home')}
+          >
+            <Text style={[styles.navLinkText, activeTab === 'home' && styles.navLinkActive]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.navLink}
+            onPress={() => setActiveTab('about')}
+          >
+            <Text style={[styles.navLinkText, activeTab === 'about' && styles.navLinkActive]}>
+              About
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.navLink}
+            onPress={() => setActiveTab('services')}
+          >
+            <Text style={[styles.navLinkText, activeTab === 'services' && styles.navLinkActive]}>
+              Services
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.navLink}
+            onPress={() => setActiveTab('contact')}
+          >
+            <Text style={[styles.navLinkText, activeTab === 'contact' && styles.navLinkActive]}>
+              Contact
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView 
         style={styles.scrollView}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Section */}
-        <ImageBackground
-          source={{ uri: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?fit=crop&w=1400&q=80' }}
-          style={styles.hero}
-          imageStyle={styles.heroImage}
-        >
-          <View style={styles.heroOverlay} />
-          <Animated.View style={[styles.heroContent, { opacity: fadeAnim }]}>
-            <Text style={styles.heroTitle}>AI-Driven Solid Waste Classification Using YOLO for Sustainable Waste Management Practices</Text>
-            <Text style={styles.heroSubtitle}>
-              Transform your community's waste management with intelligent YOLO-powered classification systems, 
-              real-time AI detection, advanced machine learning insights, and sustainable disposal solutions.
-            </Text>
-            
-            <View style={styles.ctaContainer}>
-              <TouchableOpacity style={styles.ctaButton} onPress={handleLogin}>
-                <Text style={styles.ctaButtonText}>Start Smart Classification</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryCta}>
-                <Text style={styles.secondaryCtaText}>Watch AI Demo</Text>
-              </TouchableOpacity>
+        {activeTab === 'home' && (
+          <>
+            {/* Hero Banner */}
+            <View style={styles.heroBanner}>
+              <View style={styles.heroContent}>
+                <Text style={styles.heroTitle}>Smart Waste Management Solutions</Text>
+                <Text style={styles.heroSubtitle}>
+                  Revolutionizing waste classification with advanced AI technology for a sustainable future
+                </Text>
+                <View style={styles.heroButtons}>
+                  <TouchableOpacity
+                    style={styles.heroBtnPrimary}
+                    onPress={() => navigation.navigate('Login')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.heroBtnPrimaryText}>Get Started</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.heroBtnSecondary}
+                    onPress={() => navigation.navigate('Register')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.heroBtnSecondaryText}>Learn More</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
 
-            {/* Feature Slider */}
-            <View style={styles.featuresSlider}>
-              {heroSlides.map((slide, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.slide,
-                    {
-                      transform: [{
-                        translateX: slideAnim.interpolate({
-                          inputRange: [0, 1, 2],
-                          outputRange: [index * width * 0.8, (index - 1) * width * 0.8, (index - 2) * width * 0.8]
-                        })
-                      }],
-                      opacity: currentSlide === index ? 1 : 0.3
-                    }
-                  ]}
-                >
-                  <Text style={styles.slideIcon}>{slide.icon}</Text>
-                  <Text style={styles.slideText}>{slide.text}</Text>
-                </Animated.View>
-              ))}
+            {/* Stats Section */}
+            <View style={styles.section}>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>99%</Text>
+                  <Text style={styles.statLabel}>Classification Accuracy</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>24/7</Text>
+                  <Text style={styles.statLabel}>Technical Support</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>10K+</Text>
+                  <Text style={styles.statLabel}>Active Users</Text>
+                </View>
+              </View>
             </View>
-          </Animated.View>
-        </ImageBackground>
 
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About Waste-Wise</Text>
-          <Text style={styles.sectionSubtitle}>
-            Bridging the gap between traditional waste management and cutting-edge AI technology to create intelligent environmental solutions.
-          </Text>
-          
-          <View style={styles.aboutContent}>
-            <View style={styles.aboutText}>
-              <Text style={styles.aboutHeading}>Our Mission</Text>
-              <Text style={styles.aboutDescription}>
-                Waste-Wise is dedicated to empowering communities across the Philippines with advanced 
-                AI-driven waste classification technology and sustainable management tools. We believe that every community deserves access to 
-                intelligent YOLO-powered systems that can accurately identify, sort, and manage waste for cleaner environments.
-              </Text>
+            {/* Features Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Why Choose WasteWise</Text>
               
-              <Text style={styles.aboutHeading}>What We Do</Text>
-              <Text style={styles.aboutDescription}>
-                Our comprehensive platform combines YOLO object detection with traditional waste management practices, 
-                using artificial intelligence, machine learning classification, route optimization, and community engagement 
-                to create a holistic smart environmental solution.
+              <View style={styles.featureCard}>
+                <Text style={styles.featureTitle}>AI-Powered Classification</Text>
+                <Text style={styles.featureText}>
+                  Our advanced machine learning algorithms ensure accurate waste identification and sorting recommendations.
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <Text style={styles.featureTitle}>Real-Time Analytics</Text>
+                <Text style={styles.featureText}>
+                  Access comprehensive data insights to optimize your waste management operations and track sustainability metrics.
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <Text style={styles.featureTitle}>Scalable Solutions</Text>
+                <Text style={styles.featureText}>
+                  Whether you're managing waste for a household or an entire municipality, our platform scales to meet your needs.
+                </Text>
+              </View>
+            </View>
+
+            {/* CTA Section */}
+            <View style={styles.ctaSection}>
+              <Text style={styles.ctaTitle}>Ready to Transform Your Waste Management?</Text>
+              <Text style={styles.ctaText}>
+                Join leading organizations using WasteWise for intelligent waste classification and sustainable operations
+              </Text>
+              <TouchableOpacity
+                style={styles.ctaButton}
+                onPress={() => navigation.navigate('Register')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.ctaButtonText}>Start Free Trial</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.ctaLink}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={styles.ctaLinkText}>Already have an account? Sign in</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {activeTab === 'about' && (
+          <View style={styles.section}>
+            <Text style={styles.pageTitle}>About WasteWise</Text>
+            
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Our Mission</Text>
+              <Text style={styles.contentText}>
+                WasteWise is dedicated to revolutionizing waste management through cutting-edge artificial intelligence and data-driven insights. Our mission is to empower organizations and communities with the tools they need to achieve sustainable waste management practices and contribute to a cleaner environment.
+              </Text>
+            </View>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Our Vision</Text>
+              <Text style={styles.contentText}>
+                To become the global standard for intelligent waste management solutions, driving environmental sustainability through innovation, technology, and community engagement. We envision a future where every piece of waste is properly classified, processed, and recycled, minimizing environmental impact and maximizing resource recovery.
+              </Text>
+            </View>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Advanced Technology</Text>
+              <Text style={styles.contentText}>
+                Our platform leverages state-of-the-art machine learning models trained on extensive datasets to deliver industry-leading accuracy in waste classification. We continuously improve our algorithms to adapt to new materials and waste types, ensuring our solution remains at the forefront of waste management technology.
+              </Text>
+            </View>
+
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>1M+</Text>
+                <Text style={styles.statLabel}>Items Classified</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>500+</Text>
+                <Text style={styles.statLabel}>Partner Organizations</Text>
+              </View>
+            </View>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Core Capabilities</Text>
+              <View style={styles.capabilityItem}>
+                <View style={styles.bulletDot} />
+                <Text style={styles.capabilityText}>Advanced AI-powered waste identification and classification</Text>
+              </View>
+              <View style={styles.capabilityItem}>
+                <View style={styles.bulletDot} />
+                <Text style={styles.capabilityText}>Real-time waste stream monitoring and analytics</Text>
+              </View>
+              <View style={styles.capabilityItem}>
+                <View style={styles.bulletDot} />
+                <Text style={styles.capabilityText}>Intelligent route optimization for collection services</Text>
+              </View>
+              <View style={styles.capabilityItem}>
+                <View style={styles.bulletDot} />
+                <Text style={styles.capabilityText}>Comprehensive reporting and sustainability metrics</Text>
+              </View>
+              <View style={styles.capabilityItem}>
+                <View style={styles.bulletDot} />
+                <Text style={styles.capabilityText}>Enterprise-grade security and data protection</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'services' && (
+          <View style={styles.section}>
+            <Text style={styles.pageTitle}>Our Services</Text>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>01</Text>
+                <Text style={styles.serviceTitle}>Waste Classification AI</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Industry-leading machine learning algorithms that provide accurate, real-time identification of waste materials across multiple categories, ensuring proper disposal and maximizing recycling efficiency.
+              </Text>
+            </View>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>02</Text>
+                <Text style={styles.serviceTitle}>Smart Detection Platform</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Mobile and web-based scanning technology that delivers instant waste identification and disposal recommendations, empowering users to make informed decisions about waste sorting.
+              </Text>
+            </View>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>03</Text>
+                <Text style={styles.serviceTitle}>Operations Management</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Comprehensive collection scheduling and route optimization tools that reduce operational costs, improve efficiency, and enhance service delivery across your waste management operations.
+              </Text>
+            </View>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>04</Text>
+                <Text style={styles.serviceTitle}>Analytics & Insights</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Advanced data visualization and reporting capabilities that transform waste data into actionable insights, enabling data-driven decision-making for sustainability initiatives.
+              </Text>
+            </View>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>05</Text>
+                <Text style={styles.serviceTitle}>Recycling Network Integration</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Seamless connection to certified recycling facilities and partners, with comprehensive tracking of environmental impact through detailed sustainability metrics and performance indicators.
+              </Text>
+            </View>
+
+            <View style={styles.serviceCard}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNumber}>06</Text>
+                <Text style={styles.serviceTitle}>Training & Education</Text>
+              </View>
+              <Text style={styles.serviceDesc}>
+                Extensive library of educational resources, training programs, and best practices for waste management professionals and organizations committed to environmental sustainability.
               </Text>
             </View>
           </View>
+        )}
 
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>100K+</Text>
-              <Text style={styles.statLabel}>Waste Items Classified</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>95%</Text>
-              <Text style={styles.statLabel}>AI Accuracy Rate</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>500+</Text>
-              <Text style={styles.statLabel}>Smart Routes</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>24/7</Text>
-              <Text style={styles.statLabel}>AI Support</Text>
-            </View>
-          </View>
-
-          {/* Testimonials */}
-          <View style={styles.testimonials}>
-            <Text style={styles.testimonialsTitle}>What Communities Say</Text>
-            <FlatList
-              data={testimonials}
-              renderItem={renderTestimonialCard}
-              keyExtractor={(item, index) => index.toString()}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.testimonialSlider}
-            />
-          </View>
-        </View>
-
-        {/* Services Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Our AI-Powered Services</Text>
-          <Text style={styles.sectionSubtitle}>
-            Comprehensive intelligent waste classification solutions designed to maximize your environmental impact through advanced technology.
-          </Text>
-          
-          <FlatList
-            data={features}
-            renderItem={renderFeatureCard}
-            keyExtractor={(item, index) => index.toString()}
-            numColumns={2}
-            scrollEnabled={false}
-            contentContainerStyle={styles.featuresGrid}
-          />
-
-          <View style={styles.ctaSection}>
-            <Text style={styles.ctaSectionTitle}>Ready to Transform Your Waste Management with AI?</Text>
-            <Text style={styles.ctaSectionSubtitle}>
-              Join thousands of communities who are already using Waste-Wise YOLO technology to classify waste intelligently and improve sustainability.
-            </Text>
-            <TouchableOpacity style={styles.ctaButton} onPress={handleLogin}>
-              <Text style={styles.ctaButtonText}>Get Started with AI 🤖</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Contact Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Us</Text>
-          <Text style={styles.sectionSubtitle}>
-            Have questions about our AI waste classification system? We're here to help you achieve your sustainability goals.
-          </Text>
-          
-          <View style={styles.contactForm}>
-            <Text style={styles.formTitle}>Send us a Message</Text>
-            <TextInput style={styles.input} placeholder="Full Name" placeholderTextColor="#999" />
-            <TextInput style={styles.input} placeholder="Email Address" placeholderTextColor="#999" />
-            <TextInput style={styles.input} placeholder="Phone Number" placeholderTextColor="#999" />
-            <TextInput style={styles.input} placeholder="Community/Organization" placeholderTextColor="#999" />
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Tell us about your AI waste classification needs..."
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <TouchableOpacity style={styles.submitBtn}>
-              <Text style={styles.submitBtnText}>Send Message 📤</Text>
-            </TouchableOpacity>
-          </View>
-
-         
+        {activeTab === 'contact' && (
+          <View style={styles.section}>
+            <Text style={styles.pageTitle}>Contact Us</Text>
             
-            <View style={styles.contactItem}>
-              <Text style={styles.contactIcon}>📞</Text>
-              <View>
-                <Text style={styles.contactTitle}>Phone Support</Text>
-                <Text style={styles.contactText}>+63 2 8123 4567{'\n'}Mon-Fri: 8AM-6PM{'\n'}Sat: 8AM-12PM</Text>
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Get in Touch</Text>
+              <Text style={styles.contentText}>
+                Our team is ready to assist you with any questions about our platform, services, or how WasteWise can support your sustainability goals. Reach out through any of the channels below.
+              </Text>
+            </View>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Send Us a Message</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#94A3B8"
+                  value={formData.name}
+                  onChangeText={(val) => handleFormChange('name', val)}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="your.email@company.com"
+                  placeholderTextColor="#94A3B8"
+                  value={formData.email}
+                  onChangeText={(val) => handleFormChange('email', val)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="+63 XXX XXX XXXX"
+                  placeholderTextColor="#94A3B8"
+                  value={formData.phone}
+                  onChangeText={(val) => handleFormChange('phone', val)}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Organization</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your company or organization"
+                  placeholderTextColor="#94A3B8"
+                  value={formData.organization}
+                  onChangeText={(val) => handleFormChange('organization', val)}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Message *</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Tell us about your inquiry..."
+                  placeholderTextColor="#94A3B8"
+                  value={formData.message}
+                  onChangeText={(val) => handleFormChange('message', val)}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.8}>
+                <Text style={styles.submitButtonText}>Send Message</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.contactGrid}>
+              <View style={styles.contactCard}>
+                <Text style={styles.contactCardTitle}>Corporate Office</Text>
+                <Text style={styles.contactCardText}>WasteWise Philippines Inc.</Text>
+                <Text style={styles.contactCardText}>123 Innovation Drive</Text>
+                <Text style={styles.contactCardText}>Quezon City, Metro Manila</Text>
+                <Text style={styles.contactCardText}>Philippines 1100</Text>
+              </View>
+
+              <View style={styles.contactCard}>
+                <Text style={styles.contactCardTitle}>Contact Information</Text>
+                <View style={styles.contactRow}>
+                  <Text style={styles.contactLabel}>Phone:</Text>
+                  <Text style={styles.contactValue}>+63 2 8123 4567</Text>
+                </View>
+                <View style={styles.contactRow}>
+                  <Text style={styles.contactLabel}>Mobile:</Text>
+                  <Text style={styles.contactValue}>+63 917 123 4567</Text>
+                </View>
+                <View style={styles.contactRow}>
+                  <Text style={styles.contactLabel}>Email:</Text>
+                  <Text style={styles.contactValue}>info@wastewise.ph</Text>
+                </View>
+                <View style={styles.contactRow}>
+                  <Text style={styles.contactLabel}>Support:</Text>
+                  <Text style={styles.contactValue}>support@wastewise.ph</Text>
+                </View>
               </View>
             </View>
-            
-            <View style={styles.contactItem}>
-              <Text style={styles.contactIcon}>📧</Text>
-              <View>
-                <Text style={styles.contactTitle}>Email Support</Text>
-                <Text style={styles.contactText}>support@wastewise.ph{'\n'}info@wastewise.ph{'\n'}24/7 AI Response</Text>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Business Hours</Text>
+              <View style={styles.hoursTable}>
+                <View style={styles.hoursRow}>
+                  <Text style={styles.hoursDay}>Monday - Friday</Text>
+                  <Text style={styles.hoursTime}>8:00 AM - 6:00 PM</Text>
+                </View>
+                <View style={styles.hoursRow}>
+                  <Text style={styles.hoursDay}>Saturday</Text>
+                  <Text style={styles.hoursTime}>8:00 AM - 12:00 PM</Text>
+                </View>
+                <View style={[styles.hoursRow, styles.hoursRowLast]}>
+                  <Text style={styles.hoursDay}>Sunday</Text>
+                  <Text style={styles.hoursTime}>Closed</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.contentBlock}>
+              <Text style={styles.contentTitle}>Departments</Text>
+              <View style={styles.departmentList}>
+                <View style={styles.departmentItem}>
+                  <Text style={styles.departmentName}>Technical Support</Text>
+                  <Text style={styles.departmentExt}>Ext. 101</Text>
+                </View>
+                <View style={styles.departmentItem}>
+                  <Text style={styles.departmentName}>Customer Success</Text>
+                  <Text style={styles.departmentExt}>Ext. 102</Text>
+                </View>
+                <View style={styles.departmentItem}>
+                  <Text style={styles.departmentName}>Sales & Partnerships</Text>
+                  <Text style={styles.departmentExt}>Ext. 103</Text>
+                </View>
+                <View style={[styles.departmentItem, styles.departmentItemLast]}>
+                  <Text style={styles.departmentName}>Enterprise Solutions</Text>
+                  <Text style={styles.departmentExt}>Ext. 104</Text>
+                </View>
               </View>
             </View>
           </View>
-      
+        )}
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerLogo}> Waste-Wise</Text>
-          <Text style={styles.footerText}>
-            Empowering Filipino communities with AI-driven YOLO technology for intelligent waste classification and sustainable management
-          </Text>
-          <Text style={styles.footerCopyright}>
-            © 2025 Waste-Wise Philippines. All rights reserved.{'\n'}
-            Building a smarter future for Philippine communities through AI innovation, one classification at a time. 🤖♻️
-          </Text>
+          <View style={styles.footerContent}>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerTitle}>Company</Text>
+              <TouchableOpacity style={styles.footerLink} onPress={() => setActiveTab('home')}>
+                <Text style={styles.footerLinkText}>Home</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink} onPress={() => setActiveTab('about')}>
+                <Text style={styles.footerLinkText}>About Us</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink} onPress={() => setActiveTab('services')}>
+                <Text style={styles.footerLinkText}>Services</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink} onPress={() => setActiveTab('contact')}>
+                <Text style={styles.footerLinkText}>Contact</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.footerSection}>
+              <Text style={styles.footerTitle}>Resources</Text>
+              <TouchableOpacity style={styles.footerLink}>
+                <Text style={styles.footerLinkText}>Documentation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink}>
+                <Text style={styles.footerLinkText}>API Reference</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink}>
+                <Text style={styles.footerLinkText}>Support Center</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.footerLink}>
+                <Text style={styles.footerLinkText}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.footerBottom}>
+            <Text style={styles.footerCopyright}>© 2025 WasteWise Philippines Inc. All rights reserved.</Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -335,425 +509,509 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f8ff',
-  },
-  navbar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: StatusBar.currentHeight || 44,
-    paddingBottom: 15,
-    zIndex: 1000,
-  },
-  logo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#42a5f5',
-  },
-  loginBtn: {
-    backgroundColor: '#42a5f5',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    shadowColor: '#42a5f5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  loginBtnText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
   },
-  hero: {
-    height: height,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+  
+  // Header
+  header: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  heroImage: {
-    opacity: 0.8,
+  logoContainer: {
+    marginBottom: 16,
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(25, 118, 210, 0.7)',
+  logoText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1E40AF',
+    letterSpacing: -0.5,
+  },
+  navLinks: {
+    flexDirection: 'row',
+    gap: 32,
+  },
+  navLink: {
+    paddingVertical: 4,
+  },
+  navLinkText: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  navLinkActive: {
+    color: '#1E40AF',
+    fontWeight: '600',
+  },
+  
+  // Hero Banner
+  heroBanner: {
+    backgroundColor: '#1E40AF',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
   },
   heroContent: {
     alignItems: 'center',
-    zIndex: 2,
-    paddingTop: 100,
   },
   heroTitle: {
-    fontSize: width > 400 ? 32 : 28,
-    fontWeight: '800',
-    color: 'white',
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 10,
+    marginBottom: 16,
+    letterSpacing: -0.5,
+    lineHeight: 42,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.95)',
+    color: '#BFDBFE',
     textAlign: 'center',
+    marginBottom: 32,
     lineHeight: 24,
-    marginBottom: 40,
-    paddingHorizontal: 10,
+    maxWidth: 500,
   },
-  ctaContainer: {
-    flexDirection: 'row',
-    gap: 15,
-    marginBottom: 40,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  ctaButton: {
-    backgroundColor: '#42a5f5',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 50,
-    shadowColor: '#42a5f5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  ctaButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryCta: {
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 25,
-    paddingVertical: 15,
-    borderRadius: 50,
-  },
-  secondaryCtaText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  featuresSlider: {
-    width: width * 0.8,
-    height: 120,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  slide: {
-    position: 'absolute',
+  heroButtons: {
     width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+    gap: 12,
+  },
+  heroBtnPrimary: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 16,
+    borderRadius: 8,
     alignItems: 'center',
-  },
-  slideIcon: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
-  slideText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    textAlign: 'center',
-  },
-  section: {
-    paddingHorizontal: 20,
-    paddingVertical: 60,
-  },
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
-    color: '#1976d2',
-    marginBottom: 10,
-  },
-  sectionSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#666',
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  aboutContent: {
-    marginBottom: 40,
-  },
-  aboutText: {
-    paddingHorizontal: 10,
-  },
-  aboutHeading: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1976d2',
-    marginBottom: 15,
-    marginTop: 20,
-  },
-  aboutDescription: {
-    fontSize: 16,
-    lineHeight: 26,
-    color: '#555',
-    marginBottom: 15,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 40,
-  },
-  statCard: {
-    width: (width - 60) / 2,
-    backgroundColor: 'white',
-    padding: 25,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 5,
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#1976d2',
-    marginBottom: 5,
-  },
-  statLabel: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  testimonials: {
-    backgroundColor: '#e3f2fd',
-    padding: 30,
-    borderRadius: 30,
-    marginVertical: 20,
-  },
-  testimonialsTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1976d2',
-    textAlign: 'center',
-    marginBottom: 25,
-  },
-  testimonialSlider: {
-    paddingHorizontal: 10,
-  },
-  testimonialCard: {
-    backgroundColor: 'white',
-    padding: 25,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginHorizontal: 10,
-    width: width * 0.7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 5,
-  },
-  testimonialText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 15,
-  },
-  stars: {
-    fontSize: 16,
-    color: '#ffc107',
-    marginBottom: 10,
-  },
-  testimonialAuthor: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1976d2',
-    marginBottom: 5,
-  },
-  testimonialLocation: {
-    fontSize: 14,
-    color: '#888',
-  },
-  featuresGrid: {
-    paddingHorizontal: 10,
-  },
-  featureCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    margin: 10,
-    padding: 25,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 5,
-  },
-  featureCardHovered: {
-    transform: [{ scale: 1.05 }],
-    shadowOpacity: 0.2,
-  },
-  featureIcon: {
-    fontSize: 40,
-    marginBottom: 15,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1976d2',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  featureDesc: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  ctaSection: {
-    backgroundColor: '#e8f4fd',
-    padding: 30,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginTop: 40,
-  },
-  ctaSectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1976d2',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  ctaSectionSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 25,
-  },
-  contactForm: {
-    backgroundColor: 'white',
-    padding: 30,
-    borderRadius: 20,
-    marginBottom: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1976d2',
-    marginBottom: 25,
-  },
-  input: {
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-    marginBottom: 20,
-    backgroundColor: '#fafafa',
-  },
-  textArea: {
-    height: 120,
-    textAlignVertical: 'top',
-  },
-  submitBtn: {
-    backgroundColor: '#42a5f5',
-    padding: 15,
-    borderRadius: 50,
-    alignItems: 'center',
-    shadowColor: '#42a5f5',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  submitBtnText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  contactInfo: {
-    gap: 20,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 3,
   },
-  contactIcon: {
-    fontSize: 24,
-    marginRight: 15,
-    marginTop: 5,
-  },
-  contactTitle: {
+  heroBtnPrimaryText: {
+    color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  heroBtnSecondary: {
+    backgroundColor: 'transparent',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  heroBtnSecondaryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  
+  // Section
+  section: {
+    padding: 24,
+  },
+  sectionTitle: {
+    fontSize: 26,
     fontWeight: '700',
-    color: '#1976d2',
+    color: '#0F172A',
+    marginBottom: 20,
+    letterSpacing: -0.5,
+  },
+  
+  // Stats Grid
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 6,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
+  // Feature Cards
+  featureCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0F172A',
     marginBottom: 8,
   },
-  contactText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+  featureText: {
+    fontSize: 15,
+    color: '#64748B',
+    lineHeight: 22,
   },
-  footer: {
-    backgroundColor: '#1976d2',
-    padding: 40,
+  
+  // CTA Section
+  ctaSection: {
+    backgroundColor: '#1E293B',
+    padding: 32,
+    marginHorizontal: 24,
+    marginBottom: 24,
+    borderRadius: 16,
     alignItems: 'center',
   },
-  footerLogo: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: 'white',
-    marginBottom: 15,
-  },
-  footerText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+  ctaTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  ctaText: {
+    fontSize: 15,
+    color: '#CBD5E1',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  ctaButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ctaButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  ctaLink: {
+    paddingVertical: 8,
+  },
+  ctaLinkText: {
+    color: '#93C5FD',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  
+  // Page Content
+  pageTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 24,
+    letterSpacing: -0.5,
+  },
+  contentBlock: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  contentTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  contentText: {
+    fontSize: 15,
+    color: '#64748B',
     lineHeight: 24,
-    marginBottom: 25,
+    marginBottom: 8,
+  },
+  
+  // Capability Items
+  capabilityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+    marginRight: 12,
+    marginTop: 8,
+  },
+  capabilityText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#64748B',
+    lineHeight: 22,
+  },
+  
+  // Service Cards
+  serviceCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  serviceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  serviceNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#BFDBFE',
+  },
+  serviceTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0F172A',
+    flex: 1,
+  },
+  serviceDesc: {
+    fontSize: 15,
+    color: '#64748B',
+    lineHeight: 22,
+  },
+  
+  // Form Inputs
+  inputGroup: {
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
+  },
+  textArea: {
+    height: 120,
+    paddingTop: 16,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
+    backgroundColor: '#1E40AF',
+    paddingVertical: 16,
+    borderRadius: 8,
+        alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  
+  // Contact Grid
+  contactGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  contactCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  contactCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  contactCardText: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  
+  // Contact Info
+  contactRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  contactLabel: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    width: 70,
+  },
+  contactValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  
+  // Hours Table
+  hoursTable: {
+    marginTop: 8,
+  },
+  hoursRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  hoursRowLast: {
+    borderBottomWidth: 0,
+  },
+  hoursDay: {
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+  hoursTime: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  
+  // Department List
+  departmentList: {
+    marginTop: 8,
+  },
+  departmentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  departmentItemLast: {
+    borderBottomWidth: 0,
+  },
+  departmentName: {
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+  departmentExt: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  
+  // Footer
+  footer: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  footerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+  },
+  footerSection: {
+    flex: 1,
+  },
+  footerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  footerLink: {
+    marginBottom: 10,
+  },
+  footerLinkText: {
+    fontSize: 14,
+    color: '#CBD5E1',
+  },
+  footerBottom: {
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+    paddingTop: 20,
   },
   footerCopyright: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 18,
   },
 });
 
