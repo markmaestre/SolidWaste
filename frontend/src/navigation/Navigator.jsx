@@ -9,6 +9,7 @@ import Register from '../components/Dashboard/Register';
 import UserDashboard from '../components/User/UserDashboard ';
 import EditProfile from '../components/User/EditProfile';
 import FeedbackSupport from '../components/User/FeedbackSupport';
+import WasteDetection from '../components/User/WasteDetection';
 
 
 const Stack = createStackNavigator();
@@ -35,6 +36,7 @@ const Navigator = () => {
         <Stack.Screen name="UserDashboard" component={UserDashboard} />
         <Stack.Screen name="EditProfile" component={EditProfile} />
         <Stack.Screen name="FeedbackSupport" component={FeedbackSupport} />
+        <Stack.Screen name="WasteDetection" component={WasteDetection} />
 
       </Stack.Navigator>
     </Provider>

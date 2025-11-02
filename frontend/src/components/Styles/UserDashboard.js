@@ -8,7 +8,31 @@ export const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
   },
 
-  // Header Styles
+notificationButton: {
+  padding: 8,
+  borderRadius: 20,
+  position: 'relative',
+},
+
+notificationBadgeHeader: {
+  position: 'absolute',
+  top: 2,
+  right: 2,
+  backgroundColor: '#FF4081',
+  borderRadius: 10,
+  minWidth: 18,
+  height: 18,
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderWidth: 2,
+  borderColor: '#1976D2',
+},
+
+notificationBadgeTextHeader: {
+  color: '#FFFFFF',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
   header: {
     height: 120,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,

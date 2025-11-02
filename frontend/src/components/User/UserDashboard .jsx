@@ -219,14 +219,10 @@ const UserDashboard = () => {
           navigation.navigate('EditProfile');
           break;
         case 'FeedbackSupport':
-          // Navigate to FeedbackSupport screen
           navigation.navigate('FeedbackSupport');
           break;
         case 'WasteDetection':
-          // Main feature - Waste Detection
-          Alert.alert('Waste Detection', 'Open camera for waste detection', [
-            { text: 'OK', style: 'default' }
-          ]);
+          navigation.navigate('WasteDetection');
           break;
         case 'ReportWaste':
           // Report Waste Material
@@ -366,7 +362,7 @@ const UserDashboard = () => {
         return (
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeText}>Welcome back, {getDisplayName()}! 🌱</Text>
+              <Text style={styles.welcomeText}>Welcome back, {getDisplayName()}!</Text>
               <Text style={styles.welcomeSubtext}>Ready to make a difference today?</Text>
               
               {/* User Status Card */}
@@ -602,20 +598,18 @@ const UserDashboard = () => {
           <Text style={styles.headerSubtitle}>{activeTab}</Text>
         </View>
 
+        {/* CHANGED: Profile picture replaced with notifications icon */}
         <TouchableOpacity 
-          style={styles.profileButton}
-          onPress={() => navigateTo('EditProfile')}
+          style={styles.notificationButton}
+          onPress={() => navigateTo('Notifications')}
           activeOpacity={0.7}
         >
-          {getProfilePicture() ? (
-            <Image 
-              source={getProfilePicture()} 
-              style={styles.headerProfileImage}
-              onError={(error) => console.log('❌ Header image loading error:', error.nativeEvent.error)}
-            />
-          ) : (
-            <View style={styles.headerProfilePlaceholder}>
-              <Icon name="person" size={20} color="#FFFFFF" />
+          <Icon name="notifications" size={24} color="#FFFFFF" />
+          {user?.unreadNotifications > 0 && (
+            <View style={styles.notificationBadgeHeader}>
+              <Text style={styles.notificationBadgeTextHeader}>
+                {user.unreadNotifications > 99 ? '99+' : user.unreadNotifications}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
