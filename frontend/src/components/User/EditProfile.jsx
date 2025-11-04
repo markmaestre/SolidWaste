@@ -222,9 +222,9 @@ const EditProfile = () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header */}
+      {/* Header - Changed to Sky Blue */}
       <LinearGradient
-        colors={['#2D6A4F', '#40916C', '#52B788']}
+        colors={['#0284C7', '#0EA5E9', '#38BDF8']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -283,7 +283,7 @@ const EditProfile = () => {
                   </>
                 ) : (
                   <LinearGradient
-                    colors={['#74C69D', '#52B788']}
+                    colors={['#7DD3FC', '#38BDF8']}
                     style={styles.profileImagePlaceholder}
                   >
                     <Text style={styles.placeholderInitial}>
@@ -332,7 +332,7 @@ const EditProfile = () => {
                   onFocus={() => setFocusedField('username')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter username"
-                  placeholderTextColor="#95D5B2"
+                  placeholderTextColor="#7DD3FC"
                 />
                 {formData.username.length > 0 && (
                   <View style={styles.inputBadge}>
@@ -359,7 +359,7 @@ const EditProfile = () => {
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="your@email.com"
-                  placeholderTextColor="#95D5B2"
+                  placeholderTextColor="#7DD3FC"
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
@@ -380,7 +380,7 @@ const EditProfile = () => {
                   onFocus={() => setFocusedField('bod')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#95D5B2"
+                  placeholderTextColor="#7DD3FC"
                 />
               </View>
             </View>
@@ -399,7 +399,7 @@ const EditProfile = () => {
                   onFocus={() => setFocusedField('gender')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter gender"
-                  placeholderTextColor="#95D5B2"
+                  placeholderTextColor="#7DD3FC"
                 />
               </View>
             </View>
@@ -419,7 +419,7 @@ const EditProfile = () => {
                   onFocus={() => setFocusedField('address')}
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter your full address"
-                  placeholderTextColor="#95D5B2"
+                  placeholderTextColor="#7DD3FC"
                   multiline
                   numberOfLines={3}
                 />
@@ -458,8 +458,8 @@ const EditProfile = () => {
               <LinearGradient
                 colors={
                   !hasChanges() || profileUpdateLoading 
-                    ? ['#B7E4C7', '#B7E4C7'] 
-                    : ['#2D6A4F', '#40916C']
+                    ? ['#BAE6FD', '#BAE6FD'] 
+                    : ['#0284C7', '#0EA5E9']
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
