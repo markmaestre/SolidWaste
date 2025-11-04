@@ -16,18 +16,27 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
 const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
   const [focusedField, setFocusedField] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { loading, error } = useSelector((state) => state.auth);
 
+  // Admin email for banned accounts
+  const ADMIN_EMAIL = 'admin@wastewise.com';
+
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
   };
 
   const handleLogin = async () => {
@@ -62,6 +71,13 @@ const Login = () => {
   const navigateToDashboard = () => {
     navigation.navigate('Dashboard');
   };
+
+  // Check if error indicates a banned account
+  const isBannedAccount = error && (
+    error.toLowerCase().includes('banned') || 
+    error.toLowerCase().includes('suspended') ||
+    error.toLowerCase().includes('disabled')
+  );
 
   return (
     <KeyboardAvoidingView 
@@ -114,9 +130,24 @@ const Login = () => {
             
             {/* Error Message */}
             {error && (
-              <View style={styles.errorContainer}>
-                <View style={styles.errorDot} />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[
+                styles.errorContainer,
+                isBannedAccount && styles.bannedAccountContainer
+              ]}>
+                <View style={[
+                  styles.errorDot,
+                  isBannedAccount && styles.bannedAccountDot
+                ]} />
+                <View style={styles.errorTextContainer}>
+                  <Text style={styles.errorText}>
+                    {isBannedAccount ? `Account Suspended: ${error}` : error}
+                  </Text>
+                  {isBannedAccount && (
+                    <Text style={styles.adminContactText}>
+                      Please contact admin at: {ADMIN_EMAIL}
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
 
@@ -143,21 +174,34 @@ const Login = () => {
             {/* Password Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>PASSWORD</Text>
-              <TextInput
-                placeholder="Enter your password"
-                placeholderTextColor="#90A4AE"
-                style={[
-                  styles.input,
-                  focusedField === 'password' && styles.inputFocused
-                ]}
-                value={form.password}
-                secureTextEntry
-                onChangeText={(val) => handleChange('password', val)}
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => setFocusedField(null)}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={styles.passwordInputWrapper}>
+                <TextInput
+                  placeholder="Enter your password"
+                  placeholderTextColor="#90A4AE"
+                  style={[
+                    styles.passwordInput,
+                    focusedField === 'password' && styles.inputFocused
+                  ]}
+                  value={form.password}
+                  secureTextEntry={!showPassword}
+                  onChangeText={(val) => handleChange('password', val)}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.showPasswordButton}
+                  onPress={toggleShowPassword}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons 
+                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                    size={22} 
+                    color={focusedField === 'password' ? '#1976D2' : '#607D8B'} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Login Button */}
@@ -343,7 +387,7 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#FFEBEE',
     borderRadius: 10,
     padding: 14,
@@ -351,19 +395,37 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#E53935',
   },
+  bannedAccountContainer: {
+    backgroundColor: '#FFF3E0',
+    borderLeftColor: '#FF9800',
+  },
   errorDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#E53935',
     marginRight: 12,
+    marginTop: 6,
+  },
+  bannedAccountDot: {
+    backgroundColor: '#FF9800',
+  },
+  errorTextContainer: {
+    flex: 1,
   },
   errorText: {
-    flex: 1,
     color: '#C62828',
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 20,
+    marginBottom: 4,
+  },
+  adminContactText: {
+    color: '#E65100',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+    fontStyle: 'italic',
   },
   inputContainer: {
     marginBottom: 22,
@@ -385,6 +447,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     color: '#263238',
     fontWeight: '500',
+  },
+  passwordInputWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    height: 56,
+    borderWidth: 2,
+    borderColor: '#CFD8DC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingRight: 50, // Space for the eye icon
+    fontSize: 16,
+    backgroundColor: '#F5F5F5',
+    color: '#263238',
+    fontWeight: '500',
+  },
+  showPasswordButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    zIndex: 10,
+    padding: 4,
   },
   inputFocused: {
     borderColor: '#1976D2',
