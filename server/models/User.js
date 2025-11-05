@@ -9,9 +9,11 @@ const userSchema = new mongoose.Schema({
   address: String,
   role: { type: String, default: 'user' },
   profile: String,
-  lastLogin: Date,
+  lastLogin: Date, 
+  notificationsEnabled: {  type: Boolean, default: true},
   createdAt: { type: Date, default: Date.now },
   status: { type: String, enum: ['active', 'banned'], default: 'active' } 
+
 });
 
 module.exports = mongoose.model('User', userSchema);
