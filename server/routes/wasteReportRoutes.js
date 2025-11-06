@@ -14,7 +14,12 @@ router.post('/detect',
   [
     body('image').notEmpty().withMessage('Image is required'),
     body('classification').notEmpty().withMessage('Classification is required'),
-    body('classification_confidence').isFloat({ min: 0, max: 1 }).withMessage('Confidence must be between 0 and 1')
+    body('classification_confidence')
+      .custom((value) => {
+        const numValue = parseFloat(value);
+        return !isNaN(numValue) && numValue >= 0;
+      })
+      .withMessage('Confidence must be a valid number')
   ],
   async (req, res) => {
     try {
@@ -45,9 +50,23 @@ router.post('/detect',
       console.log('📊 Processing report data:', {
         classification,
         confidence: classification_confidence,
+        confidenceType: typeof classification_confidence,
         objectsCount: detected_objects.length,
         hasImage: !!image
       });
+
+      // Convert confidence if it's in percentage format (0-100 to 0-1)
+      let finalConfidence = parseFloat(classification_confidence);
+      if (finalConfidence > 1) {
+        console.log('🔄 Converting confidence from percentage to decimal:', finalConfidence, '→', finalConfidence / 100);
+        finalConfidence = finalConfidence / 100;
+      }
+
+      // Also convert detected objects confidence
+      const processedObjects = detected_objects.map(obj => ({
+        ...obj,
+        confidence: obj.confidence > 1 ? obj.confidence / 100 : obj.confidence
+      }));
 
       let imageUrl = image;
       let cloudinaryId = '';
@@ -73,6 +92,11 @@ router.post('/detect',
             details: uploadError.message
           });
         }
+      } else if (image && (image.startsWith('file://') || image.startsWith('content://'))) {
+        // Handle file URIs from mobile - convert to base64 or handle differently
+        console.log('📱 Handling mobile file URI - skipping Cloudinary upload');
+        // For mobile file URIs, we'll use the URI directly or you might want to implement file upload
+        imageUrl = image;
       }
 
       // Create report with transaction for data consistency
@@ -85,9 +109,9 @@ router.post('/detect',
           userEmail: req.user.email,
           image: imageUrl,
           cloudinaryId: cloudinaryId,
-          detectedObjects: detected_objects,
+          detectedObjects: processedObjects,
           classification,
-          classificationConfidence: classification_confidence,
+          classificationConfidence: finalConfidence,
           wasteComposition: waste_composition,
           materialBreakdown: material_breakdown,
           recyclingTips: recycling_tips,
@@ -140,6 +164,23 @@ router.post('/detect',
         await session.abortTransaction();
         session.endSession();
         console.error('❌ Transaction error:', transactionError);
+        
+        // More detailed error logging
+        if (transactionError.name === 'ValidationError') {
+          return res.status(400).json({
+            success: false,
+            error: 'Data validation failed',
+            details: transactionError.errors
+          });
+        }
+        
+        if (transactionError.code === 11000) {
+          return res.status(400).json({
+            success: false,
+            error: 'Duplicate entry found'
+          });
+        }
+        
         throw transactionError;
       }
 
@@ -148,15 +189,13 @@ router.post('/detect',
       res.status(500).json({ 
         success: false,
         error: 'Failed to create waste report',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
 );
 
-// @desc    Get user's waste reports
-// @route   GET /api/waste-reports/my-reports
-// @access  Private
+
 router.get('/my-reports', auth, async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;

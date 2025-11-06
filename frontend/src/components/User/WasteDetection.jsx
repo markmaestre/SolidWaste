@@ -197,7 +197,9 @@ const WasteDetection = ({ navigation }) => {
         quality: 0.8,
         allowsEditing: true,
         aspect: [4, 3],
-        exif: false
+        exif: false,
+        base64: true, // Get base64 data for backend
+        includeBase64: true
       };
 
       const pickerResult = fromCamera
@@ -229,12 +231,6 @@ const WasteDetection = ({ navigation }) => {
   const handleDetect = async () => {
     if (!image) {
       Alert.alert("No Image", "Please select or capture an image first.");
-      return;
-    }
-
-    // Validate image format
-    if (!image.startsWith('file://') && !image.startsWith('content://')) {
-      Alert.alert("Invalid Image", "Please select a valid image file.");
       return;
     }
 
@@ -283,13 +279,10 @@ const WasteDetection = ({ navigation }) => {
         throw new Error('Empty response from server');
       }
 
-      // Set detection results with fallbacks - DIRECT ASSIGNMENT, NO CONVERSION
+      // Set detection results with fallbacks
       setDetected(detectionData.detected_objects || []);
       setClassification(detectionData.classification || "Unknown");
-      
-      // DIRECT ASSIGNMENT - whatever value comes from AI, use it as is
       setClassificationConfidence(detectionData.classification_confidence || 0);
-      
       setWasteComposition(detectionData.waste_composition || {});
       setMaterialBreakdown(detectionData.material_breakdown || {});
       setRecyclingTips(detectionData.recycling_tips || []);
@@ -313,14 +306,77 @@ const WasteDetection = ({ navigation }) => {
 
     } catch (err) {
       console.error("❌ Detection error:", err);
-      const errorMessage = err.message.includes('Network request failed') 
-        ? "Network error: Please check your internet connection and server URL."
-        : `Detection failed: ${err.message}`;
       
-      Alert.alert("❌ Detection Error", errorMessage);
+      // Use demo data if AI service fails
+      Alert.alert(
+        "⚠️ Demo Mode",
+        "AI service unavailable. Using demo data for testing.",
+        [
+          {
+            text: "Use Demo Data",
+            onPress: () => loadDemoData()
+          },
+          {
+            text: "Cancel",
+            style: "cancel"
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadDemoData = () => {
+    // Mock data for testing
+    const mockDetected = [
+      {
+        label: "plastic bottle",
+        confidence: 85.5,
+        box: [0.1, 0.1, 0.4, 0.6],
+        material: "plastic",
+        area_percentage: 45.2
+      },
+      {
+        label: "paper",
+        confidence: 78.3,
+        box: [0.5, 0.2, 0.8, 0.5],
+        material: "paper",
+        area_percentage: 25.1
+      }
+    ];
+
+    setDetected(mockDetected);
+    setClassification("recyclable");
+    setClassificationConfidence(82.5);
+    setWasteComposition({
+      recyclable_materials: 75,
+      organic_materials: 15,
+      general_waste: 10
+    });
+    setMaterialBreakdown({
+      plastic: 45,
+      paper: 25,
+      metal: 5
+    });
+    setRecyclingTips([
+      "Rinse plastic bottles before recycling",
+      "Remove caps from bottles",
+      "Separate different material types",
+      "Check local recycling guidelines"
+    ]);
+    setDetectionCompleted(true);
+
+    Alert.alert(
+      "🎉 Demo Analysis Complete!",
+      "Using demo data for testing purposes.",
+      [
+        {
+          text: "💾 Save Report",
+          onPress: () => setReportModalVisible(true)
+        }
+      ]
+    );
   };
 
   const handleSaveReport = () => {
@@ -348,12 +404,11 @@ const WasteDetection = ({ navigation }) => {
       return;
     }
 
-    // DIRECT ASSIGNMENT - send whatever confidence value we have, no conversion
     const reportData = {
-      image: image,
+      image: image, // Send the image URI directly
       detected_objects: detected || [],
       classification: classification || "Unknown",
-      classification_confidence: classificationConfidence, // DIRECT - no division/multiplication
+      classification_confidence: classificationConfidence,
       waste_composition: wasteComposition || {},
       material_breakdown: materialBreakdown || {},
       recycling_tips: recyclingTips || [],
@@ -367,8 +422,7 @@ const WasteDetection = ({ navigation }) => {
 
     console.log('📤 Dispatching report creation:', {
       classification: reportData.classification,
-      confidence: reportData.classification_confidence, // Whatever value from AI
-      confidenceType: typeof reportData.classification_confidence,
+      confidence: reportData.classification_confidence,
       objectsCount: reportData.detected_objects.length,
       hasLocation: !!reportData.location.address
     });
@@ -411,10 +465,8 @@ const WasteDetection = ({ navigation }) => {
     return `${Math.round(numValue)}%`;
   };
 
-  // Format confidence for display - show as is, no conversion
   const formatConfidence = (value) => {
     if (typeof value === 'number') {
-      // If it's a decimal (0-1), show as percentage, otherwise show as is
       return value <= 1 ? `${Math.round(value * 100)}%` : `${Math.round(value)}%`;
     }
     return `${value}`;
@@ -527,13 +579,13 @@ const WasteDetection = ({ navigation }) => {
             
             {/* Detection Overlays */}
             {detected.map((item, index) => {
-              if (!item.box || !item.box.length) return null;
+              if (!item.box || !item.box.length || imageSize.width === 0) return null;
               
               const [x1, y1, x2, y2] = item.box;
-              const left = x1 * imageSize.width;
-              const top = y1 * imageSize.height;
-              const width = (x2 - x1) * imageSize.width;
-              const height = (y2 - y1) * imageSize.height;
+              const left = Math.max(0, x1 * imageSize.width);
+              const top = Math.max(0, y1 * imageSize.height);
+              const width = Math.min(imageSize.width - left, (x2 - x1) * imageSize.width);
+              const height = Math.min(imageSize.height - top, (y2 - y1) * imageSize.height);
               const borderColor = getClassificationColor(item.label);
 
               return (
