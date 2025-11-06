@@ -10,11 +10,12 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
 import { useSelector, useDispatch } from 'react-redux';
-import { createWasteReport } from '../../redux/slices/wasteReportSlice';
+import { createWasteReport, clearError, clearSuccess } from '../../redux/slices/wasteReportSlice';
 import { styles } from "../../components/Styles/WasteDetection";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -36,64 +37,121 @@ const WasteDetection = ({ navigation }) => {
   const [manualLocation, setManualLocation] = useState("");
   const [detectionCompleted, setDetectionCompleted] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
-  const { loading: reportLoading, success, error } = useSelector(state => state.wasteReport);
+  const { 
+    loading: reportLoading, 
+    success, 
+    error, 
+    currentReport,
+    operation 
+  } = useSelector(state => state.wasteReport);
+
+  // Clear errors and success states on component mount
+  useEffect(() => {
+    dispatch(clearError());
+    dispatch(clearSuccess());
+  }, [dispatch]);
 
   useEffect(() => {
     getLocation();
   }, []);
 
+  // Enhanced error handling
   useEffect(() => {
     if (error) {
-      Alert.alert("Error", error);
+      console.log('❌ Redux Error:', error);
+      
+      const errorMessage = error.error || error.details || 'An unexpected error occurred';
+      
+      Alert.alert(
+        "❌ Error", 
+        errorMessage,
+        [{ text: "OK", onPress: () => dispatch(clearError()) }]
+      );
     }
-  }, [error]);
+  }, [error, dispatch]);
 
+  // Enhanced success handling
   useEffect(() => {
-    if (success) {
+    if (success && operation === 'create' && currentReport) {
+      console.log('✅ Report creation success:', currentReport._id);
+      
       Alert.alert(
         "✅ Report Submitted Successfully!",
-        `Your waste analysis has been recorded and saved to your history.\n\n📊 Detection Summary:\n• Classification: ${classification}\n• Objects Detected: ${detected.length}\n• Confidence: ${classificationConfidence}%\n• Location: ${manualLocation || "Not specified"}\n\nYou can view this report in your history anytime.`,
+        `Your waste analysis has been recorded and saved to your history.\n\n📊 Detection Summary:\n• Classification: ${currentReport.classification}\n• Objects Detected: ${currentReport.detectedObjects?.length || 0}\n• Confidence: ${Math.round((currentReport.classificationConfidence || 0) * 100)}%\n• Location: ${currentReport.location?.address || "Not specified"}\n\nReport ID: ${currentReport._id}\n\nYou can view this report in your history anytime.`,
         [
           {
             text: "📋 View History",
-            onPress: () => navigation.navigate('ReportHistory')
+            onPress: () => {
+              navigation.navigate('ReportHistory');
+              resetForm();
+            }
+          },
+          {
+            text: "🔄 New Scan",
+            onPress: () => resetForm()
           },
           {
             text: "OK",
-            onPress: () => {
-              setReportModalVisible(false);
-              // Reset form after successful submission
-              setImage(null);
-              setDetected([]);
-              setClassification(null);
-              setDetectionCompleted(false);
-              setWasteComposition({});
-              setMaterialBreakdown({});
-              setRecyclingTips([]);
-            }
+            style: "cancel",
+            onPress: () => resetForm()
           }
         ]
       );
     }
-  }, [success]);
+  }, [success, operation, currentReport, navigation]);
+
+  const resetForm = () => {
+    setImage(null);
+    setDetected([]);
+    setClassification(null);
+    setClassificationConfidence(0);
+    setWasteComposition({});
+    setMaterialBreakdown({});
+    setRecyclingTips([]);
+    setDetectionCompleted(false);
+    setReportModalVisible(false);
+    dispatch(clearSuccess());
+    dispatch(clearError());
+  };
 
   const getLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required for better reporting.');
+        Alert.alert(
+          'Location Permission Required', 
+          'Location permission is required for accurate waste reporting and analytics.',
+          [
+            { 
+              text: 'Open Settings', 
+              onPress: () => Location.getBackgroundPermissionsAsync() 
+            },
+            { 
+              text: 'Cancel', 
+              style: 'cancel' 
+            }
+          ]
+        );
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({});
+      setLoading(true);
+      
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeout: 15000
+      });
+      
       setLocation({
         coordinates: {
           lat: location.coords.latitude,
           lng: location.coords.longitude
-        }
+        },
+        timestamp: new Date().toISOString()
       });
 
       let address = await Location.reverseGeocodeAsync({
@@ -105,80 +163,133 @@ const WasteDetection = ({ navigation }) => {
         const city = address[0].city || '';
         const region = address[0].region || '';
         const country = address[0].country || '';
-        setManualLocation([city, region, country].filter(Boolean).join(', '));
+        const street = address[0].street || '';
+        
+        const fullAddress = [street, city, region, country].filter(Boolean).join(', ');
+        setManualLocation(fullAddress);
       }
     } catch (error) {
       console.error('Location error:', error);
+      Alert.alert(
+        "Location Error", 
+        "Unable to get current location. Please enter manually."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   const pickImage = async (fromCamera = false) => {
-    let permissionResult = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      let permissionResult = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permissionResult.granted) {
-      Alert.alert("Permission Denied", "You need to grant permission first.");
-      return;
-    }
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Permission Required", 
+          `You need to grant ${fromCamera ? 'camera' : 'media library'} permission to ${fromCamera ? 'take photos' : 'select images'}.`
+        );
+        return;
+      }
 
-    const pickerResult = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          quality: 1,
-          allowsEditing: true,
-          aspect: [4, 3],
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          quality: 1,
-          allowsEditing: true,
-          aspect: [4, 3],
-        });
+      const pickerOptions = {
+        quality: 0.8,
+        allowsEditing: true,
+        aspect: [4, 3],
+        exif: false
+      };
 
-    if (!pickerResult.canceled) {
-      setImage(pickerResult.assets[0].uri);
-      setDetected([]);
-      setClassification(null);
-      setWasteComposition({});
-      setMaterialBreakdown({});
-      setRecyclingTips([]);
-      setDetectionCompleted(false);
+      const pickerResult = fromCamera
+        ? await ImagePicker.launchCameraAsync(pickerOptions)
+        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+      if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets[0]) {
+        const selectedImage = pickerResult.assets[0];
+        setImage(selectedImage.uri);
+        
+        // Reset previous detection results
+        setDetected([]);
+        setClassification(null);
+        setClassificationConfidence(0);
+        setWasteComposition({});
+        setMaterialBreakdown({});
+        setRecyclingTips([]);
+        setDetectionCompleted(false);
+        
+        // Clear any previous errors
+        dispatch(clearError());
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert("Error", "Failed to select image. Please try again.");
     }
   };
 
   const handleDetect = async () => {
     if (!image) {
-      Alert.alert("No image", "Please select or capture an image first.");
+      Alert.alert("No Image", "Please select or capture an image first.");
+      return;
+    }
+
+    // Validate image format
+    if (!image.startsWith('file://') && !image.startsWith('content://')) {
+      Alert.alert("Invalid Image", "Please select a valid image file.");
       return;
     }
 
     const formData = new FormData();
     formData.append("image", {
       uri: image,
-      name: "waste.jpg",
+      name: "waste_detection.jpg",
       type: "image/jpeg",
     });
+
+    // Add metadata to help with processing
+    formData.append("timestamp", new Date().toISOString());
+    if (manualLocation) {
+      formData.append("location", manualLocation);
+    }
 
     try {
       setLoading(true);
       setDetectionCompleted(false);
+      dispatch(clearError());
+      
+      console.log('📤 Sending detection request to:', API_URL);
       
       const response = await fetch(API_URL, {
         method: 'POST',
         body: formData,
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'multipart/form-data',
         },
       });
 
+      console.log('📥 Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ Server response error:', errorText);
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
 
       const detectionData = await response.json();
+      console.log('✅ Detection data received:', detectionData);
 
+      // Validate response data
+      if (!detectionData) {
+        throw new Error('Empty response from server');
+      }
+
+      // Set detection results with fallbacks - DIRECT ASSIGNMENT, NO CONVERSION
       setDetected(detectionData.detected_objects || []);
       setClassification(detectionData.classification || "Unknown");
+      
+      // DIRECT ASSIGNMENT - whatever value comes from AI, use it as is
       setClassificationConfidence(detectionData.classification_confidence || 0);
+      
       setWasteComposition(detectionData.waste_composition || {});
       setMaterialBreakdown(detectionData.material_breakdown || {});
       setRecyclingTips(detectionData.recycling_tips || []);
@@ -186,7 +297,7 @@ const WasteDetection = ({ navigation }) => {
 
       Alert.alert(
         "🎉 Analysis Complete!",
-        `We've successfully analyzed your waste image!\n\n📊 Detection Results:\n• ${detectionData.detected_objects?.length || 0} objects detected\n• Primary classification: ${detectionData.classification}\n• Analysis confidence: ${detectionData.classification_confidence}%\n\nWould you like to save this report to your history?`,
+        `We've successfully analyzed your waste image!\n\n📊 Detection Results:\n• ${detectionData.detected_objects?.length || 0} objects detected\n• Primary classification: ${detectionData.classification}\n• Analysis confidence: ${detectionData.classification_confidence}\n\nWould you like to save this report to your history?`,
         [
           {
             text: "💾 Save Report",
@@ -201,11 +312,12 @@ const WasteDetection = ({ navigation }) => {
       );
 
     } catch (err) {
-      console.error("Detection error:", err);
-      Alert.alert(
-        "❌ Detection Error", 
-        "Failed to analyze waste image. Please check your connection and try again."
-      );
+      console.error("❌ Detection error:", err);
+      const errorMessage = err.message.includes('Network request failed') 
+        ? "Network error: Please check your internet connection and server URL."
+        : `Detection failed: ${err.message}`;
+      
+      Alert.alert("❌ Detection Error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -230,19 +342,36 @@ const WasteDetection = ({ navigation }) => {
       return;
     }
 
+    // Validate required data
+    if (!classification) {
+      Alert.alert("Incomplete Data", "Please complete waste analysis first.");
+      return;
+    }
+
+    // DIRECT ASSIGNMENT - send whatever confidence value we have, no conversion
     const reportData = {
       image: image,
       detected_objects: detected || [],
       classification: classification || "Unknown",
-      classification_confidence: classificationConfidence || 0,
+      classification_confidence: classificationConfidence, // DIRECT - no division/multiplication
       waste_composition: wasteComposition || {},
       material_breakdown: materialBreakdown || {},
       recycling_tips: recyclingTips || [],
       location: {
-        address: manualLocation,
-        coordinates: location?.coordinates
-      }
+        address: manualLocation || "Not specified",
+        coordinates: location?.coordinates,
+        timestamp: location?.timestamp
+      },
+      scan_date: new Date().toISOString()
     };
+
+    console.log('📤 Dispatching report creation:', {
+      classification: reportData.classification,
+      confidence: reportData.classification_confidence, // Whatever value from AI
+      confidenceType: typeof reportData.classification_confidence,
+      objectsCount: reportData.detected_objects.length,
+      hasLocation: !!reportData.location.address
+    });
 
     dispatch(createWasteReport(reportData));
     setReportModalVisible(false);
@@ -254,7 +383,11 @@ const WasteDetection = ({ navigation }) => {
       "Organic": "#FF8C00",
       "General": "#DC143C",
       "Hazardous": "#8B0000",
-      "Unknown": "#696969"
+      "Unknown": "#696969",
+      "recyclable": "#2E8B57",
+      "organic": "#FF8C00",
+      "general_waste": "#DC143C",
+      "hazardous": "#8B0000"
     };
     return colors[classification] || colors["Unknown"];
   };
@@ -266,37 +399,63 @@ const WasteDetection = ({ navigation }) => {
       "metal": "#FFD166",
       "paper": "#A0C1B8",
       "organic": "#8AC926",
-      "unknown": "#B8B8B8"
+      "unknown": "#B8B8B8",
+      "cardboard": "#D4A574",
+      "textile": "#FF69B4"
     };
     return colors[material] || colors["unknown"];
   };
 
   const formatPercentage = (value) => {
-    return typeof value === 'number' ? `${value}%` : '0%';
+    const numValue = typeof value === 'number' ? value : parseFloat(value) || 0;
+    return `${Math.round(numValue)}%`;
+  };
+
+  // Format confidence for display - show as is, no conversion
+  const formatConfidence = (value) => {
+    if (typeof value === 'number') {
+      // If it's a decimal (0-1), show as percentage, otherwise show as is
+      return value <= 1 ? `${Math.round(value * 100)}%` : `${Math.round(value)}%`;
+    }
+    return `${value}`;
   };
 
   const viewReportHistory = () => {
     navigation.navigate('ReportHistory');
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+  const onRefresh = () => {
+    setRefreshing(true);
+    resetForm();
+    setTimeout(() => setRefreshing(false), 1000);
+  };
 
-      <Text style={styles.title}>♻️ AI Waste Analysis</Text>
-      <Text style={styles.subtitle}>Smart waste detection and classification</Text>
+  return (
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.contentContainer}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Header Section */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>♻️ AI Waste Analysis</Text>
+        <Text style={styles.subtitle}>Smart waste detection and classification</Text>
+      </View>
 
       {/* User Info */}
       {user && (
         <View style={styles.userInfo}>
           <Text style={styles.userText}>👤 Logged in as: {user.email}</Text>
+          <Text style={styles.userRole}>Role: {user.role || 'user'}</Text>
         </View>
       )}
 
-      {/* Location Input */}
+      {/* Location Section */}
       <View style={styles.locationSection}>
         <Text style={styles.sectionTitle}>📍 Location Information</Text>
         <TextInput
@@ -304,183 +463,158 @@ const WasteDetection = ({ navigation }) => {
           placeholder="Enter location or use auto-detected"
           value={manualLocation}
           onChangeText={setManualLocation}
+          editable={!loading}
         />
-        <TouchableOpacity style={styles.locationButton} onPress={getLocation}>
-          <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
+        <TouchableOpacity 
+          style={[styles.locationButton, loading && styles.disabledButton]} 
+          onPress={getLocation}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Image Selection Buttons */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.cameraButton]} 
-          onPress={() => pickImage(true)}
-        >
-          <Text style={styles.buttonText}>📸 Take Photo</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.galleryButton]} 
-          onPress={() => pickImage(false)}
-        >
-          <Text style={styles.buttonText}>🖼️ Choose from Gallery</Text>
-        </TouchableOpacity>
+      {/* Image Selection Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>📸 Image Selection</Text>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.cameraButton]} 
+            onPress={() => pickImage(true)}
+            disabled={loading || reportLoading}
+          >
+            <Text style={styles.buttonText}>📸 Take Photo</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.galleryButton]} 
+            onPress={() => pickImage(false)}
+            disabled={loading || reportLoading}
+          >
+            <Text style={styles.buttonText}>🖼️ Choose from Gallery</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Report History Button */}
       <TouchableOpacity 
         style={[styles.actionButton, styles.historyButton]} 
         onPress={viewReportHistory}
+        disabled={reportLoading}
       >
         <Text style={styles.buttonText}>📊 View Report History</Text>
       </TouchableOpacity>
 
-      {/* Image Preview with Detection Visualizations */}
+      {/* Image Preview Section */}
       {image && (
-        <View style={styles.imageSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Selected Image</Text>
-          <View
-            style={styles.imageContainer}
-            onLayout={(event) => {
-              const layoutWidth = screenWidth * 0.9;
-              Image.getSize(image, (imgWidth, imgHeight) => {
-                const scaledHeight = (layoutWidth / imgWidth) * imgHeight;
-                setImageSize({ width: layoutWidth, height: scaledHeight });
-              });
-            }}
-          >
-            <View style={styles.imageWrapper}>
-              <Image
-                source={{ uri: image }}
-                style={[
-                  styles.previewImage,
-                  { width: imageSize.width, height: imageSize.height }
-                ]}
-                resizeMode="contain"
-              />
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: image }}
+              style={styles.previewImage}
+              resizeMode="contain"
+              onLoad={(event) => {
+                const { width, height } = event.nativeEvent.source;
+                const scaledHeight = (screenWidth * 0.9 * height) / width;
+                setImageSize({ width: screenWidth * 0.9, height: scaledHeight });
+              }}
+            />
+            
+            {/* Detection Overlays */}
+            {detected.map((item, index) => {
+              if (!item.box || !item.box.length) return null;
+              
+              const [x1, y1, x2, y2] = item.box;
+              const left = x1 * imageSize.width;
+              const top = y1 * imageSize.height;
+              const width = (x2 - x1) * imageSize.width;
+              const height = (y2 - y1) * imageSize.height;
+              const borderColor = getClassificationColor(item.label);
 
-              {/* Draw Bounding Boxes */}
-              {detected.map((item, i) => {
-                if (!item.box || !item.box.length) return null;
-                const [x1, y1, x2, y2] = item.box;
-
-                const left = x1 * imageSize.width;
-                const top = y1 * imageSize.height;
-                const boxWidth = (x2 - x1) * imageSize.width;
-                const boxHeight = (y2 - y1) * imageSize.height;
-
-                const borderColor = getClassificationColor(item.label);
-
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    style={[
-                      styles.boundingBox,
-                      {
-                        left,
-                        top,
-                        width: boxWidth,
-                        height: boxHeight,
-                        borderColor,
-                      }
-                    ]}
-                    onPress={() => {
-                      setSelectedObject(item);
-                      setModalVisible(true);
-                    }}
-                  >
-                    <View style={[styles.labelBox, { backgroundColor: borderColor }]}>
-                      <Text style={styles.labelText}>
-                        {item.label} ({item.confidence}%)
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* Draw Circles for Detected Objects */}
-              {detected.map((item, i) => {
-                if (!item.box || !item.box.length) return null;
-                const [x1, y1, x2, y2] = item.box;
-
-                const centerX = ((x1 + x2) / 2) * imageSize.width;
-                const centerY = ((y1 + y2) / 2) * imageSize.height;
-                const radius = Math.min(
-                  (x2 - x1) * imageSize.width * 0.3,
-                  (y2 - y1) * imageSize.height * 0.3,
-                  50
-                );
-
-                const circleColor = getClassificationColor(item.label);
-
-                return (
-                  <View
-                    key={`circle-${i}`}
-                    style={[
-                      styles.detectionCircle,
-                      {
-                        left: centerX - radius,
-                        top: centerY - radius,
-                        width: radius * 2,
-                        height: radius * 2,
-                        borderColor: circleColor,
-                        backgroundColor: circleColor + '20', // Add transparency
-                      }
-                    ]}
-                  >
-                    <View style={[styles.circleLabel, { backgroundColor: circleColor }]}>
-                      <Text style={styles.circleLabelText}>
-                        {item.label.split(' ')[0]}
-                      </Text>
-                    </View>
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.boundingBox,
+                    {
+                      left,
+                      top,
+                      width,
+                      height,
+                      borderColor,
+                    }
+                  ]}
+                  onPress={() => {
+                    setSelectedObject(item);
+                    setModalVisible(true);
+                  }}
+                >
+                  <View style={[styles.labelBox, { backgroundColor: borderColor }]}>
+                    <Text style={styles.labelText}>
+                      {item.label} ({formatConfidence(item.confidence)})
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
 
-      {/* Detect Button */}
-      {image && !detectionCompleted && (
-        <View style={styles.detectSection}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#0077b6" />
-              <Text style={styles.loadingText}>🔄 Analyzing waste composition...</Text>
-              <Text style={styles.loadingSubtext}>Detecting objects, materials, and classification</Text>
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.detectButton]} 
-              onPress={handleDetect}
-            >
-              <Text style={styles.buttonText}>🔍 Analyze Waste Image</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      {/* Action Buttons */}
+      <View style={styles.section}>
+        {image && !detectionCompleted && (
+          <View style={styles.detectSection}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#0077b6" />
+                <Text style={styles.loadingText}>🔄 Analyzing waste composition...</Text>
+                <Text style={styles.loadingSubtext}>This may take a few seconds</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.detectButton]} 
+                onPress={handleDetect}
+                disabled={reportLoading}
+              >
+                <Text style={styles.buttonText}>🔍 Analyze Waste Image</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-      {/* Report Button - Only shows after detection */}
-      {detectionCompleted && (
-        <View style={styles.reportSection}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.reportButton]} 
-            onPress={() => setReportModalVisible(true)}
-          >
-            <Text style={styles.buttonText}>📝 Save Analysis Report</Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.reportHint}>
-            💡 Save this analysis to your personal report history
-          </Text>
-        </View>
-      )}
+        {detectionCompleted && (
+          <View style={styles.reportSection}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.reportButton]} 
+              onPress={() => setReportModalVisible(true)}
+              disabled={reportLoading}
+            >
+              {reportLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.buttonText}>📝 Save Analysis Report</Text>
+              )}
+            </TouchableOpacity>
+            
+            {reportLoading && (
+              <Text style={styles.reportHint}>
+                ⏳ Saving report to database...
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
 
       {/* Results Section */}
-      {classification && (
+      {detectionCompleted && (
         <View style={styles.resultsSection}>
-          {/* Detection Summary */}
+          {/* Summary Card */}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>📊 Detection Summary</Text>
             <View style={styles.summaryGrid}>
@@ -489,7 +623,7 @@ const WasteDetection = ({ navigation }) => {
                 <Text style={styles.summaryLabel}>Objects Found</Text>
               </View>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryNumber}>{classificationConfidence}%</Text>
+                <Text style={styles.summaryNumber}>{formatConfidence(classificationConfidence)}</Text>
                 <Text style={styles.summaryLabel}>Confidence</Text>
               </View>
               <View style={styles.summaryItem}>
@@ -512,7 +646,7 @@ const WasteDetection = ({ navigation }) => {
                 {classification}
               </Text>
               <Text style={styles.confidenceText}>
-                Confidence: {classificationConfidence}%
+                Confidence: {formatConfidence(classificationConfidence)}
               </Text>
             </View>
           </View>
@@ -561,7 +695,7 @@ const WasteDetection = ({ navigation }) => {
                     </Text>
                   </View>
                   <Text style={styles.materialConfidence}>
-                    {Math.round(confidence * 100)}%
+                    {formatConfidence(confidence)}
                   </Text>
                 </View>
               ))}
@@ -584,7 +718,7 @@ const WasteDetection = ({ navigation }) => {
                   <View style={styles.objectInfo}>
                     <Text style={styles.objectLabel}>{item.label}</Text>
                     <Text style={styles.objectDetails}>
-                      Confidence: {item.confidence}% • Material: {item.material}
+                      Confidence: {formatConfidence(item.confidence)} • Material: {item.material || 'Unknown'}
                     </Text>
                   </View>
                   <Text style={styles.arrow}>›</Text>
@@ -630,6 +764,10 @@ const WasteDetection = ({ navigation }) => {
                 <Text style={styles.reportDetailValue}>{detected.length}</Text>
               </View>
               <View style={styles.reportDetail}>
+                <Text style={styles.reportDetailLabel}>Confidence:</Text>
+                <Text style={styles.reportDetailValue}>{formatConfidence(classificationConfidence)}</Text>
+              </View>
+              <View style={styles.reportDetail}>
                 <Text style={styles.reportDetailLabel}>Location:</Text>
                 <Text style={styles.reportDetailValue}>{manualLocation || "Not specified"}</Text>
               </View>
@@ -651,6 +789,7 @@ const WasteDetection = ({ navigation }) => {
               <TouchableOpacity 
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setReportModalVisible(false)}
+                disabled={reportLoading}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
@@ -689,16 +828,18 @@ const WasteDetection = ({ navigation }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Confidence:</Text>
-                  <Text style={styles.detailValue}>{selectedObject.confidence}%</Text>
+                  <Text style={styles.detailValue}>{formatConfidence(selectedObject.confidence)}</Text>
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Material:</Text>
-                  <Text style={styles.detailValue}>{selectedObject.material}</Text>
+                  <Text style={styles.detailValue}>{selectedObject.material || 'Unknown'}</Text>
                 </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Area Coverage:</Text>
-                  <Text style={styles.detailValue}>{selectedObject.area_percentage}%</Text>
-                </View>
+                {selectedObject.area_percentage && (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Area Coverage:</Text>
+                    <Text style={styles.detailValue}>{selectedObject.area_percentage}%</Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setModalVisible(false)}

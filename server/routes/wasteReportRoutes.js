@@ -1,117 +1,399 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const WasteReport = require('../models/WasteReport');
 const Notification = require('../models/Notification');
 const auth = require('../middleware/auth');
+const cloudinary = require('cloudinary').v2;
 
-// Create waste detection report
-router.post('/detect', auth, async (req, res) => {
+// @desc    Create waste detection report with image upload
+// @route   POST /api/waste-reports/detect
+// @access  Private
+router.post('/detect', 
+  auth,
+  [
+    body('image').notEmpty().withMessage('Image is required'),
+    body('classification').notEmpty().withMessage('Classification is required'),
+    body('classification_confidence').isFloat({ min: 0, max: 1 }).withMessage('Confidence must be between 0 and 1')
+  ],
+  async (req, res) => {
+    try {
+      console.log('📨 Received waste detection request from user:', req.user.id);
+      
+      // Check for validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Validation failed',
+          details: errors.array() 
+        });
+      }
+
+      const {
+        image,
+        detected_objects = [],
+        classification,
+        classification_confidence,
+        waste_composition = {},
+        material_breakdown = {},
+        recycling_tips = [],
+        location = {},
+        scan_date
+      } = req.body;
+
+      console.log('📊 Processing report data:', {
+        classification,
+        confidence: classification_confidence,
+        objectsCount: detected_objects.length,
+        hasImage: !!image
+      });
+
+      let imageUrl = image;
+      let cloudinaryId = '';
+
+      // Upload image to Cloudinary if it's base64
+      if (image && image.startsWith('data:image')) {
+        try {
+          console.log('☁️ Uploading image to Cloudinary...');
+          const uploadResponse = await cloudinary.uploader.upload(image, {
+            folder: 'waste-reports',
+            resource_type: 'image',
+            quality: 'auto:good',
+            fetch_format: 'auto'
+          });
+          imageUrl = uploadResponse.secure_url;
+          cloudinaryId = uploadResponse.public_id;
+          console.log('✅ Image uploaded to Cloudinary:', uploadResponse.secure_url);
+        } catch (uploadError) {
+          console.error('❌ Cloudinary upload error:', uploadError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to upload image to cloud storage',
+            details: uploadError.message
+          });
+        }
+      }
+
+      // Create report with transaction for data consistency
+      const session = await WasteReport.startSession();
+      session.startTransaction();
+
+      try {
+        const reportData = {
+          user: req.user.id,
+          userEmail: req.user.email,
+          image: imageUrl,
+          cloudinaryId: cloudinaryId,
+          detectedObjects: detected_objects,
+          classification,
+          classificationConfidence: classification_confidence,
+          wasteComposition: waste_composition,
+          materialBreakdown: material_breakdown,
+          recyclingTips: recycling_tips,
+          location,
+          status: 'pending'
+        };
+
+        // Add scan date if provided
+        if (scan_date) {
+          reportData.scanDate = new Date(scan_date);
+        }
+
+        const report = new WasteReport(reportData);
+        await report.save({ session });
+
+        console.log('✅ Waste report saved to database:', report._id);
+
+        // Create notification
+        const notification = new Notification({
+          user: req.user.id,
+          title: 'Waste Report Created',
+          message: `Your waste detection report has been created successfully. Classification: ${classification}`,
+          type: 'report_created',
+          relatedReport: report._id
+        });
+        await notification.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        console.log('✅ Transaction committed successfully');
+
+        // Populate the report with user data for response
+        const populatedReport = await WasteReport.findById(report._id)
+          .populate('user', 'name email');
+
+        // Detailed response
+        res.status(201).json({
+          success: true,
+          message: 'Report successfully saved to database!',
+          report: populatedReport,
+          notification: {
+            id: notification._id,
+            title: notification.title,
+            message: notification.message
+          }
+        });
+
+      } catch (transactionError) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error('❌ Transaction error:', transactionError);
+        throw transactionError;
+      }
+
+    } catch (error) {
+      console.error('❌ Report creation error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to create waste report',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+// @desc    Get user's waste reports
+// @route   GET /api/waste-reports/my-reports
+// @access  Private
+router.get('/my-reports', auth, async (req, res) => {
   try {
-    const {
-      image,
-      detected_objects,
-      classification,
-      classification_confidence,
-      waste_composition,
-      material_breakdown,
-      recycling_tips,
-      location
-    } = req.body;
+    const { page = 1, limit = 10, status } = req.query;
+    
+    const query = { user: req.user.id };
+    if (status && status !== 'all') {
+      query.status = status;
+    }
 
-    const report = new WasteReport({
-      user: req.user.id,
-      userEmail: req.user.email,
-      image,
-      detectedObjects: detected_objects,
-      classification,
-      classificationConfidence: classification_confidence,
-      wasteComposition: waste_composition,
-      materialBreakdown: material_breakdown,
-      recyclingTips: recycling_tips,
-      location
-    });
+    const reports = await WasteReport.find(query)
+      .sort({ scanDate: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .select('-__v');
 
-    await report.save();
-
-    // Create notification
-    const notification = new Notification({
-      user: req.user.id,
-      title: 'Waste Report Created',
-      message: `Your waste detection report has been created successfully. Classification: ${classification}`,
-      type: 'report_created',
-      relatedReport: report._id
-    });
-    await notification.save();
+    const total = await WasteReport.countDocuments(query);
 
     res.json({
       success: true,
-      report: report,
-      notification: notification
+      reports,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      total
     });
-  } catch (error) {
-    console.error('Report creation error:', error);
-    res.status(500).json({ error: 'Failed to create waste report' });
-  }
-});
-
-// Get user's waste reports
-router.get('/my-reports', auth, async (req, res) => {
-  try {
-    const reports = await WasteReport.find({ user: req.user.id })
-      .sort({ scanDate: -1 });
-    
-    res.json(reports);
   } catch (error) {
     console.error('Get reports error:', error);
-    res.status(500).json({ error: 'Failed to fetch reports' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch reports' 
+    });
   }
 });
 
-// Get all reports (admin)
-router.get('/all', auth, async (req, res) => {
+// @desc    Get single report by ID
+// @route   GET /api/waste-reports/:id
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const report = await WasteReport.findById(req.params.id)
+      .populate('user', 'name email');
+    
+    if (!report) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Report not found' 
+      });
+    }
+
+    // Check if user owns the report or is admin
+    if (report.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Access denied' 
+      });
+    }
+
+    res.json({
+      success: true,
+      report
+    });
+  } catch (error) {
+    console.error('Get report error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch report' 
+    });
+  }
+});
+
+// @desc    Get all reports (admin only)
+// @route   GET /api/waste-reports
+// @access  Private/Admin
+router.get('/', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ 
+        success: false,
+        error: 'Access denied' 
+      });
     }
 
-    const reports = await WasteReport.find()
-      .populate('user', 'name email')
-      .sort({ scanDate: -1 });
+    const { page = 1, limit = 10, status, user } = req.query;
     
-    res.json(reports);
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    if (user) query.user = user;
+
+    const reports = await WasteReport.find(query)
+      .populate('user', 'name email')
+      .sort({ scanDate: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .select('-__v');
+
+    const total = await WasteReport.countDocuments(query);
+
+    res.json({
+      success: true,
+      reports,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      total
+    });
   } catch (error) {
     console.error('Get all reports error:', error);
-    res.status(500).json({ error: 'Failed to fetch reports' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch reports' 
+    });
   }
 });
 
-// Update report status
-router.put('/:id/status', auth, async (req, res) => {
+// @desc    Update report status
+// @route   PUT /api/waste-reports/:id/status
+// @access  Private
+router.put('/:id/status', 
+  auth,
+  [
+    body('status').isIn(['pending', 'processed', 'recycled', 'disposed', 'rejected']).withMessage('Invalid status')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Validation failed',
+          details: errors.array() 
+        });
+      }
+
+      const { status, adminNotes } = req.body;
+      
+      const report = await WasteReport.findById(req.params.id);
+      if (!report) {
+        return res.status(404).json({ 
+          success: false,
+          error: 'Report not found' 
+        });
+      }
+
+      // Check if user owns the report or is admin
+      if (report.user.toString() !== req.user.id && req.user.role !== 'admin') {
+        return res.status(403).json({ 
+          success: false,
+          error: 'Access denied' 
+        });
+      }
+
+      const session = await WasteReport.startSession();
+      session.startTransaction();
+
+      try {
+        report.status = status;
+        if (adminNotes && req.user.role === 'admin') {
+          report.adminNotes = adminNotes;
+        }
+        await report.save({ session });
+
+        // Create status update notification
+        const notification = new Notification({
+          user: report.user,
+          title: 'Report Status Updated',
+          message: `Your waste report status has been updated to: ${status}`,
+          type: 'report_processed',
+          relatedReport: report._id
+        });
+        await notification.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.json({ 
+          success: true, 
+          message: 'Report status updated successfully',
+          report 
+        });
+
+      } catch (transactionError) {
+        await session.abortTransaction();
+        session.endSession();
+        throw transactionError;
+      }
+
+    } catch (error) {
+      console.error('Update status error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to update report status' 
+      });
+    }
+  }
+);
+
+// @desc    Delete waste report
+// @route   DELETE /api/waste-reports/:id
+// @access  Private
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const { status } = req.body;
-    
     const report = await WasteReport.findById(req.params.id);
+    
     if (!report) {
-      return res.status(404).json({ error: 'Report not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Report not found' 
+      });
     }
 
-    report.status = status;
-    await report.save();
+    // Check if user owns the report or is admin
+    if (report.user.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Access denied' 
+      });
+    }
 
-    // Create status update notification
-    const notification = new Notification({
-      user: report.user,
-      title: 'Report Status Updated',
-      message: `Your waste report status has been updated to: ${status}`,
-      type: 'report_processed',
-      relatedReport: report._id
+    // Delete image from Cloudinary if exists
+    if (report.cloudinaryId) {
+      try {
+        await cloudinary.uploader.destroy(report.cloudinaryId);
+      } catch (cloudinaryError) {
+        console.error('Cloudinary delete error:', cloudinaryError);
+      }
+    }
+
+    await WasteReport.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully'
     });
-    await notification.save();
-
-    res.json({ success: true, report });
   } catch (error) {
-    console.error('Update status error:', error);
-    res.status(500).json({ error: 'Failed to update report status' });
+    console.error('Delete report error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete report' 
+    });
   }
 });
 

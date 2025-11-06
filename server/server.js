@@ -5,8 +5,8 @@ const cors = require('cors');
 
 const userRoutes = require('./routes/userRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
-const Notification = require('./models/Notification');
-const WasteReport = require('./models/WasteReport');
+const notificationRoutes = require('./routes/notificationRoutes');
+const wasteReportRoutes = require('./routes/wasteReportRoutes');
 
 
 const app = express();
@@ -17,8 +17,8 @@ app.use(express.json());
 
 app.use('/api/users', userRoutes)
 app.use('/api/feedback', feedbackRoutes);
-app.use('/api/notifications', Notification);
-app.use('/api/waste-reports', WasteReport);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/waste-reports', wasteReportRoutes);
 
 
 mongoose.connect(process.env.MONGO_URI, {

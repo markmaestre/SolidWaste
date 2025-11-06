@@ -17,6 +17,7 @@ import { loginUser } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,25 +42,49 @@ const Login = () => {
 
   const handleLogin = async () => {
     try {
+      // Basic validation
+      if (!form.email || !form.password) {
+        Alert.alert('Validation Error', 'Please enter both email and password');
+        return;
+      }
+
+      console.log('🔄 Attempting login...');
       const resultAction = await dispatch(loginUser(form));
       
       // Check if the login was successful
       if (loginUser.fulfilled.match(resultAction)) {
-        const user = resultAction.payload.user;
+        const { user, token } = resultAction.payload;
         
+        console.log('✅ Login successful, token received:', token ? 'Yes' : 'No');
+        
+        // Save token to AsyncStorage
+        if (token) {
+          await AsyncStorage.setItem('userToken', token);
+          console.log('💾 Token saved to AsyncStorage');
+        } else {
+          console.warn('⚠️ No token received from server');
+        }
+
+        // Save user info to AsyncStorage
+        await AsyncStorage.setItem('userInfo', JSON.stringify(user));
+        console.log('💾 User info saved to AsyncStorage');
+
+        // Navigate based on user role
         if (user.role === 'admin') {
+          console.log('👑 Navigating to AdminDashboard');
           navigation.navigate('AdminDashboard');
         } else if (user.role === 'user') {
+          console.log('👤 Navigating to UserDashboard');
           navigation.navigate('UserDashboard');
         } else {
           Alert.alert('Login failed', 'Invalid role assigned to user');
         }
       } else {
         // The error message is already in the state from the rejected action
-        console.log('Login failed:', resultAction.error);
+        console.log('❌ Login failed:', resultAction.error);
       }
     } catch (err) {
-      console.log('Login Error:', err);
+      console.log('❌ Login Error:', err);
       Alert.alert('Error', 'An unexpected error occurred during login');
     }
   };
