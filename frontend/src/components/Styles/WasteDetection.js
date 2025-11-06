@@ -1,384 +1,500 @@
-// Styles/WasteDetection.js
-import { StyleSheet, Dimensions } from "react-native";
+import { StyleSheet, Dimensions } from 'react-native';
 
-const { width: screenWidth } = Dimensions.get("window");
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: '#1a1a2e',
   },
+  
   contentContainer: {
-    paddingBottom: 30,
+    paddingBottom: 40,
   },
+
+  // Header
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    backgroundColor: '#16213e',
+    borderBottomWidth: 1,
+    borderBottomColor: '#87CEEB',
+  },
+
   backButton: {
-    padding: 10,
-    marginTop: 40,
-    marginLeft: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    borderRadius: 8,
+    backgroundColor: '#0f3460',
+    alignSelf: 'flex-start',
   },
+
+  backButtonPressed: {
+    opacity: 0.7,
+  },
+
   backButtonText: {
-    fontSize: 16,
-    color: "#0077b6",
-    fontWeight: "600",
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '600',
   },
+
   title: {
     fontSize: 28,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginVertical: 10,
-    color: "#2d3748",
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#718096",
-    marginBottom: 20,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 15,
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  actionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    minWidth: 120,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  cameraButton: {
-    backgroundColor: "#0077b6",
-  },
-  galleryButton: {
-    backgroundColor: "#00b4d8",
-  },
-  detectButton: {
-    backgroundColor: "#2E8B57",
-    paddingVertical: 15,
-    marginHorizontal: 20,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  imageSection: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#2d3748",
-    marginBottom: 10,
-  },
-  imageContainer: {
-    alignItems: "center",
-  },
-  imageWrapper: {
-    position: "relative",
-    borderRadius: 15,
-    overflow: "hidden",
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  previewImage: {
-    borderRadius: 15,
-  },
-  boundingBox: {
-    position: "absolute",
-    borderWidth: 2,
-    borderRadius: 8,
-  },
-  labelBox: {
-    position: "absolute",
-    top: -25,
-    left: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  labelText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  detectSection: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    color: "#718096",
-    fontSize: 14,
-  },
-  resultsSection: {
-    marginHorizontal: 20,
-    gap: 15,
-  },
-  classificationCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  resultTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#2d3748",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  classificationBadge: {
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  classificationText: {
-    color: "white",
-    fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: 'bold',
+    color: '#87CEEB',
     marginBottom: 5,
   },
-  confidenceText: {
-    color: "white",
+
+  subtitle: {
     fontSize: 14,
-    opacity: 0.9,
+    color: '#B0C4DE',
   },
-  compositionCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+
+  // User Info
+  userInfo: {
+    marginHorizontal: 20,
+    marginVertical: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#0f3460',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#87CEEB',
   },
-  compositionItem: {
-    flexDirection: "row",
-    alignItems: "center",
+
+  userText: {
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  // Section
+  section: {
+    marginHorizontal: 20,
+    marginVertical: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#87CEEB',
     marginBottom: 12,
   },
-  compositionLabel: {
-    width: 120,
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "600",
+
+  // Location Section
+  locationSection: {
+    marginHorizontal: 20,
+    marginTop: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f3460',
   },
-  progressBarContainer: {
+
+  locationInput: {
+    borderWidth: 1,
+    borderColor: '#0f3460',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    color: '#87CEEB',
+    fontSize: 14,
+    backgroundColor: '#0f3460',
+  },
+
+  locationButton: {
+    backgroundColor: '#0f3460',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 5,
+    borderWidth: 1,
+    borderColor: '#87CEEB',
+  },
+
+  locationButtonText: {
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Buttons
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+
+  actionButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#87CEEB',
+  },
+
+  cameraButton: {
     flex: 1,
-    height: 8,
-    backgroundColor: "#e2e8f0",
-    borderRadius: 4,
-    marginHorizontal: 10,
-    overflow: "hidden",
+    backgroundColor: '#0f3460',
   },
-  progressBar: {
-    height: "100%",
+
+  galleryButton: {
+    flex: 1,
+    backgroundColor: '#0f3460',
+  },
+
+  historyButton: {
+    marginHorizontal: 20,
+    marginVertical: 10,
+    backgroundColor: '#0f3460',
+  },
+
+  detectButton: {
+    backgroundColor: '#0f3460',
+    marginHorizontal: 0,
+    marginVertical: 10,
+  },
+
+  reportButton: {
+    backgroundColor: '#0f3460',
+    marginHorizontal: 0,
+    marginVertical: 10,
+  },
+
+  buttonText: {
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  buttonPressed: {
+    opacity: 0.7,
+  },
+
+  disabledButton: {
+    opacity: 0.5,
+  },
+
+  // Image Container
+  imageContainer: {
+    position: 'relative',
+    marginTop: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+
+  previewImage: {
+    width: screenWidth * 0.9,
+    height: screenWidth * 0.75,
+    backgroundColor: '#000',
+  },
+
+  boundingBox: {
+    borderWidth: 2,
+  },
+
+  labelBox: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 4,
   },
-  percentageText: {
-    width: 40,
+
+  labelText: {
+    color: '#1a1a2e',
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#2d3748",
-    textAlign: "right",
+    fontWeight: '700',
   },
-  materialsCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+
+  // Loading
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 30,
   },
-  materialItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  materialInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  materialDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 10,
-  },
-  materialName: {
+
+  loadingText: {
+    marginTop: 15,
+    color: '#87CEEB',
     fontSize: 14,
-    color: "#2d3748",
-    fontWeight: "500",
+    fontWeight: '500',
   },
-  materialConfidence: {
-    fontSize: 14,
-    color: "#718096",
-    fontWeight: "600",
+
+  detectSection: {
+    marginHorizontal: 0,
+    marginVertical: 10,
   },
+
+  reportSection: {
+    marginHorizontal: 0,
+    marginVertical: 10,
+  },
+
+  // Results Section
+  resultsSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    gap: 15,
+  },
+
+  summaryCard: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#87CEEB',
+    marginBottom: 12,
+  },
+
+  summaryGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  summaryNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#87CEEB',
+  },
+
+  summaryLabel: {
+    fontSize: 12,
+    color: '#B0C4DE',
+    marginTop: 5,
+  },
+
+  classificationCard: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#87CEEB',
+    marginBottom: 12,
+  },
+
+  classificationBadge: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+
+  classificationText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1a1a2e',
+    textTransform: 'capitalize',
+  },
+
+  confidenceText: {
+    fontSize: 12,
+    color: '#1a1a2e',
+    marginTop: 5,
+    fontWeight: '600',
+  },
+
   objectsCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#0f3460',
   },
+
   objectItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f1f1",
+    borderBottomColor: '#0f3460',
   },
+
   objectInfo: {
     flex: 1,
   },
+
   objectLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2d3748",
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#87CEEB',
+    marginBottom: 5,
+    textTransform: 'capitalize',
   },
+
   objectDetails: {
     fontSize: 12,
-    color: "#718096",
+    color: '#B0C4DE',
   },
-  arrow: {
-    fontSize: 18,
-    color: "#cbd5e0",
-  },
+
   tipsCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#0f3460',
   },
+
   tipItem: {
-    flexDirection: "row",
-    marginBottom: 10,
-    alignItems: "flex-start",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    backgroundColor: '#0f3460',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#87CEEB',
   },
-  tipBullet: {
-    fontSize: 16,
-    color: "#2E8B57",
-    marginRight: 10,
-    marginTop: 2,
-  },
+
   tipText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#4a5568",
-    lineHeight: 20,
+    color: '#87CEEB',
+    fontSize: 13,
   },
-  modalContainer: {
+
+  // Modal
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
   },
+
   modalContent: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    width: "80%",
-    maxWidth: 350,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    backgroundColor: '#16213e',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: screenHeight * 0.8,
+    borderTopWidth: 2,
+    borderTopColor: '#87CEEB',
   },
+
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#2d3748",
-    marginBottom: 20,
-    textAlign: "center",
+    fontWeight: 'bold',
+    color: '#87CEEB',
+    marginBottom: 15,
+    textAlign: 'center',
   },
-  detailItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
+
+  reportSummary: {
+    marginBottom: 15,
+    maxHeight: screenHeight * 0.3,
+  },
+
+  reportSummaryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#87CEEB',
+    marginBottom: 10,
+  },
+
+  reportDetail: {
+    marginBottom: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f1f1",
+    borderBottomColor: '#0f3460',
   },
-  detailLabel: {
-    fontSize: 16,
-    color: "#718096",
-    fontWeight: "500",
+
+  reportDetailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B0C4DE',
+    marginBottom: 4,
   },
-  detailValue: {
-    fontSize: 16,
-    color: "#2d3748",
-    fontWeight: "600",
+
+  reportDetailValue: {
+    fontSize: 13,
+    color: '#87CEEB',
+    fontWeight: '500',
   },
-  closeButton: {
-    backgroundColor: "#0077b6",
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 20,
+
+  messageSection: {
+    marginBottom: 15,
   },
-  closeButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
+
+  messageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B0C4DE',
+    marginBottom: 8,
+  },
+
+  messageInput: {
+    borderWidth: 1,
+    borderColor: '#0f3460',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#87CEEB',
+    fontSize: 13,
+    backgroundColor: '#0f3460',
+    textAlignVertical: 'top',
+  },
+
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+
+  modalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+
+  cancelButton: {
+    backgroundColor: '#0f3460',
+    borderColor: '#B0C4DE',
+  },
+
+  cancelButtonText: {
+    color: '#B0C4DE',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  confirmButton: {
+    backgroundColor: '#87CEEB',
+    borderColor: '#87CEEB',
+  },
+
+  confirmButtonText: {
+    color: '#1a1a2e',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
