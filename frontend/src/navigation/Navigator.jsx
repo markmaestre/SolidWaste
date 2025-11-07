@@ -11,6 +11,7 @@
   import FeedbackSupport from '../components/User/FeedbackSupport';
   import WasteDetection from '../components/User/WasteDetection';
   import ReportHistory from '../components/User/ReportHistory';
+  import Maps from '../components/User/Maps';   
 
   const Stack = createStackNavigator();
 
@@ -38,6 +39,7 @@
           <Stack.Screen name="FeedbackSupport" component={FeedbackSupport} />
           <Stack.Screen name="WasteDetection" component={WasteDetection} />
           <Stack.Screen name="ReportHistory" component={ReportHistory} />
+          <Stack.Screen name="Maps" component={Maps} /> 
         </Stack.Navigator>
       </Provider>
     );

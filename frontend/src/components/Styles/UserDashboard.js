@@ -710,4 +710,47 @@ notificationBadgeTextHeader: {
     fontWeight: '700',
     color: '#FFFFFF',
   },
+
+  // Add these to your existing styles
+menuSectionTitle: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#90CAF9',
+  marginTop: 20,
+  marginBottom: 8,
+  marginLeft: 20,
+  textTransform: 'uppercase',
+  letterSpacing: 1,
+},
+
+newBadge: {
+  backgroundColor: '#FF4081',
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 10,
+  marginLeft: 'auto',
+},
+
+newBadgeText: {
+  color: '#FFFFFF',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
+
+notificationBadge: {
+  backgroundColor: '#FF4081',
+  borderRadius: 10,
+  minWidth: 20,
+  height: 20,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginLeft: 'auto',
+},
+
+notificationBadgeText: {
+  color: '#FFFFFF',
+  fontSize: 10,
+  fontWeight: 'bold',
+  paddingHorizontal: 4,
+},
 });

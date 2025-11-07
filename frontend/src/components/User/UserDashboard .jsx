@@ -58,6 +58,7 @@ const UserDashboard = () => {
         'DisposalGuidance': 'DisposalGuidance',
         'EducationalSection': 'EducationalSection',
         'Notifications': 'Notifications',
+        'Maps': 'Maps',
       };
       
       if (routeToTabMap[currentRoute]) {
@@ -265,6 +266,9 @@ const UserDashboard = () => {
         case 'Notifications':
           navigation.navigate('Notifications');
           break;
+        case 'Maps':
+          navigation.navigate('Maps');
+          break;
         case 'Settings':
           // Settings is handled in renderContent - stay on dashboard but show settings
           break;
@@ -425,6 +429,20 @@ const UserDashboard = () => {
                   color="#9C27B0"
                   onPress={() => navigateTo('Notifications')}
                 />
+                <QuickActionCard
+                  icon="map"
+                  title="Recycling Map"
+                  count="Find Centers"
+                  color="#009688"
+                  onPress={() => navigateTo('Maps')}
+                />
+                <QuickActionCard
+                  icon="feedback"
+                  title="Feedback"
+                  count="Share Ideas"
+                  color="#FF5722"
+                  onPress={() => navigateTo('FeedbackSupport')}
+                />
               </View>
             </View>    
           </ScrollView>
@@ -583,6 +601,20 @@ const UserDashboard = () => {
               color="#9C27B0"
               onPress={() => navigateTo('Notifications')}
             />
+            <QuickActionCard
+              icon="map"
+              title="Recycling Map"
+              count="Find Centers"
+              color="#009688"
+              onPress={() => navigateTo('Maps')}
+            />
+            <QuickActionCard
+              icon="feedback"
+              title="Feedback"
+              count="Share Ideas"
+              color="#FF5722"
+              onPress={() => navigateTo('FeedbackSupport')}
+            />
           </View>
         </View>    
       </ScrollView>
@@ -691,8 +723,10 @@ const UserDashboard = () => {
                   <Text style={styles.menuText}>Home Dashboard</Text>
                   {activeTab === 'Home' && <View style={styles.activeIndicator} />}
                 </TouchableOpacity>
+
+                {/* Waste Management Section */}
+                <Text style={styles.menuSectionTitle}>Waste Management</Text>
                 
-                {/* All other menu items remain the same */}
                 <TouchableOpacity 
                   style={[styles.menuItem, activeTab === 'WasteDetection' && styles.activeMenuItem]}
                   onPress={() => navigateTo('WasteDetection')}
@@ -704,8 +738,124 @@ const UserDashboard = () => {
                   <Text style={styles.menuText}>Waste Detection</Text>
                 </TouchableOpacity>
 
-                {/* ... rest of menu items ... */}
-                
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'ReportWaste' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('ReportWaste')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="report" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Report Waste</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'ReportStatus' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('ReportStatus')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="list-alt" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Report Status</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'DetectionHistory' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('DetectionHistory')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="history" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Detection History</Text>
+                </TouchableOpacity>
+
+                {/* Maps Section */}
+                <Text style={styles.menuSectionTitle}>Facilities & Guidance</Text>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'Maps' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('Maps')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="map" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Recycling Map</Text>
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'DisposalGuidance' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('DisposalGuidance')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="eco" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Disposal Guidance</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'EducationalSection' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('EducationalSection')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="school" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Educational Resources</Text>
+                </TouchableOpacity>
+
+                {/* Support Section */}
+                <Text style={styles.menuSectionTitle}>Support</Text>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'Notifications' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('Notifications')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="notifications" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Notifications</Text>
+                  {user?.unreadNotifications > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {user.unreadNotifications > 99 ? '99+' : user.unreadNotifications}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'FeedbackSupport' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('FeedbackSupport')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="feedback" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Feedback & Support</Text>
+                </TouchableOpacity>
+
+                {/* Account Section */}
+                <Text style={styles.menuSectionTitle}>Account</Text>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'EditProfile' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('EditProfile')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="person" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Edit Profile</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity 
                   style={[styles.menuItem, activeTab === 'Settings' && styles.activeMenuItem]}
                   onPress={() => navigateTo('Settings')}
@@ -718,6 +868,7 @@ const UserDashboard = () => {
                   {activeTab === 'Settings' && <View style={styles.activeIndicator} />}
                 </TouchableOpacity>
 
+                {/* Logout */}
                 <TouchableOpacity 
                   style={styles.menuItem}
                   onPress={showLogoutConfirmation}
