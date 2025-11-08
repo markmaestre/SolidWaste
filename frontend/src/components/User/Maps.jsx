@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, Linking, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, ScrollView, Dimensions, BackHandler } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { styles } from "../../components/Styles/Maps";
 
-const Maps = () => {
+const Maps = ({ navigation }) => {
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,9 +13,42 @@ const Maps = () => {
   const [webViewKey, setWebViewKey] = useState(1);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [travelMode, setTravelMode] = useState('driving'); // driving, walking, bicycling
+  const [travelMode, setTravelMode] = useState('driving');
 
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+  const REAL_FACILITY_TYPES = [
+    'MRF',
+    'E-Waste Collection Center',
+    'Hazardous Waste Facility',
+    'Community Recycling Point',
+    'Scrap Metal Dealer',
+    'Plastic Recycling Center',
+    'Glass Recycling Facility',
+    'Paper Recycling Plant',
+    'Composting Site',
+    'Battery Recycling Center'
+  ];
+
+  // Handle back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedFacility) {
+        setSelectedFacility(null);
+        setRouteInfo(null);
+        // Clear route from map
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'CLEAR_ROUTE'
+          }));
+        }
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [selectedFacility]);
 
   const getCurrentLocation = async () => {
     try {
@@ -27,7 +60,7 @@ const Maps = () => {
       
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError('Permission to access location was denied. Please enable location services in your settings.');
+        setError('Location permission is required to find nearby recycling facilities. Please enable location services in your device settings.');
         setLoading(false);
         return;
       }
@@ -43,7 +76,7 @@ const Maps = () => {
       
     } catch (error) {
       console.error('Error getting location:', error);
-      setError('Error getting your location. Please try again.');
+      setError('Unable to retrieve your current location. Please check your internet connection and try again.');
       setLoading(false);
     }
   };
@@ -52,169 +85,180 @@ const Maps = () => {
     try {
       console.log('🔍 Searching for recycling facilities...');
       
-      const searchQueries = [
-        'recycling center',
-        'recycling facility',
-        'waste management'
+      const searchPromises = [
+        searchOpenStreetMap(lat, lng),
+        searchOverpassAPI(lat, lng)
       ];
 
+      const results = await Promise.allSettled(searchPromises);
+      
       let allFacilities = [];
-
-      for (const query of searchQueries) {
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?` +
-            `q=${encodeURIComponent(query)}&` +
-            `format=json&` +
-            `lat=${lat}&` +
-            `lon=${lng}&` +
-            `radius=5000&` +
-            `limit=5`
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`✅ Found ${data.length} results for: ${query}`);
-            
-            const filteredFacilities = data.map(place => ({
-              id: place.place_id + Math.random(),
-              name: place.display_name.split(',')[0] || `Recycling Facility`,
-              fullAddress: place.display_name,
-              latitude: parseFloat(place.lat),
-              longitude: parseFloat(place.lon),
-              type: place.type,
-              category: place.class,
-              source: 'openstreetmap'
-            }));
-
-            allFacilities = [...allFacilities, ...filteredFacilities];
-          }
-        } catch (err) {
-          console.log(`❌ Error searching for ${query}:`, err);
+      
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          console.log(`✅ Source ${index + 1} found ${result.value.length} facilities`);
+          allFacilities = [...allFacilities, ...result.value];
         }
-      }
+      });
 
-      const uniqueFacilities = allFacilities.filter((facility, index, self) =>
-        index === self.findIndex(f => 
-          f.latitude.toFixed(4) === facility.latitude.toFixed(4) && 
-          f.longitude.toFixed(4) === facility.longitude.toFixed(4)
+      const uniqueFacilities = allFacilities
+        .filter((facility, index, self) =>
+          index === self.findIndex(f => 
+            f.latitude.toFixed(4) === facility.latitude.toFixed(4) && 
+            f.longitude.toFixed(4) === facility.longitude.toFixed(4)
+          )
         )
-      );
+        .map(facility => ({
+          ...facility,
+          distance: calculateDistance(lat, lng, facility.latitude, facility.longitude)
+        }))
+        .sort((a, b) => a.distance - b.distance);
 
       console.log(`🎯 Total unique facilities found: ${uniqueFacilities.length}`);
       
       if (uniqueFacilities.length === 0) {
-        console.log('⚠️ No facilities found, adding fallback locations');
-        const fallbackFacilities = generateFallbackFacilities(lat, lng);
+        const fallbackFacilities = generateEnhancedFallbackFacilities(lat, lng);
         setFacilities(fallbackFacilities);
       } else {
-        setFacilities(uniqueFacilities);
+        setFacilities(uniqueFacilities.slice(0, 10));
       }
 
       setLoading(false);
       
     } catch (error) {
       console.error('Error searching facilities:', error);
-      const fallbackFacilities = generateFallbackFacilities(lat, lng);
+      const fallbackFacilities = generateEnhancedFallbackFacilities(lat, lng);
       setFacilities(fallbackFacilities);
       setLoading(false);
     }
   };
 
-  const generateFallbackFacilities = (lat, lng) => {
-    const fallbacks = [];
-    const facilityTypes = [
-      'Community Recycling Center',
-      'Eco Waste Facility',
-      'Green Recycling Point',
-      'Environmental Services',
-      'Waste Management Center'
-    ];
+  const searchOpenStreetMap = async (lat, lng) => {
+    try {
+      const queries = [
+        'recycling',
+        'waste transfer station',
+        'scrap yard',
+        'eco center',
+        'waste management'
+      ];
 
-    const count = 5;
-    
-    for (let i = 0; i < count; i++) {
-      const radius = 3;
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * radius;
+      let facilities = [];
       
-      const newLat = lat + (distance / 111.32) * Math.cos(angle);
-      const newLng = lng + (distance / (111.32 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+      for (const query of queries) {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?` +
+          `q=${encodeURIComponent(query)}&` +
+          `format=json&` +
+          `lat=${lat}&` +
+          `lon=${lng}&` +
+          `radius=10000&` +
+          `limit=10`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const mappedFacilities = data.map(place => ({
+            id: place.place_id,
+            name: place.display_name.split(',')[0] || 'Recycling Facility',
+            fullAddress: place.display_name,
+            latitude: parseFloat(place.lat),
+            longitude: parseFloat(place.lon),
+            type: place.type,
+            category: place.class,
+            source: 'openstreetmap',
+            verified: true
+          }));
+          facilities = [...facilities, ...mappedFacilities];
+        }
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
       
-      fallbacks.push({
-        id: `fallback-${i}`,
-        name: facilityTypes[i % facilityTypes.length],
-        fullAddress: `Approximate location near your area`,
-        latitude: newLat,
-        longitude: newLng,
-        type: 'recycling',
-        category: 'amenity',
-        source: 'fallback'
-      });
+      return facilities;
+    } catch (error) {
+      console.error('OSM search error:', error);
+      return [];
     }
-    
-    return fallbacks;
   };
 
-  const getRouteInfo = async (facility) => {
+  const searchOverpassAPI = async (lat, lng) => {
     try {
-      if (!location) return;
+      const overpassQuery = `
+        [out:json][timeout:25];
+        (
+          node["amenity"="recycling"](${lat-0.2},${lng-0.2},${lat+0.2},${lng+0.2});
+          node["recycling_type"="centre"](${lat-0.2},${lng-0.2},${lat+0.2},${lng+0.2});
+          node["craft"="scrap_yard"](${lat-0.2},${lng-0.2},${lat+0.2},${lng+0.2});
+          way["amenity"="recycling"](${lat-0.2},${lng-0.2},${lat+0.2},${lng+0.2});
+        );
+        out center;
+      `;
 
-      console.log('🔄 Getting route information...');
-      
       const response = await fetch(
-        `http://router.project-osrm.org/route/v1/${travelMode}/` +
-        `${location.longitude},${location.latitude};${facility.longitude},${facility.latitude}?` +
-        `overview=full&geometries=geojson`
+        'https://overpass-api.de/api/interpreter',
+        {
+          method: 'POST',
+          body: overpassQuery
+        }
       );
 
       if (response.ok) {
         const data = await response.json();
-        
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          const distance = (route.distance / 1000).toFixed(1); // Convert to km
-          const duration = Math.ceil(route.duration / 60); // Convert to minutes
-          
-          setRouteInfo({
-            distance: `${distance} km`,
-            duration: `${duration} mins`,
-            geometry: route.geometry
-          });
-          
-          console.log(`📍 Route: ${distance} km, ${duration} mins`);
-          
-          // Send route to WebView
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'SHOW_ROUTE',
-              route: route.geometry,
-              facility: facility
-            }));
-          }
-        }
+        return data.elements.map(element => {
+          const coords = element.center || element;
+          return {
+            id: element.id,
+            name: element.tags?.name || REAL_FACILITY_TYPES[Math.floor(Math.random() * REAL_FACILITY_TYPES.length)],
+            fullAddress: element.tags?.['addr:street'] || 'Recycling Facility',
+            latitude: coords.lat,
+            longitude: coords.lon,
+            type: element.tags?.amenity || 'recycling',
+            category: 'recycling',
+            source: 'overpass',
+            verified: true
+          };
+        });
       }
+      return [];
     } catch (error) {
-      console.error('Error getting route:', error);
-      // Fallback: estimate distance and time
-      const distance = calculateDistance(
-        location.latitude, 
-        location.longitude, 
-        facility.latitude, 
-        facility.longitude
-      );
-      const duration = estimateTravelTime(distance, travelMode);
-      
-      setRouteInfo({
-        distance: `${distance.toFixed(1)} km`,
-        duration: `${duration} mins`,
-        geometry: null
-      });
+      console.error('Overpass API error:', error);
+      return [];
     }
   };
 
+  const generateEnhancedFallbackFacilities = (lat, lng) => {
+    const facilities = [];
+    const facilityCount = 8;
+    
+    for (let i = 0; i < facilityCount; i++) {
+      const radius = 5;
+      const angle = (i / facilityCount) * 2 * Math.PI;
+      const distance = 1 + (Math.random() * (radius - 1));
+      
+      const newLat = lat + (distance / 111.32) * Math.cos(angle);
+      const newLng = lng + (distance / (111.32 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+      
+      const facilityType = REAL_FACILITY_TYPES[i % REAL_FACILITY_TYPES.length];
+      
+      facilities.push({
+        id: `real-fallback-${i}`,
+        name: `${facilityType} ${i + 1}`,
+        fullAddress: `Approximately ${distance.toFixed(1)}km from your location`,
+        latitude: newLat,
+        longitude: newLng,
+        type: 'recycling',
+        category: 'facility',
+        source: 'enhanced_fallback',
+        verified: false,
+        distance: distance
+      });
+    }
+    
+    return facilities.sort((a, b) => a.distance - b.distance);
+  };
+
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -225,15 +269,92 @@ const Maps = () => {
     return R * c;
   };
 
+  const getRouteInfo = async (facility, mode = travelMode) => {
+    try {
+      if (!location) return;
+
+      console.log(`🔄 Getting ${mode} route information...`);
+      
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/${mode}/` +
+        `${location.longitude},${location.latitude};${facility.longitude},${facility.latitude}?` +
+        `overview=full&geometries=geojson&steps=true`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const distance = (route.distance / 1000).toFixed(1);
+          const duration = Math.ceil(route.duration / 60);
+          
+          setRouteInfo({
+            distance: `${distance} km`,
+            duration: `${duration} minutes`,
+            geometry: route.geometry
+          });
+          
+          // Send route to WebView
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'SHOW_ROUTE',
+              route: route.geometry,
+              startLocation: location,
+              endLocation: facility,
+              travelMode: mode
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error getting route:', error);
+      // Enhanced fallback calculation
+      const distance = calculateDistance(
+        location.latitude, 
+        location.longitude, 
+        facility.latitude, 
+        facility.longitude
+      );
+      const duration = estimateTravelTime(distance, mode);
+      
+      setRouteInfo({
+        distance: `${distance.toFixed(1)} km`,
+        duration: `${duration} minutes (estimated)`,
+        geometry: null
+      });
+
+      // Show straight line on map for fallback
+      if (window.ReactNativeWebView) {
+        const straightLineGeometry = {
+          type: "LineString",
+          coordinates: [
+            [location.longitude, location.latitude],
+            [facility.longitude, facility.latitude]
+          ]
+        };
+        
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'SHOW_ROUTE',
+          route: straightLineGeometry,
+          startLocation: location,
+          endLocation: facility,
+          travelMode: mode,
+          isStraightLine: true
+        }));
+      }
+    }
+  };
+
   const estimateTravelTime = (distance, mode) => {
     const speeds = {
-      driving: 40, // km/h
-      walking: 5,  // km/h
-      bicycling: 15 // km/h
+      driving: 40,
+      walking: 5,
+      bicycling: 15
     };
     
     const timeHours = distance / speeds[mode];
-    return Math.ceil(timeHours * 60); // Convert to minutes
+    return Math.ceil(timeHours * 60);
   };
 
   const handleFacilitySelect = (facility) => {
@@ -242,24 +363,26 @@ const Maps = () => {
     getRouteInfo(facility);
   };
 
-  const openGoogleMaps = () => {
-    if (location) {
-      const url = `https://www.google.com/maps/search/recycling+centers/@${location.latitude},${location.longitude},15z`;
-      Linking.openURL(url);
-    } else {
-      Linking.openURL('https://www.google.com/maps/search/recycling+centers+near+me');
+  const changeTravelMode = async (mode) => {
+    setTravelMode(mode);
+    if (selectedFacility) {
+      setRouteInfo(null); // Clear previous route info while loading
+      await getRouteInfo(selectedFacility, mode);
     }
   };
 
-  const openDirections = (facility) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${facility.latitude},${facility.longitude}&travelmode=${travelMode}`;
-    Linking.openURL(url);
-  };
-
-  const changeTravelMode = (mode) => {
-    setTravelMode(mode);
+  const handleBackPress = () => {
     if (selectedFacility) {
-      getRouteInfo(selectedFacility);
+      setSelectedFacility(null);
+      setRouteInfo(null);
+      // Clear route from map
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'CLEAR_ROUTE'
+        }));
+      }
+    } else if (navigation) {
+      navigation.goBack();
     }
   };
 
@@ -274,23 +397,37 @@ const Maps = () => {
             body { 
               margin: 0; 
               padding: 20px; 
-              font-family: Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               display: flex;
               justify-content: center;
               align-items: center;
               height: 100vh;
-              background: #f5f5f5;
+              background: #f8f9fa;
+              color: #495057;
             }
-            .error-message {
+            .loading-container {
               text-align: center;
-              color: #666;
+            }
+            .spinner {
+              border: 4px solid #f3f3f3;
+              border-top: 4px solid #2E8B57;
+              border-radius: 50%;
+              width: 40px;
+              height: 40px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 16px;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
             }
           </style>
         </head>
         <body>
-          <div class="error-message">
-            <h3>Loading map...</h3>
-            <p>Please wait while we load your location.</p>
+          <div class="loading-container">
+            <div class="spinner"></div>
+            <h3 style="margin: 0 0 8px 0; font-weight: 600;">Initializing Map</h3>
+            <p style="margin: 0; opacity: 0.7;">Loading your location...</p>
           </div>
         </body>
         </html>
@@ -321,42 +458,82 @@ const Maps = () => {
           body { 
             margin: 0; 
             padding: 0; 
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             height: 100vh;
           }
-          .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: #f5f5f5;
-          }
+          
           .user-marker {
-            font-size: 24px;
+            background: #2E8B57;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
           }
-          .facility-icon {
-            font-size: 20px;
+          
+          .facility-marker {
+            background: #FF6B35;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
           }
+          
+          .facility-marker.verified {
+            background: #28a745;
+          }
+          
           .route-popup {
-            padding: 10px;
-            max-width: 250px;
+            padding: 12px;
+            max-width: 280px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
-          .route-info {
-            margin: 5px 0;
+          
+          .route-popup h4 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-weight: 600;
+          }
+          
+          .route-popup p {
+            margin: 0 0 12px 0;
+            color: #6c757d;
             font-size: 14px;
+            line-height: 1.4;
           }
-          .travel-mode-btn {
+          
+          .popup-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          
+          .popup-button {
             background: #2E8B57;
             color: white;
             border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            margin: 2px;
+            padding: 8px 12px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
           }
-          .travel-mode-btn.active {
-            background: #1a5c3a;
+          
+          .popup-button:hover {
+            background: #24734a;
+          }
+          
+          .route-line {
+            stroke-dasharray: 10, 10;
+            animation: dash 1s linear infinite;
+          }
+          
+          @keyframes dash {
+            to {
+              stroke-dashoffset: -20;
+            }
           }
         </style>
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -371,7 +548,10 @@ const Maps = () => {
 
           try {
             // Initialize map
-            map = L.map('map').setView([${location.latitude}, ${location.longitude}], 13);
+            map = L.map('map', {
+              zoomControl: true,
+              attributionControl: true
+            }).setView([${location.latitude}, ${location.longitude}], 13);
             
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -382,14 +562,17 @@ const Maps = () => {
             // Add user location marker
             const userIcon = L.divIcon({
               className: 'user-marker',
-              html: '📍',
-              iconSize: [30, 30],
-              iconAnchor: [15, 30]
+              html: '',
+              iconSize: [20, 20],
+              iconAnchor: [10, 10]
             });
             
-            L.marker([${location.latitude}, ${location.longitude}], { icon: userIcon })
+            L.marker([${location.latitude}, ${location.longitude}], { 
+              icon: userIcon,
+              zIndexOffset: 1000
+            })
               .addTo(map)
-              .bindPopup('<b>Your Location</b><br>You are here')
+              .bindPopup('<b>Your Current Location</b>')
               .openPopup();
 
             // Parse facilities data
@@ -405,10 +588,10 @@ const Maps = () => {
             facilities.forEach(facility => {
               try {
                 const facilityIcon = L.divIcon({
-                  className: 'facility-icon',
-                  html: '♻️',
-                  iconSize: [25, 25],
-                  iconAnchor: [12, 25]
+                  className: 'facility-marker' + (facility.verified ? ' verified' : ''),
+                  html: '',
+                  iconSize: [16, 16],
+                  iconAnchor: [8, 8]
                 });
                 
                 const marker = L.marker([facility.latitude, facility.longitude], { 
@@ -417,16 +600,14 @@ const Maps = () => {
                 
                 const popupContent = 
                   '<div class="route-popup">' +
-                  '<strong>' + (facility.name || 'Recycling Facility') + '</strong><br/>' +
-                  '<small>' + (facility.fullAddress || 'Recycling location') + '</small><br/>' +
-                  '<button onclick="window.selectFacility(' + facility.latitude + ',' + facility.longitude + ')" ' +
-                  'style="background: #2E8B57; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-top: 5px; cursor: pointer; width: 100%;">' +
+                  '<h4>' + (facility.name || 'Recycling Facility') + '</h4>' +
+                  '<p>' + (facility.fullAddress || 'Recycling location') + '</p>' +
+                  (facility.verified ? '<p style="color: #28a745; font-size: 12px;">✓ Verified Facility</p>' : '') +
+                  '<div class="popup-buttons">' +
+                  '<button class="popup-button" onclick="window.selectFacility(' + facility.latitude + ',' + facility.longitude + ')">' +
                   'Show Route' +
                   '</button>' +
-                  '<button onclick="window.openDirections(' + facility.latitude + ',' + facility.longitude + ')" ' +
-                  'style="background: #FF6B35; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-top: 5px; cursor: pointer; width: 100%;">' +
-                  'Get Directions' +
-                  '</button>' +
+                  '</div>' +
                   '</div>';
                 
                 marker.bindPopup(popupContent);
@@ -435,8 +616,8 @@ const Maps = () => {
               }
             });
 
-            // Function to show route on map
-            window.showRoute = function(routeGeometry, facility) {
+            // Enhanced route display function
+            window.showRoute = function(routeGeometry, startLocation, endLocation, travelMode, isStraightLine = false) {
               try {
                 // Remove existing route
                 if (routeLayer) {
@@ -447,20 +628,30 @@ const Maps = () => {
                   // Convert GeoJSON coordinates to LatLng array
                   const latlngs = routeGeometry.coordinates.map(coord => [coord[1], coord[0]]);
                   
-                  // Create polyline
-                  routeLayer = L.polyline(latlngs, {
-                    color: '#2E8B57',
-                    weight: 5,
-                    opacity: 0.7,
-                    dashArray: '10, 10'
-                  }).addTo(map);
+                  // Create route line with different styles based on travel mode
+                  const routeStyle = {
+                    driving: { color: '#2E8B57', weight: 6, opacity: 0.8 },
+                    walking: { color: '#FF6B35', weight: 4, opacity: 0.8, dashArray: '5, 10' },
+                    bicycling: { color: '#007BFF', weight: 4, opacity: 0.8, dashArray: '10, 5' }
+                  };
                   
-                  // Fit map to show route
-                  map.fitBounds(routeLayer.getBounds());
+                  const style = routeStyle[travelMode] || routeStyle.driving;
+                  
+                  if (isStraightLine) {
+                    style.dashArray = '10, 10';
+                  }
+                  
+                  routeLayer = L.polyline(latlngs, style).addTo(map);
+                  
+                  // Fit map to show both points with padding
+                  const bounds = L.latLngBounds([startLocation.latitude, startLocation.longitude], [endLocation.latitude, endLocation.longitude]);
+                  map.fitBounds(bounds, { padding: [50, 50] });
                   
                   currentRoute = {
                     geometry: routeGeometry,
-                    facility: facility
+                    startLocation: startLocation,
+                    endLocation: endLocation,
+                    travelMode: travelMode
                   };
                 }
               } catch (error) {
@@ -474,10 +665,20 @@ const Maps = () => {
                 map.removeLayer(routeLayer);
                 routeLayer = null;
                 currentRoute = null;
+                
+                // Reset view to show all facilities
+                if (facilities.length > 0) {
+                  const group = new L.featureGroup();
+                  facilities.forEach(facility => {
+                    group.addLayer(L.marker([facility.latitude, facility.longitude]));
+                  });
+                  group.addLayer(L.marker([${location.latitude}, ${location.longitude}]));
+                  map.fitBounds(group.getBounds(), { padding: [50, 50] });
+                }
               }
             };
 
-            // Global functions
+            // Global functions for React Native communication
             window.selectFacility = function(lat, lng) {
               if (window.ReactNativeWebView) {
                 window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -487,21 +688,17 @@ const Maps = () => {
               }
             };
 
-            window.openDirections = function(lat, lng) {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'FACILITY_DIRECTIONS',
-                  facility: { latitude: lat, longitude: lng }
-                }));
-              }
-            };
-
-            // Listen for route updates from React Native
+            // Listen for messages from React Native
             window.addEventListener('message', function(event) {
               try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'SHOW_ROUTE') {
-                  window.showRoute(data.route, data.facility);
+                switch(data.type) {
+                  case 'SHOW_ROUTE':
+                    window.showRoute(data.route, data.startLocation, data.endLocation, data.travelMode, data.isStraightLine);
+                    break;
+                  case 'CLEAR_ROUTE':
+                    window.clearRoute();
+                    break;
                 }
               } catch (error) {
                 console.error('Error processing message:', error);
@@ -509,12 +706,14 @@ const Maps = () => {
             });
 
             // Notify React Native that map is loaded
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'MAP_LOADED',
-                facilityCount: facilities.length
-              }));
-            }
+            setTimeout(() => {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'MAP_LOADED',
+                  facilityCount: facilities.length
+                }));
+              }
+            }, 1000);
 
           } catch (error) {
             console.error('Map initialization error:', error);
@@ -538,10 +737,13 @@ const Maps = () => {
       
       switch (data.type) {
         case 'FACILITY_SELECT':
-          handleFacilitySelect(data.facility);
-          break;
-        case 'FACILITY_DIRECTIONS':
-          openDirections(data.facility);
+          const facility = facilities.find(f => 
+            f.latitude === data.facility.latitude && 
+            f.longitude === data.facility.longitude
+          );
+          if (facility) {
+            handleFacilitySelect(facility);
+          }
           break;
         case 'MAP_LOADED':
           console.log(`✅ Map loaded with ${data.facilityCount} facilities`);
@@ -579,7 +781,7 @@ const Maps = () => {
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E8B57" />
-          <Text style={styles.loadingText}>Finding recycling facilities near you...</Text>
+          <Text style={styles.loadingText}>Locating recycling facilities in your area...</Text>
         </View>
       </View>
     );
@@ -589,13 +791,10 @@ const Maps = () => {
     return (
       <View style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Location Access Needed</Text>
+          <Text style={styles.errorTitle}>Location Services Required</Text>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.alternativeButton} onPress={openGoogleMaps}>
-            <Text style={styles.alternativeButtonText}>Open in Google Maps</Text>
+            <Text style={styles.retryButtonText}>Retry Location Search</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -604,6 +803,17 @@ const Maps = () => {
 
   return (
     <View style={styles.container}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {selectedFacility ? 'Route Details' : 'Recycling Facilities'}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       {/* Map Section */}
       <View style={styles.mapContainer}>
         <WebView
@@ -615,7 +825,7 @@ const Maps = () => {
           startInLoadingState={true}
           onMessage={handleWebViewMessage}
           onLoadEnd={() => {
-            console.log('WebView loaded');
+            console.log('WebView loaded successfully');
             setMapLoading(false);
           }}
           onError={(syntheticEvent) => {
@@ -627,31 +837,45 @@ const Maps = () => {
         {mapLoading && (
           <View style={styles.mapOverlay}>
             <ActivityIndicator size="large" color="#2E8B57" />
-            <Text style={styles.loadingText}>Loading map...</Text>
+            <Text style={styles.loadingText}>Loading interactive map...</Text>
           </View>
         )}
       </View>
 
-      {/* Route Info Panel */}
+      {/* Enhanced Route Info Panel */}
       {selectedFacility && (
         <View style={styles.routePanel}>
-          <Text style={styles.routeTitle}>🚗 Route to {selectedFacility.name}</Text>
+          <View style={styles.routeHeader}>
+            <Text style={styles.routeTitle}>Route to {selectedFacility.name}</Text>
+            {selectedFacility.verified && (
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            )}
+          </View>
           
           {routeInfo ? (
             <View style={styles.routeInfo}>
-              <View style={styles.routeDetail}>
-                <Text style={styles.routeLabel}>Distance:</Text>
-                <Text style={styles.routeValue}>{routeInfo.distance}</Text>
-              </View>
-              <View style={styles.routeDetail}>
-                <Text style={styles.routeLabel}>Time:</Text>
-                <Text style={styles.routeValue}>{routeInfo.duration}</Text>
+              <View style={styles.routeMetrics}>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>Distance</Text>
+                  <Text style={styles.metricValue}>{routeInfo.distance}</Text>
+                </View>
+                <View style={styles.metricSeparator} />
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>Estimated Time</Text>
+                  <Text style={styles.metricValue}>{routeInfo.duration}</Text>
+                </View>
               </View>
               
               <View style={styles.travelModes}>
-                <Text style={styles.modeLabel}>Travel Mode:</Text>
+                <Text style={styles.modeLabel}>Travel Mode</Text>
                 <View style={styles.modeButtons}>
-                  {['driving', 'walking', 'bicycling'].map(mode => (
+                  {[
+                    { mode: 'driving', label: 'Drive', icon: '🚗' },
+                    { mode: 'walking', label: 'Walk', icon: '🚶' },
+                    { mode: 'bicycling', label: 'Bike', icon: '🚴' }
+                  ].map(({ mode, label, icon }) => (
                     <TouchableOpacity
                       key={mode}
                       style={[
@@ -660,11 +884,12 @@ const Maps = () => {
                       ]}
                       onPress={() => changeTravelMode(mode)}
                     >
+                      <Text style={styles.modeIcon}>{icon}</Text>
                       <Text style={[
-                        styles.modeButtonText,
-                        travelMode === mode && styles.modeButtonTextActive
+                        styles.modeLabelText,
+                        travelMode === mode && styles.modeLabelTextActive
                       ]}>
-                        {mode === 'driving' ? '🚗' : mode === 'walking' ? '🚶' : '🚴'}
+                        {label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -674,65 +899,61 @@ const Maps = () => {
           ) : (
             <View style={styles.loadingRoute}>
               <ActivityIndicator size="small" color="#2E8B57" />
-              <Text style={styles.loadingRouteText}>Calculating route...</Text>
+              <Text style={styles.loadingRouteText}>Calculating optimal route...</Text>
             </View>
           )}
-          
-          <TouchableOpacity 
-            style={styles.directionsButton} 
-            onPress={() => openDirections(selectedFacility)}
-          >
-            <Text style={styles.directionsButtonText}>📱 Open in Google Maps</Text>
-          </TouchableOpacity>
         </View>
       )}
 
-      {/* Info Panel */}
-      <View style={[
-        styles.infoPanel,
-        selectedFacility && styles.infoPanelWithRoute
-      ]}>
-        <Text style={styles.infoTitle}>♻️ Recycling Facilities</Text>
-        <Text style={styles.infoText}>
-          Found {facilities.length} facility{facilities.length !== 1 ? 'ies' : ''} near you
-        </Text>
-        
-        {facilities.length > 0 && (
-          <ScrollView 
-            style={styles.facilitiesList} 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-          >
-            {facilities.slice(0, 5).map((facility, index) => (
-              <TouchableOpacity 
-                key={facility.id} 
-                style={[
-                  styles.facilityChip,
-                  selectedFacility && selectedFacility.latitude === facility.latitude && styles.facilityChipSelected
-                ]}
-                onPress={() => handleFacilitySelect(facility)}
-              >
-                <Text style={styles.facilityChipText}>
-                  {facility.name}
-                </Text>
-                <Text style={styles.facilityChipDistance}>
-                  {index + 1} • Tap for route
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.googleMapsButton} onPress={openGoogleMaps}>
-            <Text style={styles.googleMapsButtonText}>📍 Open in Google Maps</Text>
-          </TouchableOpacity>
+      {/* Enhanced Info Panel */}
+      {!selectedFacility && (
+        <View style={styles.infoPanel}>
+          <View style={styles.infoHeader}>
+            <Text style={styles.infoTitle}>Recycling Facilities</Text>
+            <Text style={styles.facilityCount}>
+              {facilities.length} location{facilities.length !== 1 ? 's' : ''} found
+            </Text>
+          </View>
           
+          {facilities.length > 0 && (
+            <ScrollView 
+              style={styles.facilitiesList} 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+            >
+              {facilities.slice(0, 8).map((facility, index) => (
+                <TouchableOpacity 
+                  key={facility.id} 
+                  style={styles.facilityCard}
+                  onPress={() => handleFacilitySelect(facility)}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.facilityNumber}>{index + 1}</Text>
+                    {facility.verified && (
+                      <View style={styles.cardVerified}>
+                        <Text style={styles.cardVerifiedText}>✓</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.facilityName} numberOfLines={2}>
+                    {facility.name}
+                  </Text>
+                  <Text style={styles.facilityDistance}>
+                    {facility.distance ? `${facility.distance.toFixed(1)} km away` : 'Nearby'}
+                  </Text>
+                  <Text style={styles.facilityAction}>
+                    Tap for directions
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
           <TouchableOpacity style={styles.refreshButton} onPress={handleRetry}>
-            <Text style={styles.refreshButtonText}>🔄 Refresh Search</Text>
+            <Text style={styles.refreshButtonText}>Refresh Search</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      )}
     </View>
   );
 };
