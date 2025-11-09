@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   TextInput, 
@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,12 +26,43 @@ const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
   const [focusedField, setFocusedField] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [pushToken, setPushToken] = useState(null);
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { loading, error } = useSelector((state) => state.auth);
 
   // Admin email for banned accounts
   const ADMIN_EMAIL = 'admin@wastewise.com';
+
+  // Get push token on component mount
+  useEffect(() => {
+    registerForPushNotifications();
+  }, []);
+
+  const registerForPushNotifications = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('❌ Push notification permission not granted');
+        return;
+      }
+      
+      // Get the token that identifies this device
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      console.log('📱 Expo Push Token:', token);
+      setPushToken(token);
+      
+    } catch (error) {
+      console.log('❌ Error getting push token:', error);
+    }
+  };
 
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
@@ -49,13 +81,20 @@ const Login = () => {
       }
 
       console.log('🔄 Attempting login...');
-      const resultAction = await dispatch(loginUser(form));
+      console.log('📱 Using push token:', pushToken ? `${pushToken.substring(0, 20)}...` : 'Not available');
+      
+      const resultAction = await dispatch(loginUser({
+        email: form.email,
+        password: form.password,
+        pushToken: pushToken
+      }));
       
       // Check if the login was successful
       if (loginUser.fulfilled.match(resultAction)) {
         const { user, token } = resultAction.payload;
         
         console.log('✅ Login successful, token received:', token ? 'Yes' : 'No');
+        console.log('📱 User push token after login:', user.pushToken ? `${user.pushToken.substring(0, 20)}...` : 'Not set');
         
         // Save token to AsyncStorage
         if (token) {
@@ -68,6 +107,12 @@ const Login = () => {
         // Save user info to AsyncStorage
         await AsyncStorage.setItem('userInfo', JSON.stringify(user));
         console.log('💾 User info saved to AsyncStorage');
+
+        // Save push token to AsyncStorage if available
+        if (pushToken) {
+          await AsyncStorage.setItem('userPushToken', pushToken);
+          console.log('💾 Push token saved to AsyncStorage');
+        }
 
         // Navigate based on user role
         if (user.role === 'admin') {
@@ -151,6 +196,12 @@ const Login = () => {
             <View style={styles.formHeader}>
               <Text style={styles.welcomeText}>Welcome Back!</Text>
               <Text style={styles.welcomeSubtext}>Please sign in to continue</Text>
+              {pushToken && (
+                <View style={styles.pushTokenIndicator}>
+                  <Ionicons name="notifications" size={16} color="#4CAF50" />
+                  <Text style={styles.pushTokenText}>Push notifications enabled</Text>
+                </View>
+              )}
             </View>
             
             {/* Error Message */}
@@ -409,6 +460,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#607D8B',
     letterSpacing: 0.2,
+  },
+  pushTokenIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  pushTokenText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    marginLeft: 6,
+    fontWeight: '500',
   },
   errorContainer: {
     flexDirection: 'row',

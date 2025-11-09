@@ -21,7 +21,7 @@ import { createWasteReport, clearError, clearSuccess } from '../../redux/slices/
 import { styles } from "../../components/Styles/WasteDetection";
 
 const { width: screenWidth } = Dimensions.get("window");
-const API_URL = "http://192.168.1.46:5000/detect";
+const API_URL = "http://192.168.1.43:5000/detect";
 
 const WasteDetection = ({ navigation }) => {
   const [image, setImage] = useState(null);

@@ -8,7 +8,7 @@ const multer = require('multer');
 
 const router = express.Router();
 
-// Configure multer for memory storage (for form-data parsing)
+// Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
@@ -22,9 +22,14 @@ const parseFormData = upload.none();
 
 // ==================== REGISTER ====================
 router.post('/register', async (req, res) => {
-  const { username, email, password, bod, gender, address, role } = req.body;
+  const { username, email, password, bod, gender, address, role, pushToken } = req.body;
 
   try {
+    // Validate required fields
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Username, email, and password are required' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already registered' });
@@ -37,39 +42,81 @@ router.post('/register', async (req, res) => {
       username,
       email,
       password: hashedPassword,
-      bod,
-      gender,
-      address,
-      role,
+      bod: bod || '',
+      gender: gender || '',
+      address: address || '',
+      role: role || 'user',
+      pushToken: pushToken || null,
     });
 
     await newUser.save();
-    res.status(201).json({ message: 'User registered successfully' });
+    
+    console.log('✅ User registered:', email);
+    console.log('📱 Push token:', pushToken ? `${pushToken.substring(0, 20)}...` : 'Not provided');
+    
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role
+      }
+    });
   } catch (error) {
+    console.error('❌ Registration error:', error);
     res.status(500).json({ message: 'Server error during registration' });
   }
 });
 
-// ==================== LOGIN ====================
+// ==================== LOGIN (FIXED VERSION) ====================
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, pushToken } = req.body;
+  
+  console.log('🔐 Login attempt for:', email);
+  console.log('📱 Push token provided:', pushToken ? `${pushToken.substring(0, 20)}...` : 'Not provided');
+  
   try {
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'Invalid email or password' });
+    if (!user) {
+      console.log('❌ User not found:', email);
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
 
     if (user.status === 'banned') {
+      console.log('🚫 Banned user attempt:', email);
       return res.status(403).json({ message: 'Account is banned. Contact admin.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
+    if (!isMatch) {
+      console.log('❌ Password mismatch for:', email);
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
 
+    // Update user data
     user.lastLogin = new Date();
+    
+    // Update push token if provided
+    if (pushToken && pushToken !== '') {
+      console.log('🔄 Updating push token for user:', user.email);
+      user.pushToken = pushToken;
+    }
+    
     await user.save();
 
+    // Generate JWT token
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
       expiresIn: '1d',
     });
+
+    console.log('✅ Login successful for:', user.email);
+    console.log('📱 Current push token:', user.pushToken ? `${user.pushToken.substring(0, 20)}...` : 'Not set');
 
     res.json({
       token,
@@ -85,14 +132,56 @@ router.post('/login', async (req, res) => {
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
         status: user.status,
+        pushToken: user.pushToken,
       },
     });
   } catch (error) {
+    console.error('❌ Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
   }
 });
 
-// ==================== UPDATE PROFILE (FIXED VERSION) ====================
+// ==================== UPDATE PUSH TOKEN ====================
+router.put('/push-token', auth, async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    
+    console.log('📱 Updating push token for user:', req.user.id);
+    console.log('🔄 New push token:', pushToken ? `${pushToken.substring(0, 20)}...` : 'Removing token');
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { 
+        pushToken: pushToken || null 
+      },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('✅ Push token updated successfully for user:', updatedUser.email);
+
+    res.json({
+      message: pushToken ? 'Push token updated successfully' : 'Push token removed successfully',
+      user: {
+        id: updatedUser._id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        pushToken: updatedUser.pushToken,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Push token update error:', error);
+    res.status(500).json({ message: 'Server error during push token update' });
+  }
+});
+
+// ==================== UPDATE PROFILE ====================
 router.put('/profile', auth, parseFormData, async (req, res) => {
   try {
     console.log('🔧 Profile update request received for user:', req.user.id);
@@ -102,7 +191,7 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
     
     const updatedFields = {};
 
-    // ✅ Handle text fields - only update if they exist and are not empty
+    // Handle text fields
     if (username !== undefined && username !== '') {
       updatedFields.username = username;
       console.log('📝 Updating username:', username);
@@ -124,14 +213,14 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
       console.log('📝 Updating address:', address);
     }
 
-    // ✅ Handle profile image update/removal
+    // Handle profile image
     if (profile !== undefined) {
       if (profile === '') {
-        // User wants to remove profile picture
+        // Remove profile picture
         updatedFields.profile = null;
         console.log('🗑️ Removing profile picture');
       } else if (profile && profile.startsWith('data:image')) {
-        // User uploaded new image (base64)
+        // Upload new image
         try {
           console.log('📸 Uploading new profile picture to Cloudinary...');
           const uploadResponse = await cloudinary.uploader.upload(profile, {
@@ -149,15 +238,14 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
 
     console.log('🔄 Fields to update:', updatedFields);
 
-    // Check if there are any fields to update
     if (Object.keys(updatedFields).length === 0) {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
-    // Update user in database
+    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id, 
-      { $set: updatedFields }, 
+      updatedFields, 
       { 
         new: true,
         runValidators: true 
@@ -168,12 +256,7 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log('✅ User updated successfully:', {
-      id: updatedUser._id,
-      username: updatedUser.username,
-      email: updatedUser.email,
-      profile: updatedUser.profile
-    });
+    console.log('✅ User updated successfully:', updatedUser.email);
 
     res.json({
       message: 'Profile updated successfully',
@@ -189,6 +272,7 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
         status: updatedUser.status,
         createdAt: updatedUser.createdAt,
         lastLogin: updatedUser.lastLogin,
+        pushToken: updatedUser.pushToken,
       },
     });
   } catch (error) {
@@ -218,10 +302,11 @@ router.get('/me', auth, async (req, res) => {
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
         status: user.status,
+        pushToken: user.pushToken,
       },
     });
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('❌ Get user error:', error);
     res.status(500).json({ message: 'Server error fetching user data' });
   }
 });
@@ -230,6 +315,11 @@ router.get('/me', auth, async (req, res) => {
 router.post('/check-email', async (req, res) => {
   try {
     const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
     const existingUser = await User.findOne({ email });
     
     if (existingUser) {
@@ -238,6 +328,7 @@ router.post('/check-email', async (req, res) => {
     
     res.json({ message: 'Email available' });
   } catch (error) {
+    console.error('❌ Check email error:', error);
     res.status(500).json({ message: 'Error checking email' });
   }
 });
@@ -250,8 +341,15 @@ router.get('/all-users', auth, async (req, res) => {
     }
 
     const users = await User.find().select('-password');
+    
+    console.log(`📊 Admin fetched ${users.length} users`);
+    users.forEach(user => {
+      console.log(`👤 ${user.email}: Push token ${user.pushToken ? '✅' : '❌'}`);
+    });
+    
     res.json(users);
   } catch (error) {
+    console.error('❌ Get all users error:', error);
     res.status(500).json({ message: 'Server error fetching users' });
   }
 });
@@ -279,9 +377,35 @@ router.put('/ban/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    console.log(`🔄 User ${user.email} status updated to: ${status}`);
+
     res.json({ message: `User status updated to ${status}`, user });
   } catch (error) {
+    console.error('❌ Ban user error:', error);
     res.status(500).json({ message: 'Error updating user status' });
+  }
+});
+
+// ==================== GET USERS BY PUSH TOKENS ====================
+router.get('/with-push-tokens', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admins only.' });
+    }
+
+    const usersWithTokens = await User.find({ 
+      pushToken: { $exists: true, $ne: null, $ne: '' } 
+    }).select('username email pushToken role status');
+
+    console.log(`📱 Found ${usersWithTokens.length} users with push tokens`);
+
+    res.json({
+      count: usersWithTokens.length,
+      users: usersWithTokens
+    });
+  } catch (error) {
+    console.error('❌ Get users with push tokens error:', error);
+    res.status(500).json({ message: 'Server error fetching users with push tokens' });
   }
 });
 

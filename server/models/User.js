@@ -10,10 +10,10 @@ const userSchema = new mongoose.Schema({
   role: { type: String, default: 'user' },
   profile: String,
   lastLogin: Date, 
-  notificationsEnabled: {  type: Boolean, default: true},
+  notificationsEnabled: { type: Boolean, default: true },
+  pushToken: { type: String, default: null }, // Changed from pushTokens array to single pushToken
   createdAt: { type: Date, default: Date.now },
   status: { type: String, enum: ['active', 'banned'], default: 'active' } 
-
-});
+}); 
 
 module.exports = mongoose.model('User', userSchema);

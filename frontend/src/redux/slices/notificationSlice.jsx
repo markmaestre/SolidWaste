@@ -38,39 +38,86 @@ export const markAllAsRead = createAsyncThunk(
   }
 );
 
+// Initialize notifications
+export const initializeNotifications = createAsyncThunk(
+  'notification/initialize',
+  async (_, { rejectWithValue }) => {
+    try {
+      console.log('🚀 Initializing notifications in slice...');
+      const result = await notificationService.initialize();
+      console.log('✅ Notification initialization result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Notification initialization failed:', error);
+      return rejectWithValue(error.message || 'Failed to initialize notifications');
+    }
+  }
+);
+
 const notificationSlice = createSlice({
   name: 'notification',
   initialState: {
     notifications: [],
     unreadCount: 0,
     loading: false,
-    error: null
+    error: null,
+    pushToken: null,
+    notificationEnabled: false,
+    lastNotification: null
   },
   reducers: {
     clearError: (state) => {
       state.error = null;
     },
     addNotification: (state, action) => {
-      state.notifications.unshift(action.payload);
-      state.unreadCount += 1;
+      const newNotification = {
+        ...action.payload,
+        _id: action.payload._id || Date.now().toString(),
+        createdAt: action.payload.createdAt || new Date().toISOString()
+      };
       
-      // Show local notification with sound when new one is added
-      const { title, message, type } = action.payload;
-      console.log('🔄 Dispatching notification with sound:', title, message);
-      notificationService.showLocalNotification(title, message, { type });
+      state.notifications.unshift(newNotification);
+      state.unreadCount += 1;
+      state.lastNotification = newNotification;
+      
+      // Show local notification when new one is added
+      const { title, message, type } = newNotification;
+      console.log('🔄 Dispatching Expo notification:', title, message);
+      
+      // Use Expo Notifications service
+      switch (type) {
+        case 'report_processed':
+          notificationService.showSuccessNotification(title, message);
+          break;
+        case 'report_created':
+          notificationService.showWarningNotification(title, message);
+          break;
+        case 'recycling_tips':
+          notificationService.showLocalNotification('🌱 ' + title, message);
+          break;
+        default:
+          notificationService.showLocalNotification(title, message);
+      }
     },
     updateUnreadCount: (state, action) => {
       state.unreadCount = action.payload;
     },
-    // Add test function with sound
-    testNotificationWithSound: (state) => {
+    setPushToken: (state, action) => {
+      state.pushToken = action.payload;
+    },
+    setNotificationEnabled: (state, action) => {
+      state.notificationEnabled = action.payload;
+    },
+    // Test functions using Expo Notifications
+    testExpoNotification: (state) => {
+      console.log('🧪 Testing Expo notification from slice...');
       notificationService.testNotification();
     },
-    // Simulate different notification types
     simulateReportCreated: (state) => {
+      console.log('📝 Simulating report created notification...');
       const newNotification = {
         _id: Date.now().toString(),
-        title: 'New Waste Report Created',
+        title: '📝 New Waste Report Created',
         message: 'Your waste report has been submitted successfully!',
         type: 'report_created',
         read: false,
@@ -78,12 +125,14 @@ const notificationSlice = createSlice({
       };
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
-      notificationService.showLocalNotification(newNotification.title, newNotification.message);
+      state.lastNotification = newNotification;
+      notificationService.showWarningNotification(newNotification.title, newNotification.message);
     },
     simulateReportProcessed: (state) => {
+      console.log('✅ Simulating report processed notification...');
       const newNotification = {
         _id: Date.now().toString(),
-        title: 'Report Processed',
+        title: '✅ Report Processed',
         message: 'Your waste report has been processed by our team!',
         type: 'report_processed',
         read: false,
@@ -91,11 +140,31 @@ const notificationSlice = createSlice({
       };
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
+      state.lastNotification = newNotification;
+      notificationService.showSuccessNotification(newNotification.title, newNotification.message);
+    },
+    simulateRecyclingTip: (state) => {
+      console.log('🌱 Simulating recycling tip notification...');
+      const newNotification = {
+        _id: Date.now().toString(),
+        title: '🌱 Recycling Tip',
+        message: 'Did you know? Plastic bottles can be recycled into new products!',
+        type: 'recycling_tips',
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      state.notifications.unshift(newNotification);
+      state.unreadCount += 1;
+      state.lastNotification = newNotification;
       notificationService.showLocalNotification(newNotification.title, newNotification.message);
+    },
+    clearLastNotification: (state) => {
+      state.lastNotification = null;
     }
   },
   extraReducers: (builder) => {
     builder
+      // Get notifications
       .addCase(getNotifications.pending, (state) => {
         state.loading = true;
       })
@@ -108,6 +177,7 @@ const notificationSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+      // Mark as read
       .addCase(markAsRead.fulfilled, (state, action) => {
         const index = state.notifications.findIndex(n => n._id === action.payload.notification._id);
         if (index !== -1) {
@@ -115,11 +185,27 @@ const notificationSlice = createSlice({
           state.unreadCount = Math.max(0, state.unreadCount - 1);
         }
       })
+      // Mark all as read
       .addCase(markAllAsRead.fulfilled, (state) => {
         state.notifications.forEach(notification => {
           notification.read = true;
         });
         state.unreadCount = 0;
+      })
+      // Initialize notifications
+      .addCase(initializeNotifications.fulfilled, (state, action) => {
+        state.notificationEnabled = action.payload.success;
+        state.pushToken = action.payload.token;
+        console.log('✅ Notifications state updated:', {
+          enabled: state.notificationEnabled,
+          token: state.pushToken ? `${state.pushToken.substring(0, 20)}...` : 'null'
+        });
+      })
+      .addCase(initializeNotifications.rejected, (state, action) => {
+        state.notificationEnabled = false;
+        state.pushToken = null;
+        state.error = action.payload;
+        console.log('❌ Notifications initialization failed:', action.payload);
       });
   }
 });
@@ -128,8 +214,12 @@ export const {
   clearError, 
   addNotification, 
   updateUnreadCount, 
-  testNotificationWithSound,
+  setPushToken,
+  setNotificationEnabled,
+  testExpoNotification,
   simulateReportCreated,
-  simulateReportProcessed 
+  simulateReportProcessed,
+  simulateRecyclingTip,
+  clearLastNotification
 } = notificationSlice.actions;
 export default notificationSlice.reducer;

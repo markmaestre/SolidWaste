@@ -38,15 +38,43 @@ export const registerUser = createAsyncThunk('users/register', async (formData, 
   }
 });
 
-// Login User
-export const loginUser = createAsyncThunk('users/login', async ({ email, password }, thunkAPI) => {
+// Login User - UPDATED WITH PUSH TOKEN
+export const loginUser = createAsyncThunk('users/login', async ({ email, password, pushToken }, thunkAPI) => {
   try {
-    const res = await axiosInstance.post('/users/login', { email, password });
+    const res = await axiosInstance.post('/users/login', { 
+      email, 
+      password, 
+      pushToken 
+    });
     return res.data;
   } catch (error) {
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Login failed');
   }
 });
+
+// Update Push Token
+export const updatePushToken = createAsyncThunk(
+  'users/updatePushToken',
+  async (pushToken, thunkAPI) => {
+    try {
+      const state = thunkAPI.getState();
+      const token = state.auth.token;
+
+      const res = await axiosInstance.put('/users/push-token', 
+        { pushToken }, 
+        {
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      return res.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update push token');
+    }
+  }
+);
 
 // Edit Profile
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
@@ -301,6 +329,12 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
     },
+    // Push token reducer
+    setPushToken: (state, action) => {
+      if (state.user) {
+        state.user.pushToken = action.payload;
+      }
+    },
     // Feedback reducers
     clearFeedbackError: (state) => {
       state.feedbackError = null;
@@ -350,6 +384,21 @@ const authSlice = createSlice({
         state.user = action.payload.user;
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Update Push Token
+      .addCase(updatePushToken.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updatePushToken.fulfilled, (state, action) => {
+        state.loading = false;
+        if (state.user) {
+          state.user.pushToken = action.payload.user.pushToken;
+        }
+      })
+      .addCase(updatePushToken.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -527,6 +576,7 @@ export const {
   updateUserProfileLocal,
   updateUserInList,
   setCredentials,
+  setPushToken,
   clearFeedbackError,
   clearFeedbackSubmitSuccess,
   clearAllFeedback,
