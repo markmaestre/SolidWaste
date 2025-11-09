@@ -12,6 +12,8 @@
   import WasteDetection from '../components/User/WasteDetection';
   import ReportHistory from '../components/User/ReportHistory';
   import Maps from '../components/User/Maps';   
+  import NotificationHandler from '../components/User/NotificationHandler';
+  import NotificationsScreen from '../components/User/NotificationsScreen';
 
   const Stack = createStackNavigator();
 
@@ -40,6 +42,8 @@
           <Stack.Screen name="WasteDetection" component={WasteDetection} />
           <Stack.Screen name="ReportHistory" component={ReportHistory} />
           <Stack.Screen name="Maps" component={Maps} /> 
+          <Stack.Screen name="NotificationsScreen" component={NotificationsScreen} />
+          <Stack.Screen name="NotificationHandler" component={NotificationHandler} />
         </Stack.Navigator>
       </Provider>
     );

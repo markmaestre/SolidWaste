@@ -29,6 +29,7 @@ const UserDashboard = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useSelector((state) => state.auth);
+  const { unreadCount } = useSelector((state) => state.notification); // IDINAGDAG LANG
   const [activeTab, setActiveTab] = useState('Home');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -264,7 +265,7 @@ const UserDashboard = () => {
           navigation.navigate('EducationalSection');
           break;
         case 'Notifications':
-          navigation.navigate('Notifications');
+          navigation.navigate('NotificationsScreen');
           break;
         case 'Maps':
           navigation.navigate('Maps');
@@ -422,10 +423,11 @@ const UserDashboard = () => {
                   color="#FF9800"
                   onPress={() => navigateTo('DetectionHistory')}
                 />
+                {/* IDINAGDAG LANG - Notification Quick Action */}
                 <QuickActionCard
                   icon="notifications"
                   title="Notifications"
-                  count={`${user?.unreadNotifications || '0'} unread`}
+                  count={`${unreadCount || '0'} unread`} // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
                   color="#9C27B0"
                   onPress={() => navigateTo('Notifications')}
                 />
@@ -477,7 +479,7 @@ const UserDashboard = () => {
               </View>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Member Since</Text>
-                <Text style={styles.infoValue}>
+                                <Text style={styles.infoValue}>
                   {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                 </Text>
               </View>
@@ -594,10 +596,11 @@ const UserDashboard = () => {
               color="#FF9800"
               onPress={() => navigateTo('DetectionHistory')}
             />
+            {/* IDINAGDAG LANG - Notification Quick Action */}
             <QuickActionCard
               icon="notifications"
               title="Notifications"
-              count={`${user?.unreadNotifications || '0'} unread`}
+              count={`${unreadCount || '0'} unread`} // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
               color="#9C27B0"
               onPress={() => navigateTo('Notifications')}
             />
@@ -641,16 +644,17 @@ const UserDashboard = () => {
           <Text style={styles.headerSubtitle}>{activeTab}</Text>
         </View>
 
+        {/* IDINAGDAG LANG - Notification Button sa Header */}
         <TouchableOpacity 
           style={styles.notificationButton}
           onPress={() => navigateTo('Notifications')}
           activeOpacity={0.7}
         >
           <Icon name="notifications" size={24} color="#FFFFFF" />
-          {user?.unreadNotifications > 0 && (
+          {unreadCount > 0 && ( // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
             <View style={styles.notificationBadgeHeader}>
               <Text style={styles.notificationBadgeTextHeader}>
-                {user.unreadNotifications > 99 ? '99+' : user.unreadNotifications}
+                {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
           )}
@@ -813,6 +817,7 @@ const UserDashboard = () => {
                 {/* Support Section */}
                 <Text style={styles.menuSectionTitle}>Support</Text>
 
+                {/* IDINAGDAG LANG - Notification Menu Item */}
                 <TouchableOpacity 
                   style={[styles.menuItem, activeTab === 'Notifications' && styles.activeMenuItem]}
                   onPress={() => navigateTo('Notifications')}
@@ -822,10 +827,10 @@ const UserDashboard = () => {
                     <Icon name="notifications" size={24} color="#FFFFFF" />
                   </View>
                   <Text style={styles.menuText}>Notifications</Text>
-                  {user?.unreadNotifications > 0 && (
+                  {unreadCount > 0 && ( // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
-                        {user.unreadNotifications > 99 ? '99+' : user.unreadNotifications}
+                        {unreadCount > 99 ? '99+' : unreadCount}
                       </Text>
                     </View>
                   )}
