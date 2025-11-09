@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axiosInstance from '../../utils/axiosInstance';
+import axiosInstance from '../../utils/axiosInstance';  
 import notificationService from '../../services/notificationService';
 
 export const getNotifications = createAsyncThunk(
@@ -46,10 +46,98 @@ export const initializeNotifications = createAsyncThunk(
       console.log('🚀 Initializing notifications in slice...');
       const result = await notificationService.initialize();
       console.log('✅ Notification initialization result:', result);
+      
+      // Get user preferences from backend
+      try {
+        const preferencesResponse = await axiosInstance.get('/notifications/preferences');
+        result.preferences = preferencesResponse.data;
+        console.log('✅ User preferences loaded:', result.preferences);
+      } catch (prefError) {
+        console.log('⚠️ Could not load preferences, using defaults');
+        result.preferences = {
+          notificationsEnabled: true,
+          reportUpdates: true,
+          recyclingTips: true,
+          systemNotifications: true
+        };
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ Notification initialization failed:', error);
       return rejectWithValue(error.message || 'Failed to initialize notifications');
+    }
+  }
+);
+
+// Update notification preferences
+export const updateNotificationPreferences = createAsyncThunk(
+  'notification/updatePreferences',
+  async (preferences, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put('/notifications/preferences', preferences);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to update preferences');
+    }
+  }
+);
+
+// Register push token with backend
+export const registerPushToken = createAsyncThunk(
+  'notification/registerPushToken',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const token = getState().notification.pushToken;
+      if (!token) {
+        throw new Error('No push token available');
+      }
+      
+      const response = await axiosInstance.post('/notifications/push-token', {
+        pushToken: token
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to register push token');
+    }
+  }
+);
+
+// Get notification statistics
+export const getNotificationStats = createAsyncThunk(
+  'notification/getStats',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get('/notifications/stats');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to fetch notification stats');
+    }
+  }
+);
+
+// Delete notification
+export const deleteNotification = createAsyncThunk(
+  'notification/delete',
+  async (notificationId, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.delete(`/notifications/${notificationId}`);
+      return { notificationId, data: response.data };
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to delete notification');
+    }
+  }
+);
+
+// Clear all notifications
+export const clearAllNotifications = createAsyncThunk(
+  'notification/clearAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.delete('/notifications');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to clear notifications');
     }
   }
 );
@@ -63,7 +151,17 @@ const notificationSlice = createSlice({
     error: null,
     pushToken: null,
     notificationEnabled: false,
-    lastNotification: null
+    lastNotification: null,
+    notificationPreferences: {
+      notificationsEnabled: true,
+      reportUpdates: true,
+      recyclingTips: true,
+      systemNotifications: true
+    },
+    stats: {
+      total: 0,
+      unread: 0
+    }
   },
   reducers: {
     clearError: (state) => {
@@ -79,24 +177,51 @@ const notificationSlice = createSlice({
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
       state.lastNotification = newNotification;
+      state.stats.unread += 1;
+      state.stats.total += 1;
       
       // Show local notification when new one is added
       const { title, message, type } = newNotification;
       console.log('🔄 Dispatching Expo notification:', title, message);
       
-      // Use Expo Notifications service
+      // Check if user wants to receive this type of notification
+      if (!state.notificationPreferences.notificationsEnabled) {
+        console.log('🔕 Notifications disabled, skipping local notification');
+        return;
+      }
+      
+      let shouldShowNotification = true;
+      
       switch (type) {
         case 'report_processed':
-          notificationService.showSuccessNotification(title, message);
-          break;
         case 'report_created':
-          notificationService.showWarningNotification(title, message);
+          shouldShowNotification = state.notificationPreferences.reportUpdates;
           break;
         case 'recycling_tips':
-          notificationService.showLocalNotification('🌱 ' + title, message);
+          shouldShowNotification = state.notificationPreferences.recyclingTips;
           break;
-        default:
-          notificationService.showLocalNotification(title, message);
+        case 'system':
+          shouldShowNotification = state.notificationPreferences.systemNotifications;
+          break;
+      }
+      
+      if (shouldShowNotification) {
+        // Use Expo Notifications service
+        switch (type) {
+          case 'report_processed':
+            notificationService.showSuccessNotification(title, message);
+            break;
+          case 'report_created':
+            notificationService.showWarningNotification(title, message);
+            break;
+          case 'recycling_tips':
+            notificationService.showLocalNotification('🌱 ' + title, message);
+            break;
+          default:
+            notificationService.showLocalNotification(title, message);
+        }
+      } else {
+        console.log(`🔕 Notification type "${type}" disabled by user preferences`);
       }
     },
     updateUnreadCount: (state, action) => {
@@ -108,12 +233,27 @@ const notificationSlice = createSlice({
     setNotificationEnabled: (state, action) => {
       state.notificationEnabled = action.payload;
     },
+    updatePreferences: (state, action) => {
+      state.notificationPreferences = {
+        ...state.notificationPreferences,
+        ...action.payload
+      };
+    },
     // Test functions using Expo Notifications
     testExpoNotification: (state) => {
       console.log('🧪 Testing Expo notification from slice...');
-      notificationService.testNotification();
+      if (state.notificationPreferences.notificationsEnabled) {
+        notificationService.testNotification();
+      } else {
+        console.log('🔕 Notifications disabled, skipping test');
+      }
     },
     simulateReportCreated: (state) => {
+      if (!state.notificationPreferences.notificationsEnabled || !state.notificationPreferences.reportUpdates) {
+        console.log('🔕 Report notifications disabled, skipping simulation');
+        return;
+      }
+      
       console.log('📝 Simulating report created notification...');
       const newNotification = {
         _id: Date.now().toString(),
@@ -126,9 +266,16 @@ const notificationSlice = createSlice({
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
       state.lastNotification = newNotification;
+      state.stats.unread += 1;
+      state.stats.total += 1;
       notificationService.showWarningNotification(newNotification.title, newNotification.message);
     },
     simulateReportProcessed: (state) => {
+      if (!state.notificationPreferences.notificationsEnabled || !state.notificationPreferences.reportUpdates) {
+        console.log('🔕 Report notifications disabled, skipping simulation');
+        return;
+      }
+      
       console.log('✅ Simulating report processed notification...');
       const newNotification = {
         _id: Date.now().toString(),
@@ -141,9 +288,16 @@ const notificationSlice = createSlice({
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
       state.lastNotification = newNotification;
+      state.stats.unread += 1;
+      state.stats.total += 1;
       notificationService.showSuccessNotification(newNotification.title, newNotification.message);
     },
     simulateRecyclingTip: (state) => {
+      if (!state.notificationPreferences.notificationsEnabled || !state.notificationPreferences.recyclingTips) {
+        console.log('🔕 Recycling tip notifications disabled, skipping simulation');
+        return;
+      }
+      
       console.log('🌱 Simulating recycling tip notification...');
       const newNotification = {
         _id: Date.now().toString(),
@@ -156,10 +310,18 @@ const notificationSlice = createSlice({
       state.notifications.unshift(newNotification);
       state.unreadCount += 1;
       state.lastNotification = newNotification;
+      state.stats.unread += 1;
+      state.stats.total += 1;
       notificationService.showLocalNotification(newNotification.title, newNotification.message);
     },
     clearLastNotification: (state) => {
       state.lastNotification = null;
+    },
+    updateStats: (state, action) => {
+      state.stats = {
+        ...state.stats,
+        ...action.payload
+      };
     }
   },
   extraReducers: (builder) => {
@@ -170,35 +332,56 @@ const notificationSlice = createSlice({
       })
       .addCase(getNotifications.fulfilled, (state, action) => {
         state.loading = false;
-        state.notifications = action.payload;
-        state.unreadCount = action.payload.filter(n => !n.read).length;
+        state.notifications = action.payload.notifications || action.payload;
+        state.unreadCount = (action.payload.notifications || action.payload).filter(n => !n.read).length;
+        
+        // Update stats if available
+        if (action.payload.total !== undefined) {
+          state.stats.total = action.payload.total;
+          state.stats.unread = state.unreadCount;
+        }
       })
       .addCase(getNotifications.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+      
       // Mark as read
       .addCase(markAsRead.fulfilled, (state, action) => {
         const index = state.notifications.findIndex(n => n._id === action.payload.notification._id);
         if (index !== -1) {
           state.notifications[index].read = true;
           state.unreadCount = Math.max(0, state.unreadCount - 1);
+          state.stats.unread = state.unreadCount;
         }
       })
+      
       // Mark all as read
       .addCase(markAllAsRead.fulfilled, (state) => {
         state.notifications.forEach(notification => {
           notification.read = true;
         });
         state.unreadCount = 0;
+        state.stats.unread = 0;
       })
+      
       // Initialize notifications
       .addCase(initializeNotifications.fulfilled, (state, action) => {
         state.notificationEnabled = action.payload.success;
         state.pushToken = action.payload.token;
+        
+        // Update preferences if available
+        if (action.payload.preferences) {
+          state.notificationPreferences = {
+            ...state.notificationPreferences,
+            ...action.payload.preferences
+          };
+        }
+        
         console.log('✅ Notifications state updated:', {
           enabled: state.notificationEnabled,
-          token: state.pushToken ? `${state.pushToken.substring(0, 20)}...` : 'null'
+          token: state.pushToken ? `${state.pushToken.substring(0, 20)}...` : 'null',
+          preferences: state.notificationPreferences
         });
       })
       .addCase(initializeNotifications.rejected, (state, action) => {
@@ -206,6 +389,58 @@ const notificationSlice = createSlice({
         state.pushToken = null;
         state.error = action.payload;
         console.log('❌ Notifications initialization failed:', action.payload);
+      })
+      
+      // Update notification preferences
+      .addCase(updateNotificationPreferences.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updateNotificationPreferences.fulfilled, (state, action) => {
+        state.loading = false;
+        state.notificationPreferences = {
+          ...state.notificationPreferences,
+          ...action.payload
+        };
+        console.log('✅ Notification preferences updated:', state.notificationPreferences);
+      })
+      .addCase(updateNotificationPreferences.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        console.log('❌ Failed to update preferences:', action.payload);
+      })
+      
+      // Register push token
+      .addCase(registerPushToken.fulfilled, (state) => {
+        console.log('✅ Push token registered with backend');
+      })
+      .addCase(registerPushToken.rejected, (state, action) => {
+        state.error = action.payload;
+        console.log('❌ Failed to register push token:', action.payload);
+      })
+      
+      // Get notification stats
+      .addCase(getNotificationStats.fulfilled, (state, action) => {
+        state.stats = {
+          ...state.stats,
+          ...action.payload
+        };
+      })
+      
+      // Delete notification
+      .addCase(deleteNotification.fulfilled, (state, action) => {
+        const { notificationId } = action.payload;
+        state.notifications = state.notifications.filter(n => n._id !== notificationId);
+        state.unreadCount = state.notifications.filter(n => !n.read).length;
+        state.stats.total = state.notifications.length;
+        state.stats.unread = state.unreadCount;
+      })
+      
+      // Clear all notifications
+      .addCase(clearAllNotifications.fulfilled, (state) => {
+        state.notifications = [];
+        state.unreadCount = 0;
+        state.stats.total = 0;
+        state.stats.unread = 0;
       });
   }
 });
@@ -216,10 +451,12 @@ export const {
   updateUnreadCount, 
   setPushToken,
   setNotificationEnabled,
+  updatePreferences,
   testExpoNotification,
   simulateReportCreated,
   simulateReportProcessed,
   simulateRecyclingTip,
-  clearLastNotification
+  clearLastNotification,
+  updateStats
 } = notificationSlice.actions;
 export default notificationSlice.reducer;

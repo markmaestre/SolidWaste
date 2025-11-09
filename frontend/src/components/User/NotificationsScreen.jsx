@@ -7,7 +7,8 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
-  ActivityIndicator
+  ActivityIndicator,
+  Switch
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
@@ -18,20 +19,47 @@ import {
   simulateReportCreated,
   simulateReportProcessed,
   simulateRecyclingTip,
-  initializeNotifications
+  initializeNotifications,
+  updateNotificationPreferences,
+  registerPushToken
 } from '../../redux/slices/notificationSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const NotificationsScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { notifications, loading, unreadCount, notificationEnabled, pushToken, lastNotification } = useSelector((state) => state.notification);
+  const { 
+    notifications, 
+    loading, 
+    unreadCount, 
+    notificationEnabled, 
+    pushToken, 
+    lastNotification,
+    notificationPreferences 
+  } = useSelector((state) => state.notification);
+  
   const [refreshing, setRefreshing] = useState(false);
+  const [preferences, setPreferences] = useState({
+    notificationsEnabled: true,
+    reportUpdates: true,
+    recyclingTips: true,
+    systemNotifications: true
+  });
 
   useEffect(() => {
     console.log('🚀 NotificationsScreen mounted');
     loadNotifications();
     initializeNotificationService();
   }, []);
+
+  // Update local preferences when Redux state changes
+  useEffect(() => {
+    if (notificationPreferences) {
+      setPreferences(prev => ({
+        ...prev,
+        ...notificationPreferences
+      }));
+    }
+  }, [notificationPreferences]);
 
   // Monitor lastNotification changes to debug
   useEffect(() => {
@@ -43,8 +71,16 @@ const NotificationsScreen = ({ navigation }) => {
   const initializeNotificationService = async () => {
     try {
       console.log('🔄 Initializing notification service...');
-      await dispatch(initializeNotifications()).unwrap();
-      console.log('✅ Notification service initialized');
+      const result = await dispatch(initializeNotifications()).unwrap();
+      console.log('✅ Notification service initialized', result);
+      
+      // Update preferences from backend
+      if (result.preferences) {
+        setPreferences(prev => ({
+          ...prev,
+          ...result.preferences
+        }));
+      }
     } catch (error) {
       console.log('❌ Failed to initialize notification service:', error);
     }
@@ -96,6 +132,22 @@ const NotificationsScreen = ({ navigation }) => {
     navigation.goBack();
   };
 
+  // Update notification preferences
+  const handlePreferenceChange = async (key, value) => {
+    try {
+      const updatedPreferences = { ...preferences, [key]: value };
+      setPreferences(updatedPreferences);
+      
+      await dispatch(updateNotificationPreferences(updatedPreferences)).unwrap();
+      console.log('✅ Notification preferences updated:', key, value);
+    } catch (error) {
+      console.log('❌ Failed to update preferences:', error);
+      // Revert on error
+      setPreferences(prev => ({ ...prev, [key]: !value }));
+      Alert.alert('Error', 'Failed to update notification preferences');
+    }
+  };
+
   // Test Expo notification
   const handleTestExpoNotification = async () => {
     console.log('🧪 Testing Expo notification...');
@@ -116,6 +168,18 @@ const NotificationsScreen = ({ navigation }) => {
   const handleSimulateRecyclingTip = () => {
     console.log('🌱 Simulating recycling tip...');
     dispatch(simulateRecyclingTip());
+  };
+
+  // Register push token manually
+  const handleRegisterPushToken = async () => {
+    try {
+      console.log('📱 Registering push token...');
+      await dispatch(registerPushToken()).unwrap();
+      Alert.alert('Success', 'Push token registered successfully');
+    } catch (error) {
+      console.log('❌ Failed to register push token:', error);
+      Alert.alert('Error', 'Failed to register push token');
+    }
   };
 
   const getNotificationIcon = (type) => {
@@ -233,24 +297,82 @@ const NotificationsScreen = ({ navigation }) => {
             Last: {lastNotification.title}
           </Text>
         )}
+        {pushToken && (
+          <Text style={styles.debugText}>
+            Token: {pushToken.substring(0, 25)}...
+          </Text>
+        )}
+      </View>
+
+      {/* Notification Preferences */}
+      <View style={styles.preferencesContainer}>
+        <Text style={styles.preferencesTitle}>Notification Settings</Text>
+        
+        <View style={styles.preferenceItem}>
+          <View style={styles.preferenceInfo}>
+            <Icon name="notifications" size={20} color="#333" />
+            <Text style={styles.preferenceText}>Enable Notifications</Text>
+          </View>
+          <Switch
+            value={preferences.notificationsEnabled}
+            onValueChange={(value) => handlePreferenceChange('notificationsEnabled', value)}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={preferences.notificationsEnabled ? '#2196F3' : '#f4f3f4'}
+          />
+        </View>
+
+        <View style={styles.preferenceItem}>
+          <View style={styles.preferenceInfo}>
+            <Icon name="assignment" size={20} color="#333" />
+            <Text style={styles.preferenceText}>Report Updates</Text>
+          </View>
+          <Switch
+            value={preferences.reportUpdates}
+            onValueChange={(value) => handlePreferenceChange('reportUpdates', value)}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={preferences.reportUpdates ? '#2196F3' : '#f4f3f4'}
+            disabled={!preferences.notificationsEnabled}
+          />
+        </View>
+
+        <View style={styles.preferenceItem}>
+          <View style={styles.preferenceInfo}>
+            <Icon name="eco" size={20} color="#333" />
+            <Text style={styles.preferenceText}>Recycling Tips</Text>
+          </View>
+          <Switch
+            value={preferences.recyclingTips}
+            onValueChange={(value) => handlePreferenceChange('recyclingTips', value)}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={preferences.recyclingTips ? '#2196F3' : '#f4f3f4'}
+            disabled={!preferences.notificationsEnabled}
+          />
+        </View>
+
+        <View style={styles.preferenceItem}>
+          <View style={styles.preferenceInfo}>
+            <Icon name="info" size={20} color="#333" />
+            <Text style={styles.preferenceText}>System Notifications</Text>
+          </View>
+          <Switch
+            value={preferences.systemNotifications}
+            onValueChange={(value) => handlePreferenceChange('systemNotifications', value)}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={preferences.systemNotifications ? '#2196F3' : '#f4f3f4'}
+            disabled={!preferences.notificationsEnabled}
+          />
+        </View>
       </View>
 
       {/* Expo Notification Test Buttons */}
       <View style={styles.testButtonsContainer}>
         <Text style={styles.testSectionTitle}>Test Notifications</Text>
-        <Text style={styles.statusText}>
-          Status: {notificationEnabled ? '✅ Enabled' : '❌ Disabled'}
-        </Text>
-        {pushToken && (
-          <Text style={styles.tokenText} numberOfLines={1}>
-            Token: {pushToken.substring(0, 20)}...
-          </Text>
-        )}
         
         <View style={styles.testButtonsRow}>
           <TouchableOpacity 
             style={[styles.testButton, styles.expoButton]}
             onPress={handleTestExpoNotification}
+            disabled={!preferences.notificationsEnabled}
           >
             <Icon name="notifications" size={18} color="#FFFFFF" />
             <Text style={styles.testButtonText}>Test Expo</Text>
@@ -259,15 +381,18 @@ const NotificationsScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={[styles.testButton, styles.reportButton]}
             onPress={handleSimulateReportCreated}
+            disabled={!preferences.notificationsEnabled || !preferences.reportUpdates}
           >
             <Icon name="assignment" size={18} color="#FFFFFF" />
             <Text style={styles.testButtonText}>New Report</Text>
           </TouchableOpacity>
         </View>
+        
         <View style={styles.testButtonsRow}>
           <TouchableOpacity 
             style={[styles.testButton, styles.successButton]}
             onPress={handleSimulateReportProcessed}
+            disabled={!preferences.notificationsEnabled || !preferences.reportUpdates}
           >
             <Icon name="check-circle" size={18} color="#FFFFFF" />
             <Text style={styles.testButtonText}>Processed</Text>
@@ -276,11 +401,20 @@ const NotificationsScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={[styles.testButton, styles.tipButton]}
             onPress={handleSimulateRecyclingTip}
+            disabled={!preferences.notificationsEnabled || !preferences.recyclingTips}
           >
             <Icon name="eco" size={18} color="#FFFFFF" />
             <Text style={styles.testButtonText}>Recycling Tip</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity 
+          style={[styles.testButton, styles.tokenButton]}
+          onPress={handleRegisterPushToken}
+        >
+          <Icon name="vpn-key" size={18} color="#FFFFFF" />
+          <Text style={styles.testButtonText}>Register Push Token</Text>
+        </TouchableOpacity>
       </View>
 
       {unreadCount > 0 && (
@@ -305,7 +439,7 @@ const NotificationsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Icon name="notifications_off" size={64} color="#CCCCCC" />
+            <Icon name="notifications-off" size={64} color="#CCCCCC" />
             <Text style={styles.emptyTitle}>No notifications</Text>
             <Text style={styles.emptyText}>
               You're all caught up! Check back later for updates.
@@ -367,10 +501,10 @@ const styles = StyleSheet.create({
   },
   debugContainer: {
     backgroundColor: '#FFF3CD',
-    padding: 8,
+    padding: 12,
     marginHorizontal: 16,
     marginTop: 8,
-    borderRadius: 6,
+    borderRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: '#FFC107',
   },
@@ -378,6 +512,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#856404',
     fontFamily: 'monospace',
+    marginBottom: 2,
+  },
+  // Preferences styles
+  preferencesContainer: {
+    backgroundColor: 'white',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  preferencesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  preferenceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  preferenceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  preferenceText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 12,
+    fontWeight: '500',
   },
   // Test buttons styles
   testButtonsContainer: {
@@ -396,20 +570,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  statusText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  tokenText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
     marginBottom: 12,
+    textAlign: 'center',
   },
   testButtonsRow: {
     flexDirection: 'row',
@@ -425,6 +587,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
     marginHorizontal: 4,
+    opacity: 1,
   },
   expoButton: {
     backgroundColor: '#4630EB', // Expo color
@@ -437,6 +600,10 @@ const styles = StyleSheet.create({
   },
   tipButton: {
     backgroundColor: '#FF9800',
+  },
+  tokenButton: {
+    backgroundColor: '#9C27B0',
+    marginTop: 8,
   },
   testButtonText: {
     color: 'white',
@@ -457,6 +624,7 @@ const styles = StyleSheet.create({
     color: '#1976D2',
     fontWeight: '500',
     fontSize: 14,
+    textAlign: 'center',
   },
   notificationItem: {
     flexDirection: 'row',

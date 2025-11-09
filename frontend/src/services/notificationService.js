@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform, Alert } from 'react-native';
 import Constants from 'expo-constants';
+import axiosInstance from '../utils/axiosInstance';
 
 // Configure how notifications are displayed
 Notifications.setNotificationHandler({
@@ -19,15 +20,28 @@ class ExpoNotificationService {
 
   // Initialize notifications
   initialize = async () => {
-    if (this.isConfigured) return true;
+    if (this.isConfigured) return { success: true };
 
     try {
       await this.configureNotifications();
+      
+      // Request permissions and get token
+      const hasPermission = await this.requestPermissions();
+      let token = null;
+      
+      if (hasPermission) {
+        token = await this.getPushToken();
+        if (token) {
+          // Register token with backend
+          await this.registerPushTokenWithBackend(token);
+        }
+      }
+      
       this.isConfigured = true;
-      return true;
+      return { success: true, token };
     } catch (error) {
       console.error('Failed to initialize notifications:', error);
-      return false;
+      return { success: false, error: error.message };
     }
   };
 
@@ -117,7 +131,34 @@ class ExpoNotificationService {
     }
   };
 
-  // Show local notification (lumalabas sa TOP ng phone)
+  // Register push token with backend
+  registerPushTokenWithBackend = async (token) => {
+    try {
+      const response = await axiosInstance.post('/notifications/push-token', {
+        pushToken: token
+      });
+      
+      console.log('✅ Push token registered with backend');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to register push token with backend:', error);
+      return false;
+    }
+  };
+
+  // Update notification preferences
+  updateNotificationPreferences = async (preferences) => {
+    try {
+      const response = await axiosInstance.put('/notifications/preferences', preferences);
+      console.log('✅ Notification preferences updated');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to update notification preferences:', error);
+      return false;
+    }
+  };
+
+  // Show local notification
   showLocalNotification = async (title, message, data = {}) => {
     try {
       console.log('🔔 Scheduling notification:', title, message);
