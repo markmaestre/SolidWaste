@@ -7,10 +7,11 @@ import {
   StyleSheet,
   TextInput,
   ActivityIndicator,
-  Alert
+  Alert,
+  RefreshControl
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {
   getConversations,
@@ -26,22 +27,30 @@ const MessageList = () => {
   const navigation = useNavigation();
   const { conversations, users, admins, searchResults, loading, error } = useSelector(state => state.message);
   
-  // FIXED: Better Redux state access with fallbacks
+  // Redux state access
   const authState = useSelector(state => state.auth);
   const currentUser = authState.user || authState.userInfo;
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('chats');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUser && currentUser.id) {
+        console.log('Screen focused, reloading data...');
+        loadData();
+      }
+    }, [currentUser])
+  );
 
   useEffect(() => {
-    if (currentUser) {
-      console.log('Current user found:', currentUser);
+    if (currentUser && currentUser.id) {
+      console.log('Current user found:', currentUser.username);
       loadData();
     } else {
-      console.log('No user found in Redux state. Auth state:', authState);
-      Alert.alert('Login Required', 'Please login to access messages');
-      navigation.navigate('Login'); // Adjust based on your login screen name
+      console.log('No user found in Redux state');
     }
   }, [currentUser]);
 
@@ -58,19 +67,33 @@ const MessageList = () => {
     }
   }, [searchQuery]);
 
-  const loadData = () => {
-    if (!currentUser?._id) {
+  const loadData = async () => {
+    if (!currentUser?.id) {
       console.log('Cannot load data: No user ID available');
       return;
     }
 
-    if (currentUser?.role === 'admin') {
-      dispatch(getUsers());
-    } else {
-      dispatch(getAdmins());
-    }
+    console.log('Loading data for user:', currentUser.id);
     
-    dispatch(getConversations(currentUser._id));
+    try {
+      if (currentUser?.role === 'admin') {
+        await dispatch(getUsers()).unwrap();
+      } else {
+        await dispatch(getAdmins()).unwrap();
+      }
+      
+      await dispatch(getConversations(currentUser.id)).unwrap();
+      console.log('Data loaded successfully. Conversations:', conversations.length);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      Alert.alert('Error', 'Failed to load messages');
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
   const startChat = (otherUser) => {
@@ -79,29 +102,20 @@ const MessageList = () => {
       return;
     }
     
-    if (!currentUser?._id) {
+    if (!currentUser?.id) {
       Alert.alert('Error', 'Your user information is not available. Please make sure you are logged in.');
       return;
     }
     
-    console.log('Starting chat:', {
-      currentUser: {
-        id: currentUser._id,
-        username: currentUser.username,
-        role: currentUser.role
-      },
-      otherUser: {
-        id: otherUser._id,
-        username: otherUser.username
-      }
-    });
+    console.log('Starting chat with:', otherUser.username);
     
     // Ensure we have all required user data
     const userToChat = {
       _id: otherUser._id,
       username: otherUser.username || 'Unknown User',
       email: otherUser.email || '',
-      role: otherUser.role
+      role: otherUser.role,
+      profile: otherUser.profile
     };
     
     dispatch(setActiveChat(userToChat));
@@ -110,30 +124,37 @@ const MessageList = () => {
     });
   };
 
-  const renderConversationItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.conversationItem}
-      onPress={() => startChat(item.user)}
-    >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
-          {item.user?.username?.charAt(0)?.toUpperCase() || 'U'}
-        </Text>
-      </View>
-      <View style={styles.conversationInfo}>
-        <Text style={styles.username}>{item.user?.username || 'Unknown User'}</Text>
-        <Text style={styles.lastMessage} numberOfLines={1}>
-          {item.lastMessage?.text || 'No messages yet'}
-        </Text>
-      </View>
-      <View style={styles.conversationMeta}>
-        <Text style={styles.timestamp}>
-          {item.lastMessage ? formatTime(item.lastMessage.timestamp) : ''}
-        </Text>
-        {item.unread && <View style={styles.unreadBadge} />}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderConversationItem = ({ item }) => {
+    if (!item.user) {
+      console.log('Invalid conversation item:', item);
+      return null;
+    }
+
+    return (
+      <TouchableOpacity 
+        style={styles.conversationItem}
+        onPress={() => startChat(item.user)}
+      >
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {item.user?.username?.charAt(0)?.toUpperCase() || 'U'}
+          </Text>
+        </View>
+        <View style={styles.conversationInfo}>
+          <Text style={styles.username}>{item.user?.username || 'Unknown User'}</Text>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {item.lastMessage?.text || 'No messages yet'}
+          </Text>
+        </View>
+        <View style={styles.conversationMeta}>
+          <Text style={styles.timestamp}>
+            {item.lastMessage ? formatTime(item.lastMessage.timestamp) : ''}
+          </Text>
+          {item.unread && <View style={styles.unreadBadge} />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderUserItem = ({ item }) => (
     <TouchableOpacity 
@@ -165,6 +186,8 @@ const MessageList = () => {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } else if (days === 1) {
         return 'Yesterday';
+      } else if (days < 7) {
+        return date.toLocaleDateString([], { weekday: 'short' });
       } else {
         return date.toLocaleDateString();
       }
@@ -185,16 +208,19 @@ const MessageList = () => {
         <Text style={styles.profileName}>{currentUser?.username || 'User'}</Text>
         <Text style={styles.profileRole}>{currentUser?.role || 'User'}</Text>
       </View>
+      <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+        <Icon name="refresh" size={24} color="#2196F3" />
+      </TouchableOpacity>
     </View>
   );
 
   // Debug info
   console.log('MessageList Debug:', {
-    authState: authState,
-    currentUser: currentUser,
-    conversationsCount: conversations.length,
-    usersCount: users.length,
-    adminsCount: admins.length
+    currentUserId: currentUser?.id,
+    conversationsCount: conversations?.length,
+    usersCount: users?.length,
+    adminsCount: admins?.length,
+    conversations: conversations
   });
 
   if (!currentUser) {
@@ -202,15 +228,6 @@ const MessageList = () => {
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2196F3" />
         <Text>Loading user information...</Text>
-      </View>
-    );
-  }
-
-  if (loading && conversations.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text>Loading messages...</Text>
       </View>
     );
   }
@@ -243,7 +260,7 @@ const MessageList = () => {
           onPress={() => setActiveTab('chats')}
         >
           <Text style={[styles.tabText, activeTab === 'chats' && styles.activeTabText]}>
-            Chats
+            Chats ({conversations?.length || 0})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
@@ -251,7 +268,8 @@ const MessageList = () => {
           onPress={() => setActiveTab('users')}
         >
           <Text style={[styles.tabText, activeTab === 'users' && styles.activeTabText]}>
-            {currentUser?.role === 'admin' ? 'Users' : 'Admins'}
+            {currentUser?.role === 'admin' ? 'Users' : 'Admins'} 
+            ({currentUser?.role === 'admin' ? users?.length || 0 : admins?.length || 0})
           </Text>
         </TouchableOpacity>
       </View>
@@ -263,9 +281,13 @@ const MessageList = () => {
           keyExtractor={(item) => item._id || `user-${Math.random()}`}
           renderItem={renderUserItem}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No users found</Text>
+              <Text style={styles.emptySubtext}>Try a different search term</Text>
             </View>
           }
         />
@@ -274,31 +296,46 @@ const MessageList = () => {
           data={conversations}
           keyExtractor={(item) => item.user?._id || `conv-${Math.random()}`}
           renderItem={renderConversationItem}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Icon name="chat" size={50} color="#ccc" />
+              <Icon name="chat" size={60} color="#ccc" />
               <Text style={styles.emptyText}>No conversations yet</Text>
               <Text style={styles.emptySubtext}>
                 Start a chat with {currentUser?.role === 'admin' ? 'users' : 'admins'} from the Users tab
               </Text>
+              <TouchableOpacity style={styles.refreshButtonLarge} onPress={loadData}>
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
             </View>
           }
-          showsVerticalScrollIndicator={false}
         />
       ) : (
         <FlatList
           data={currentUser?.role === 'admin' ? users : admins}
           keyExtractor={(item) => item._id || `user-${Math.random()}`}
           renderItem={renderUserItem}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Icon name="people" size={50} color="#ccc" />
+              <Icon name="people" size={60} color="#ccc" />
               <Text style={styles.emptyText}>
                 No {currentUser?.role === 'admin' ? 'users' : 'admins'} found
               </Text>
+              <Text style={styles.emptySubtext}>
+                {currentUser?.role === 'admin' 
+                  ? 'There are no users in the system' 
+                  : 'There are no admins available'
+                }
+              </Text>
             </View>
           }
-          showsVerticalScrollIndicator={false}
         />
       )}
     </View>
@@ -345,6 +382,9 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
     textTransform: 'capitalize',
+  },
+  refreshButton: {
+    padding: 8,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -457,18 +497,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
+    paddingHorizontal: 40,
   },
   emptyText: {
     fontSize: 18,
     color: '#666',
     marginTop: 16,
+    textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
     color: '#999',
     marginTop: 8,
     textAlign: 'center',
-    paddingHorizontal: 40,
+    lineHeight: 20,
+  },
+  refreshButtonLarge: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

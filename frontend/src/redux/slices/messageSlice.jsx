@@ -9,7 +9,6 @@ export const getConversations = createAsyncThunk(
       const response = await axiosInstance.get(`/messages/conversations/${userId}`);
       return response.data;
     } catch (error) {
-      console.error('❌ getConversations error:', error);
       return rejectWithValue(error.response?.data || 'Failed to fetch conversations');
     }
   }
@@ -19,12 +18,9 @@ export const getConversation = createAsyncThunk(
   'message/getConversation',
   async ({ userId, otherUserId }, { rejectWithValue }) => {
     try {
-      console.log(`🔄 Fetching conversation between ${userId} and ${otherUserId}`);
       const response = await axiosInstance.get(`/messages/conversation/${userId}/${otherUserId}`);
-      console.log('✅ Conversation loaded:', response.data.length, 'messages');
       return response.data;
     } catch (error) {
-      console.error('❌ getConversation error:', error);
       return rejectWithValue(error.response?.data || 'Failed to fetch conversation');
     }
   }
@@ -41,21 +37,19 @@ export const sendMessage = createAsyncThunk(
       });
       return response.data;
     } catch (error) {
-      console.error('❌ sendMessage error:', error);
       return rejectWithValue(error.response?.data || 'Failed to send message');
     }
   }
 );
 
-export const markMessagesAsSeen = createAsyncThunk(
-  'message/markAsSeen',
+export const markMessagesAsRead = createAsyncThunk(
+  'message/markAsRead',
   async ({ senderId, receiverId }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`/messages/seen/${senderId}/${receiverId}`);
+      const response = await axiosInstance.put(`/messages/read/${senderId}/${receiverId}`);
       return response.data;
     } catch (error) {
-      console.error('❌ markMessagesAsSeen error:', error);
-      return rejectWithValue(error.response?.data || 'Failed to mark messages as seen');
+      return rejectWithValue(error.response?.data || 'Failed to mark messages as read');
     }
   }
 );
@@ -65,10 +59,8 @@ export const getUsers = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get('/messages/users');
-      console.log('✅ Users loaded:', response.data.length);
       return response.data;
     } catch (error) {
-      console.error('❌ getUsers error:', error);
       return rejectWithValue(error.response?.data || 'Failed to fetch users');
     }
   }
@@ -79,10 +71,8 @@ export const getAdmins = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get('/messages/admins');
-      console.log('✅ Admins loaded:', response.data.length);
       return response.data;
     } catch (error) {
-      console.error('❌ getAdmins error:', error);
       return rejectWithValue(error.response?.data || 'Failed to fetch admins');
     }
   }
@@ -93,10 +83,8 @@ export const searchUsers = createAsyncThunk(
   async (query, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(`/messages/search?q=${query}`);
-      console.log('✅ Search results:', response.data.length);
       return response.data;
     } catch (error) {
-      console.error('❌ searchUsers error:', error);
       return rejectWithValue(error.response?.data || 'Search failed');
     }
   }
@@ -121,7 +109,6 @@ const messageSlice = createSlice({
       state.error = null;
     },
     setActiveChat: (state, action) => {
-      console.log('🔧 Setting active chat:', action.payload);
       state.activeChat = action.payload;
     },
     clearSearchResults: (state) => {
@@ -130,39 +117,35 @@ const messageSlice = createSlice({
     addMessageToConversation: (state, action) => {
       const { message, currentUserId } = action.payload;
       
-      console.log('📌 Adding message to conversation:', {
-        messageId: message._id,
-        from: message.senderId,
-        to: message.receiverId,
-        current: currentUserId
-      });
-      
-      // Add to current conversation if active
-      if (state.activeChat) {
-        const isRelevant = 
-          (message.senderId === state.activeChat._id && message.receiverId === currentUserId) ||
-          (message.receiverId === state.activeChat._id && message.senderId === currentUserId);
+      // Add to current conversation if active chat matches
+      if (state.activeChat && 
+          (message.senderId === state.activeChat._id || message.receiverId === state.activeChat._id)) {
         
-        if (isRelevant) {
-          // Check if message already exists
-          const exists = state.currentConversation.some(m => m._id === message._id);
-          if (!exists) {
-            state.currentConversation.push(message);
-          }
+        // Check if message already exists to avoid duplicates
+        const messageExists = state.currentConversation.some(msg => msg._id === message._id);
+        if (!messageExists) {
+          state.currentConversation.push(message);
         }
       }
       
-      // Update or create conversation in list
+      // Update conversations list
       const otherUserId = message.senderId === currentUserId ? message.receiverId : message.senderId;
-      const conversationIndex = state.conversations.findIndex(
-        conv => conv.user._id === otherUserId
-      );
+      const conversationIndex = state.conversations.findIndex(conv => conv.user._id === otherUserId);
       
       if (conversationIndex !== -1) {
         // Update existing conversation
-        state.conversations[conversationIndex].lastMessage = message;
-        state.conversations[conversationIndex].unread = 
-          message.senderId !== currentUserId && !message.read;
+        state.conversations[conversationIndex].lastMessage = {
+          text: message.text,
+          timestamp: message.timestamp,
+          read: message.read,
+          sender: message.senderId
+        };
+        state.conversations[conversationIndex].timestamp = message.timestamp;
+        
+        // Update unread status
+        if (message.senderId !== currentUserId && !message.read) {
+          state.conversations[conversationIndex].unread = true;
+        }
         
         // Move to top
         const updatedConversation = state.conversations.splice(conversationIndex, 1)[0];
@@ -171,8 +154,6 @@ const messageSlice = createSlice({
     },
     updateMessageReadStatus: (state, action) => {
       const { senderId, receiverId } = action.payload;
-      
-      console.log('👁️ Updating read status for messages from', senderId);
       
       // Update in current conversation
       state.currentConversation.forEach(message => {
@@ -191,7 +172,9 @@ const messageSlice = createSlice({
     },
     clearCurrentConversation: (state) => {
       state.currentConversation = [];
-      state.activeChat = null;
+    },
+    setLoading: (state, action) => {
+      state.loading = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -202,13 +185,11 @@ const messageSlice = createSlice({
       })
       .addCase(getConversations.fulfilled, (state, action) => {
         state.loading = false;
-        state.conversations = action.payload || [];
-        console.log('✅ Conversations updated');
+        state.conversations = action.payload;
       })
       .addCase(getConversations.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-        console.error('❌ Failed to load conversations');
       })
       
       // Get conversation
@@ -217,7 +198,7 @@ const messageSlice = createSlice({
       })
       .addCase(getConversation.fulfilled, (state, action) => {
         state.loading = false;
-        state.currentConversation = action.payload || [];
+        state.currentConversation = action.payload;
       })
       .addCase(getConversation.rejected, (state, action) => {
         state.loading = false;
@@ -245,7 +226,7 @@ const messageSlice = createSlice({
       })
       .addCase(getUsers.fulfilled, (state, action) => {
         state.loading = false;
-        state.users = action.payload || [];
+        state.users = action.payload;
       })
       .addCase(getUsers.rejected, (state, action) => {
         state.loading = false;
@@ -253,16 +234,8 @@ const messageSlice = createSlice({
       })
       
       // Get admins
-      .addCase(getAdmins.pending, (state) => {
-        state.loading = true;
-      })
       .addCase(getAdmins.fulfilled, (state, action) => {
-        state.loading = false;
-        state.admins = action.payload || [];
-      })
-      .addCase(getAdmins.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.admins = action.payload;
       })
       
       // Search users
@@ -271,16 +244,11 @@ const messageSlice = createSlice({
       })
       .addCase(searchUsers.fulfilled, (state, action) => {
         state.loading = false;
-        state.searchResults = action.payload || [];
+        state.searchResults = action.payload;
       })
       .addCase(searchUsers.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      })
-      
-      // Mark messages as seen
-      .addCase(markMessagesAsSeen.fulfilled, (state) => {
-        // Status updated via socket or real-time
       });
   }
 });
@@ -291,7 +259,8 @@ export const {
   clearSearchResults,
   addMessageToConversation,
   updateMessageReadStatus,
-  clearCurrentConversation
+  clearCurrentConversation,
+  setLoading
 } = messageSlice.actions;
 
 export default messageSlice.reducer;

@@ -14,7 +14,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO server setup - FIXED PORT
+// Socket.IO server setup
 const io = new Server(server, {
   cors: {
     origin: '*',
@@ -24,7 +24,8 @@ const io = new Server(server, {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/api/users', userRoutes);
@@ -44,86 +45,85 @@ io.on('connection', (socket) => {
   socket.on('join', (userId) => {
     onlineUsers[userId] = socket.id;
     socket.join(userId);
-    console.log(`👤 User ${userId} joined their room`);
-    
-    // Notify all clients of online status
-    io.emit('userOnline', { userId });
+    console.log(`User ${userId} joined their room`);
   });
 
   // Sending a message
-  socket.on('sendMessage', async ({ senderId, receiverId, text }) => {
+  socket.on('sendMessage', async (messageData) => {
     try {
       const Message = require('./models/Message');
-      
-      const message = new Message({
-        sender: senderId,
-        receiver: receiverId,
-        message: text,
-        timestamp: new Date()
+      const message = new Message({ 
+        sender: messageData.senderId, 
+        receiver: messageData.receiverId, 
+        message: messageData.text 
       });
       
       await message.save();
-      await message.populate('sender receiver', 'username email profile');
+      
+      // Populate user data
+      await message.populate('sender', 'username email profile');
+      await message.populate('receiver', 'username email profile');
 
-      const messageData = {
+      const transformedMessage = {
         _id: message._id,
         senderId: message.sender._id,
         receiverId: message.receiver._id,
         text: message.message,
         timestamp: message.timestamp,
-        read: message.read
+        read: message.read,
+        sender: message.sender,
+        receiver: message.receiver
       };
 
-      console.log(`📨 Message from ${senderId} to ${receiverId}`);
-
       // Emit message to receiver if online
-      if (onlineUsers[receiverId]) {
-        io.to(receiverId).emit('receiveMessage', messageData);
+      const receiverSocket = onlineUsers[messageData.receiverId];
+      if (receiverSocket) {
+        io.to(messageData.receiverId).emit('receiveMessage', transformedMessage);
       }
 
       // Emit back to sender to update their chat instantly
-      io.to(senderId).emit('receiveMessage', messageData);
+      io.to(messageData.senderId).emit('receiveMessage', transformedMessage);
     } catch (error) {
-      console.error('❌ Socket message error:', error);
+      console.error('Socket send message error:', error);
       socket.emit('messageError', { error: 'Failed to send message' });
     }
   });
 
-  // Mark message as seen
+  // Mark messages as seen
   socket.on('markSeen', async ({ senderId, receiverId }) => {
     try {
       const Message = require('./models/Message');
-      
       await Message.updateMany(
-        { sender: senderId, receiver: receiverId, read: false },
-        { $set: { read: true } }
+        { 
+          sender: senderId, 
+          receiver: receiverId, 
+          read: false 
+        },
+        { 
+          $set: { read: true } 
+        }
       );
-
-      // Notify sender that message was read
-      if (onlineUsers[senderId]) {
+      
+      // Notify the sender that messages were seen
+      const senderSocket = onlineUsers[senderId];
+      if (senderSocket) {
         io.to(senderId).emit('messagesSeen', { receiverId });
       }
     } catch (error) {
-      console.error('❌ Mark seen error:', error);
+      console.error('Mark seen error:', error);
     }
   });
 
   // Disconnect
   socket.on('disconnect', () => {
-    let disconnectedUserId = null;
-    
     for (const userId in onlineUsers) {
       if (onlineUsers[userId] === socket.id) {
-        disconnectedUserId = userId;
         delete onlineUsers[userId];
+        console.log(`User ${userId} disconnected`);
         break;
       }
     }
-    
-    if (disconnectedUserId) {
-      console.log(`🔴 User ${disconnectedUserId} disconnected`);
-      io.emit('userOffline', { userId: disconnectedUserId });
-    }
+    console.log('🔴 User disconnected:', socket.id);
   });
 });
 
@@ -132,12 +132,9 @@ mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => console.error('❌ MongoDB connection failed:', err));
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection failed:', err));
 
-// Start the server - FIXED: Use consistent port
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Socket.IO available at http://192.168.1.44:${PORT}`);
-});
+// Start the server
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

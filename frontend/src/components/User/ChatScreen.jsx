@@ -18,6 +18,8 @@ import { io } from 'socket.io-client';
 import axiosInstance from '../../utils/axiosInstance';  
 import {
   getConversation,
+  sendMessage,
+  markMessagesAsRead,
   addMessageToConversation,
   updateMessageReadStatus
 } from '../../redux/slices/messageSlice';
@@ -26,96 +28,60 @@ const ChatScreen = () => {
   const dispatch = useDispatch();
   const route = useRoute();
   const navigation = useNavigation();
-  const { user: routeUser } = route.params || {};
+  const { user } = route.params || {};
   
-  // Get auth state - try multiple paths for compatibility
+  // Redux state access
   const authState = useSelector(state => state.auth);
-  const reduxUser = authState?.user || authState?.userInfo;
+  const currentUser = authState.user || authState.userInfo;
   
   const { currentConversation, sending, loading } = useSelector(state => state.message);
   
   const [message, setMessage] = useState('');
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [currentUser, setCurrentUser] = useState(reduxUser);
-  const [user, setUser] = useState(routeUser);
   const flatListRef = useRef(null);
 
-  // Debug logging
+  // Validate user data on component mount
   useEffect(() => {
-    console.log('🔍 ChatScreen Debug:', {
-      authState: authState,
-      reduxUser: reduxUser,
-      routeUser: routeUser,
-      currentUser: currentUser,
-      user: user
+    if (!user || !currentUser) {
+      Alert.alert('Error', 'User information not found. Please go back and try again.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+      return;
+    }
+
+    if (!user._id || !currentUser.id) {
+      Alert.alert('Error', 'Invalid user data. Missing user IDs.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+      return;
+    }
+
+    console.log('Starting chat with:', {
+      currentUser: {
+        id: currentUser.id,
+        username: currentUser.username,
+        role: currentUser.role
+      },
+      otherUser: {
+        id: user._id,
+        username: user.username
+      }
     });
-  }, []);
-
-  // Validate user data
-  useEffect(() => {
-    // Try to get user data from multiple sources
-    const finalCurrentUser = currentUser || reduxUser;
-    const finalOtherUser = user || routeUser;
-
-    console.log('✅ Final user data:', {
-      currentUser: finalCurrentUser,
-      otherUser: finalOtherUser
-    });
-
-    if (!finalCurrentUser) {
-      Alert.alert(
-        'Error', 
-        'Your user information is not available. Please log in again.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-      );
-      return;
-    }
-
-    if (!finalOtherUser) {
-      Alert.alert(
-        'Error', 
-        'Chat user information not found. Please select a user to chat with.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-      return;
-    }
-
-    if (!finalCurrentUser._id || !finalOtherUser._id) {
-      Alert.alert(
-        'Error',
-        'Invalid user data. Missing user IDs.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-      return;
-    }
-
-    setCurrentUser(finalCurrentUser);
-    setUser(finalOtherUser);
-  }, [reduxUser, routeUser]);
-
-  // Set navigation header
-  useEffect(() => {
-    if (user?._id && currentUser?._id) {
-      navigation.setOptions({
-        title: user.username || 'Chat',
-        headerShown: true,
-      });
-    }
   }, [user, currentUser, navigation]);
 
-  // Load conversation and initialize socket
   useEffect(() => {
-    if (!user?._id || !currentUser?._id) {
-      console.log('⚠️ Missing user data, skipping initialization');
-      return;
-    }
+    if (!user?._id || !currentUser?.id) return;
 
-    console.log('🔄 Initializing chat screen');
+    // Set up navigation header
+    navigation.setOptions({
+      title: user.username || 'Chat',
+      headerShown: true,
+    });
 
-    // Load conversation history
+    // Load conversation
     dispatch(getConversation({
-      userId: currentUser._id,
+      userId: currentUser.id,
       otherUserId: user._id
     }));
 
@@ -124,33 +90,25 @@ const ChatScreen = () => {
 
     return () => {
       if (socket) {
-        console.log('🧹 Cleaning up socket connection');
+        console.log('Cleaning up socket connection');
         socket.disconnect();
+        setSocket(null);
       }
     };
-  }, [user?._id, currentUser?._id]);
+  }, [user, currentUser]);
 
   const initializeSocket = () => {
     try {
-      console.log('🔌 Initializing socket connection...');
-      
+      console.log('🔄 Initializing socket connection...');
       const newSocket = io('http://192.168.1.44:4000', {
         transports: ['websocket'],
         timeout: 10000,
-        reconnectionDelay: 1000,
-        reconnection: true,
-        reconnectionAttempts: 5
       });
       
       newSocket.on('connect', () => {
-        console.log('✅ Socket connected:', newSocket.id);
+        console.log('✅ Socket connected successfully');
         setIsConnected(true);
-        
-        // Join user room
-        if (currentUser?._id) {
-          newSocket.emit('join', currentUser._id);
-          console.log('👤 Joined room:', currentUser._id);
-        }
+        newSocket.emit('join', currentUser.id);
       });
       
       newSocket.on('disconnect', (reason) => {
@@ -159,33 +117,30 @@ const ChatScreen = () => {
       });
       
       newSocket.on('connect_error', (error) => {
-        console.log('❌ Socket error:', error);
+        console.log('❌ Socket connection error:', error);
         setIsConnected(false);
       });
 
       newSocket.on('receiveMessage', (receivedMessage) => {
-        console.log('📨 Message received:', receivedMessage);
+        console.log('📨 Received message via socket:', receivedMessage);
+        dispatch(addMessageToConversation({
+          message: receivedMessage,
+          currentUserId: currentUser.id
+        }));
         
-        if (currentUser?._id) {
-          dispatch(addMessageToConversation({
-            message: receivedMessage,
-            currentUserId: currentUser._id
+        // Mark as read if message is for current user
+        if (receivedMessage.senderId === user._id && receivedMessage.receiverId === currentUser.id) {
+          dispatch(updateMessageReadStatus({
+            senderId: user._id,
+            receiverId: currentUser.id
           }));
           
-          // Mark as read if message is for current user
-          if (receivedMessage.senderId === user?._id && 
-              receivedMessage.receiverId === currentUser._id) {
-            dispatch(updateMessageReadStatus({
+          // Emit seen event
+          if (newSocket.connected) {
+            newSocket.emit('markSeen', {
               senderId: user._id,
-              receiverId: currentUser._id
-            }));
-            
-            if (newSocket.connected) {
-              newSocket.emit('markSeen', {
-                senderId: user._id,
-                receiverId: currentUser._id
-              });
-            }
+              receiverId: currentUser.id
+            });
           }
         }
         
@@ -193,46 +148,45 @@ const ChatScreen = () => {
       });
 
       newSocket.on('messagesSeen', (data) => {
-        console.log('👁️ Messages seen:', data);
-        if (currentUser?._id) {
-          dispatch(updateMessageReadStatus({
-            senderId: data.receiverId,
-            receiverId: currentUser._id
-          }));
-        }
+        console.log('Messages seen by receiver:', data);
+        // Update read status for messages sent by current user
+        dispatch(updateMessageReadStatus({
+          senderId: currentUser.id,
+          receiverId: data.receiverId
+        }));
       });
 
       setSocket(newSocket);
     } catch (error) {
       console.error('❌ Failed to initialize socket:', error);
-      setIsConnected(false);
+      Alert.alert('Connection Error', 'Failed to connect to chat server. Some features may not work.');
     }
   };
 
-  // Mark messages as read when conversation loads
   useEffect(() => {
+    // Mark messages as read when opening chat
     if (currentUser && user && currentConversation.length > 0) {
       const unreadMessages = currentConversation.filter(
         msg => msg.senderId === user._id && !msg.read
       );
       
       if (unreadMessages.length > 0) {
-        markMessagesAsSeenAPI();
+        markMessagesAsReadAPI();
       }
     }
     
     scrollToBottom();
   }, [currentConversation]);
 
-  const markMessagesAsSeenAPI = async () => {
+  const markMessagesAsReadAPI = async () => {
     try {
-      await axiosInstance.put(`/messages/seen/${user._id}/${currentUser._id}`);
+      await axiosInstance.put(`/messages/read/${user._id}/${currentUser.id}`);
       dispatch(updateMessageReadStatus({
         senderId: user._id,
-        receiverId: currentUser._id
+        receiverId: currentUser.id
       }));
     } catch (error) {
-      console.error('Failed to mark messages as seen:', error);
+      console.error('Failed to mark messages as read:', error);
     }
   };
 
@@ -245,34 +199,23 @@ const ChatScreen = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !currentUser || !user || sending) {
-      console.log('⚠️ Cannot send: message empty, user missing, or already sending');
-      return;
-    }
+    if (!message.trim() || !currentUser || sending) return;
 
     const messageData = {
-      senderId: currentUser._id,
+      senderId: currentUser.id,
       receiverId: user._id,
       text: message.trim()
     };
 
     try {
-      // Send via HTTP first
-      const response = await axiosInstance.post('/messages/send', messageData);
+      // Send via HTTP first for persistence
+      await sendMessageAPI(messageData);
       
-      if (response.data.success && response.data.message) {
-        const sentMessage = response.data.message;
-        
-        // Add to conversation
-        dispatch(addMessageToConversation({
-          message: sentMessage,
-          currentUserId: currentUser._id
-        }));
-        
-        // Send via socket for real-time
-        if (socket && socket.connected) {
-          socket.emit('sendMessage', messageData);
-        }
+      // Then send via socket for real-time if connected
+      if (socket && socket.connected) {
+        socket.emit('sendMessage', messageData);
+      } else {
+        console.log('⚠️ Socket not connected, message saved but real-time update may be delayed');
       }
       
       setMessage('');
@@ -283,10 +226,28 @@ const ChatScreen = () => {
     }
   };
 
+  const sendMessageAPI = async (messageData) => {
+    try {
+      const response = await axiosInstance.post('/messages/send', messageData);
+      
+      if (response.data.success && response.data.message) {
+        dispatch(addMessageToConversation({
+          message: response.data.message,
+          currentUserId: currentUser.id
+        }));
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Failed to send message via API:', error);
+      throw error;
+    }
+  };
+
   const renderMessage = ({ item, index }) => {
     if (!currentUser) return null;
 
-    const isMyMessage = item.senderId === currentUser._id;
+    const isMyMessage = item.senderId === currentUser.id;
     const showAvatar = index === 0 || 
       (currentConversation[index - 1]?.senderId !== item.senderId);
 
@@ -315,7 +276,7 @@ const ChatScreen = () => {
           </Text>
           <View style={styles.messageMeta}>
             <Text style={styles.timestamp}>
-              {formatTime(item.timestamp || item.createdAt)}
+              {formatTime(item.timestamp)}
             </Text>
             {isMyMessage && (
               <Icon 
@@ -349,15 +310,23 @@ const ChatScreen = () => {
     }
   };
 
-  // Error state
+  const renderConnectionStatus = () => (
+    <View style={[
+      styles.connectionStatus,
+      { backgroundColor: isConnected ? '#4CAF50' : '#FF9800' }
+    ]}>
+      <Text style={styles.connectionStatusText}>
+        {isConnected ? 'Connected' : 'Connecting...'}
+      </Text>
+    </View>
+  );
+
+  // Enhanced loading and error states
   if (!user || !currentUser) {
     return (
       <View style={styles.center}>
         <Icon name="error" size={50} color="#FF6B6B" />
-        <Text style={styles.errorText}>Cannot load chat</Text>
-        <Text style={styles.debugText}>
-          {!currentUser ? 'Your user data is missing' : 'Chat user data is missing'}
-        </Text>
+        <Text style={styles.errorText}>User information not available</Text>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -368,7 +337,6 @@ const ChatScreen = () => {
     );
   }
 
-  // Loading state
   if (loading && currentConversation.length === 0) {
     return (
       <View style={styles.center}>
@@ -385,20 +353,13 @@ const ChatScreen = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Connection Status */}
-      <View style={[
-        styles.connectionStatus,
-        { backgroundColor: isConnected ? '#4CAF50' : '#FF9800' }
-      ]}>
-        <Text style={styles.connectionStatusText}>
-          {isConnected ? 'Connected' : 'Connecting...'}
-        </Text>
-      </View>
+      {renderConnectionStatus()}
 
       {/* Messages List */}
       <FlatList
         ref={flatListRef}
         data={currentConversation}
-        keyExtractor={(item, index) => item._id || `msg-${index}`}
+        keyExtractor={(item) => item._id || `msg-${item.timestamp}-${Math.random()}`}
         renderItem={renderMessage}
         style={styles.messagesList}
         contentContainerStyle={styles.messagesContent}
@@ -412,6 +373,11 @@ const ChatScreen = () => {
             <Text style={styles.emptySubtext}>
               Start the conversation by sending a message
             </Text>
+            {!isConnected && (
+              <Text style={styles.connectionWarning}>
+                Connection issues detected. Messages may be delayed.
+              </Text>
+            )}
           </View>
         }
       />
@@ -425,15 +391,15 @@ const ChatScreen = () => {
           onChangeText={setMessage}
           multiline
           maxLength={500}
-          editable={!sending && isConnected}
+          editable={!sending}
         />
         <TouchableOpacity 
           style={[
             styles.sendButton,
-            (!message.trim() || sending || !isConnected) && styles.sendButtonDisabled
+            (!message.trim() || sending) && styles.sendButtonDisabled
           ]}
           onPress={handleSendMessage}
-          disabled={!message.trim() || sending || !isConnected}
+          disabled={!message.trim() || sending}
         >
           {sending ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -463,12 +429,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  debugText: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
   backButton: {
     marginTop: 20,
     paddingHorizontal: 20,
@@ -489,6 +449,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  connectionWarning: {
+    fontSize: 12,
+    color: '#FF9800',
+    marginTop: 8,
+    textAlign: 'center',
   },
   messagesList: {
     flex: 1,

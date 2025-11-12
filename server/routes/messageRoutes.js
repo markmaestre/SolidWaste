@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
@@ -6,7 +7,7 @@ const User = require('../models/User');
 // 1️⃣ Get all users (for admin)
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find({ role: 'user' }).select('_id username email profile status role');
+    const users = await User.find({ role: 'user' }).select('username email profile status');
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch users', error: err.message });
@@ -16,7 +17,7 @@ router.get('/users', async (req, res) => {
 // 2️⃣ Get all admins (for user)
 router.get('/admins', async (req, res) => {
   try {
-    const admins = await User.find({ role: 'admin' }).select('_id username email profile role');
+    const admins = await User.find({ role: 'admin' }).select('username email profile');
     res.json(admins);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch admins', error: err.message });
@@ -27,25 +28,20 @@ router.get('/admins', async (req, res) => {
 router.get('/search', async (req, res) => {
   try {
     const query = req.query.q;
-    if (!query) {
-      return res.status(400).json({ message: 'Search query required' });
-    }
-    
     const results = await User.find({
       role: 'user',
       $or: [
         { username: { $regex: query, $options: 'i' } },
         { email: { $regex: query, $options: 'i' } }
       ]
-    }).select('_id username email profile role');
-    
+    }).select('username email profile');
     res.json(results);
   } catch (err) {
     res.status(500).json({ message: 'Search failed', error: err.message });
   }
 });
 
-// 4️⃣ Send message (FIXED: Use correct field names)
+// 4️⃣ Send message
 router.post('/send', async (req, res) => {
   try {
     const { senderId, receiverId, text } = req.body;
@@ -54,20 +50,18 @@ router.post('/send', async (req, res) => {
     if (!senderId || !receiverId || !text) {
       return res.status(400).json({ message: 'senderId, receiverId, and text are required' });
     }
-    
-    const message = new Message({
-      sender: senderId,
-      receiver: receiverId,
-      message: text,
-      timestamp: new Date()
+
+    const message = new Message({ 
+      sender: senderId, 
+      receiver: receiverId, 
+      message: text 
     });
     
     await message.save();
     
-    // Populate sender and receiver data
-    await message.populate('sender receiver', 'username email profile');
-    
-    console.log('✅ Message sent from', senderId, 'to', receiverId);
+    // Populate sender information
+    await message.populate('sender', 'username email profile');
+    await message.populate('receiver', 'username email profile');
     
     res.json({ 
       success: true, 
@@ -77,16 +71,18 @@ router.post('/send', async (req, res) => {
         receiverId: message.receiver._id,
         text: message.message,
         timestamp: message.timestamp,
-        read: message.read
+        read: message.read,
+        sender: message.sender,
+        receiver: message.receiver
       }
     });
   } catch (err) {
-    console.error('❌ Send message error:', err);
+    console.error('Send message error:', err);
     res.status(500).json({ message: 'Failed to send message', error: err.message });
   }
 });
 
-// 5️⃣ Get conversation between two users (FIXED: Correct field names)
+// 5️⃣ Get conversation between two users
 router.get('/conversation/:userId/:otherUserId', async (req, res) => {
   try {
     const { userId, otherUserId } = req.params;
@@ -97,11 +93,11 @@ router.get('/conversation/:userId/:otherUserId', async (req, res) => {
         { sender: otherUserId, receiver: userId }
       ]
     })
-    .populate('sender receiver', 'username email profile')
-    .sort({ timestamp: 1 })
-    .lean();
-    
-    // Transform to match frontend expectations
+    .populate('sender', 'username email profile')
+    .populate('receiver', 'username email profile')
+    .sort({ timestamp: 1 });
+
+    // Transform the data to match frontend expectations
     const transformedMessages = messages.map(msg => ({
       _id: msg._id,
       senderId: msg.sender._id,
@@ -109,63 +105,44 @@ router.get('/conversation/:userId/:otherUserId', async (req, res) => {
       text: msg.message,
       timestamp: msg.timestamp,
       read: msg.read,
-      createdAt: msg.timestamp
+      sender: msg.sender,
+      receiver: msg.receiver
     }));
-    
+
     res.json(transformedMessages);
   } catch (err) {
-    console.error('❌ Get conversation error:', err);
+    console.error('Get conversation error:', err);
     res.status(500).json({ message: 'Failed to fetch conversation', error: err.message });
   }
 });
 
-// 6️⃣ Mark messages as seen (FIXED: Correct field names)
-router.put('/seen/:senderId/:receiverId', async (req, res) => {
-  try {
-    const { senderId, receiverId } = req.params;
-    
-    const result = await Message.updateMany(
-      { sender: senderId, receiver: receiverId, read: false },
-      { $set: { read: true } }
-    );
-    
-    console.log(`✅ Marked ${result.modifiedCount} messages as read`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Messages marked as seen',
-      modifiedCount: result.modifiedCount 
-    });
-  } catch (err) {
-    console.error('❌ Mark seen error:', err);
-    res.status(500).json({ message: 'Failed to update seen status', error: err.message });
-  }
-});
-
-// 7️⃣ NEW: Get conversations for a user
+// 6️⃣ Get user's conversations list - FIXED VERSION
 router.get('/conversations/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    // Get all unique users this person has chatted with
+
+    // Get all messages where user is either sender or receiver
     const messages = await Message.find({
       $or: [
         { sender: userId },
         { receiver: userId }
       ]
     })
-    .populate('sender receiver', 'username email profile')
+    .populate('sender', 'username email profile')
+    .populate('receiver', 'username email profile')
     .sort({ timestamp: -1 });
-    
-    // Group by conversation partner
-    const conversationMap = {};
-    
-    messages.forEach(msg => {
-      const otherUserId = msg.sender._id.toString() === userId ? msg.receiver._id : msg.sender._id;
-      const otherUser = msg.sender._id.toString() === userId ? msg.receiver : msg.sender;
-      
-      if (!conversationMap[otherUserId]) {
-        conversationMap[otherUserId] = {
+
+    // Group messages by the other user
+    const conversationsMap = new Map();
+
+    messages.forEach(message => {
+      // Determine the other user in the conversation
+      const otherUser = message.sender._id.toString() === userId ? message.receiver : message.sender;
+      const otherUserId = otherUser._id.toString();
+
+      // If we haven't seen this conversation yet, initialize it
+      if (!conversationsMap.has(otherUserId)) {
+        conversationsMap.set(otherUserId, {
           user: {
             _id: otherUser._id,
             username: otherUser.username,
@@ -173,23 +150,57 @@ router.get('/conversations/:userId', async (req, res) => {
             profile: otherUser.profile
           },
           lastMessage: {
-            _id: msg._id,
-            text: msg.message,
-            timestamp: msg.timestamp,
-            read: msg.read,
-            senderId: msg.sender._id,
-            receiverId: msg.receiver._id
+            _id: message._id,
+            text: message.message,
+            timestamp: message.timestamp,
+            read: message.read,
+            sender: message.sender._id
           },
-          unread: msg.receiver._id.toString() === userId && !msg.read
-        };
+          timestamp: message.timestamp,
+          unread: message.sender._id.toString() !== userId && !message.read
+        });
+      } else {
+        // Update unread status if there are unread messages from this user
+        const existingConv = conversationsMap.get(otherUserId);
+        if (message.sender._id.toString() !== userId && !message.read) {
+          existingConv.unread = true;
+        }
       }
     });
+
+    // Convert map to array and sort by timestamp
+    const conversations = Array.from(conversationsMap.values())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    console.log(`Found ${conversations.length} conversations for user ${userId}`);
     
-    const conversations = Object.values(conversationMap);
     res.json(conversations);
   } catch (err) {
-    console.error('❌ Get conversations error:', err);
+    console.error('Get conversations error:', err);
     res.status(500).json({ message: 'Failed to fetch conversations', error: err.message });
+  }
+});
+
+// 7️⃣ Mark messages as read
+router.put('/read/:senderId/:receiverId', async (req, res) => {
+  try {
+    const { senderId, receiverId } = req.params;
+    
+    await Message.updateMany(
+      { 
+        sender: senderId, 
+        receiver: receiverId, 
+        read: false 
+      },
+      { 
+        $set: { read: true } 
+      }
+    );
+    
+    res.json({ success: true, message: 'Messages marked as read' });
+  } catch (err) {
+    console.error('Mark as read error:', err);
+    res.status(500).json({ message: 'Failed to update read status', error: err.message });
   }
 });
 
