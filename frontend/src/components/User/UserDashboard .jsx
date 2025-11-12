@@ -29,7 +29,8 @@ const UserDashboard = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useSelector((state) => state.auth);
-  const { unreadCount } = useSelector((state) => state.notification); // IDINAGDAG LANG
+  const { unreadCount } = useSelector((state) => state.notification);
+  const { conversations } = useSelector((state) => state.message); // IDINAGDAG - message state
   const [activeTab, setActiveTab] = useState('Home');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -40,6 +41,9 @@ const UserDashboard = () => {
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const fadeAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+
+  // Calculate unread messages count - IDINAGDAG
+  const unreadMessagesCount = conversations?.filter(conv => conv.unread).length || 0;
 
   // Sync activeTab with current screen when component focuses
   useFocusEffect(
@@ -60,6 +64,8 @@ const UserDashboard = () => {
         'EducationalSection': 'EducationalSection',
         'Notifications': 'Notifications',
         'Maps': 'Maps',
+        'MessageList': 'Messages', // IDINAGDAG
+        'ChatScreen': 'Messages', // IDINAGDAG
       };
       
       if (routeToTabMap[currentRoute]) {
@@ -270,6 +276,9 @@ const UserDashboard = () => {
         case 'Maps':
           navigation.navigate('Maps');
           break;
+        case 'Messages': // IDINAGDAG
+          navigation.navigate('MessageList');
+          break;
         case 'Settings':
           // Settings is handled in renderContent - stay on dashboard but show settings
           break;
@@ -317,7 +326,7 @@ const UserDashboard = () => {
     return user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
   };
 
-  const QuickActionCard = ({ icon, title, count, color, onPress }) => (
+  const QuickActionCard = ({ icon, title, count, countColor, color, onPress }) => (
     <TouchableOpacity 
       style={[styles.quickActionCard, { borderColor: color }]} 
       onPress={onPress}
@@ -330,7 +339,7 @@ const UserDashboard = () => {
         <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
           <Icon name={icon} size={24} color="#FFFFFF" />
         </View>
-        <Text style={styles.quickActionCount}>{count}</Text>
+        <Text style={[styles.quickActionCount, countColor && { color: countColor }]}>{count}</Text>
         <Text style={styles.quickActionTitle}>{title}</Text>
       </LinearGradient>
     </TouchableOpacity>
@@ -423,12 +432,20 @@ const UserDashboard = () => {
                   color="#FF9800"
                   onPress={() => navigateTo('DetectionHistory')}
                 />
-                {/* IDINAGDAG LANG - Notification Quick Action */}
+                {/* IDINAGDAG - Messages Quick Action */}
+                <QuickActionCard
+                  icon="chat"
+                  title="Messages"
+                  count={`${unreadMessagesCount || '0'} unread`}
+                  countColor={unreadMessagesCount > 0 ? "#FF5252" : "#666"}
+                  color="#9C27B0"
+                  onPress={() => navigateTo('Messages')}
+                />
                 <QuickActionCard
                   icon="notifications"
                   title="Notifications"
-                  count={`${unreadCount || '0'} unread`} // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
-                  color="#9C27B0"
+                  count={`${unreadCount || '0'} unread`}
+                  color="#FF9800"
                   onPress={() => navigateTo('Notifications')}
                 />
                 <QuickActionCard
@@ -445,6 +462,74 @@ const UserDashboard = () => {
                   color="#FF5722"
                   onPress={() => navigateTo('FeedbackSupport')}
                 />
+                {/* Additional Action Card for Educational Resources */}
+                <QuickActionCard
+                  icon="school"
+                  title="Learn & Earn"
+                  count="Eco Tips"
+                  color="#607D8B"
+                  onPress={() => navigateTo('EducationalSection')}
+                />
+              </View>
+            </View>
+
+            {/* Recent Activity Section - IDINAGDAG */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Activity</Text>
+              <View style={styles.activityContainer}>
+                <View style={styles.activityItem}>
+                  <View style={[styles.activityIcon, { backgroundColor: '#4CAF50' }]}>
+                    <Icon name="camera-alt" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>Waste Detection Ready</Text>
+                    <Text style={styles.activityTime}>Just now</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.activityItem}>
+                  <View style={[styles.activityIcon, { backgroundColor: '#2196F3' }]}>
+                    <Icon name="chat" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>
+                      {unreadMessagesCount > 0 
+                        ? `${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`
+                        : 'No new messages'
+                      }
+                    </Text>
+                    <Text style={styles.activityTime}>
+                      {unreadMessagesCount > 0 ? 'Tap to view' : 'All caught up'}
+                    </Text>
+                  </View>
+                  {unreadMessagesCount > 0 && (
+                    <TouchableOpacity onPress={() => navigateTo('Messages')}>
+                      <Icon name="chevron-right" size={20} color="#666" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                
+                <View style={styles.activityItem}>
+                  <View style={[styles.activityIcon, { backgroundColor: '#FF9800' }]}>
+                    <Icon name="notifications" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>
+                      {unreadCount > 0 
+                        ? `${unreadCount} notification${unreadCount > 1 ? 's' : ''}`
+                        : 'No new notifications'
+                      }
+                    </Text>
+                    <Text style={styles.activityTime}>
+                      {unreadCount > 0 ? 'Tap to view' : 'All caught up'}
+                    </Text>
+                  </View>
+                  {unreadCount > 0 && (
+                    <TouchableOpacity onPress={() => navigateTo('Notifications')}>
+                      <Icon name="chevron-right" size={20} color="#666" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>    
           </ScrollView>
@@ -469,6 +554,57 @@ const UserDashboard = () => {
                 </View>
                 <Icon name="chevron-right" size={20} color="#999" />
               </TouchableOpacity>
+
+              {/* IDINAGDAG - Messages Settings Item */}
+              <TouchableOpacity 
+                style={styles.settingsItem} 
+                activeOpacity={0.7}
+                onPress={() => navigateTo('Messages')}
+              >
+                <View style={styles.settingsIconContainer}>
+                  <Icon name="chat" size={24} color="#9C27B0" />
+                </View>
+                <View style={styles.settingsTextContainer}>
+                  <Text style={styles.settingsText}>Messages</Text>
+                  <Text style={styles.settingsSubtext}>
+                    {unreadMessagesCount > 0 
+                      ? `${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`
+                      : 'Manage your conversations'
+                    }
+                  </Text>
+                </View>
+                {unreadMessagesCount > 0 && (
+                  <View style={styles.settingsBadge}>
+                    <Text style={styles.settingsBadgeText}>{unreadMessagesCount}</Text>
+                  </View>
+                )}
+                <Icon name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.settingsItem} 
+                activeOpacity={0.7}
+                onPress={() => navigateTo('Notifications')}
+              >
+                <View style={styles.settingsIconContainer}>
+                  <Icon name="notifications" size={24} color="#FF9800" />
+                </View>
+                <View style={styles.settingsTextContainer}>
+                  <Text style={styles.settingsText}>Notifications</Text>
+                  <Text style={styles.settingsSubtext}>
+                    {unreadCount > 0 
+                      ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
+                      : 'Manage your notification preferences'
+                    }
+                  </Text>
+                </View>
+                {unreadCount > 0 && (
+                  <View style={styles.settingsBadge}>
+                    <Text style={styles.settingsBadgeText}>{unreadCount}</Text>
+                  </View>
+                )}
+                <Icon name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.settingsGroup}>
@@ -479,7 +615,7 @@ const UserDashboard = () => {
               </View>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Member Since</Text>
-                                <Text style={styles.infoValue}>
+                <Text style={styles.infoValue}>
                   {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                 </Text>
               </View>
@@ -596,12 +732,20 @@ const UserDashboard = () => {
               color="#FF9800"
               onPress={() => navigateTo('DetectionHistory')}
             />
-            {/* IDINAGDAG LANG - Notification Quick Action */}
+            {/* IDINAGDAG - Messages Quick Action */}
+            <QuickActionCard
+              icon="chat"
+              title="Messages"
+              count={`${unreadMessagesCount || '0'} unread`}
+              countColor={unreadMessagesCount > 0 ? "#FF5252" : "#666"}
+              color="#9C27B0"
+              onPress={() => navigateTo('Messages')}
+            />
             <QuickActionCard
               icon="notifications"
               title="Notifications"
-              count={`${unreadCount || '0'} unread`} // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
-              color="#9C27B0"
+              count={`${unreadCount || '0'} unread`}
+              color="#FF9800"
               onPress={() => navigateTo('Notifications')}
             />
             <QuickActionCard
@@ -644,21 +788,38 @@ const UserDashboard = () => {
           <Text style={styles.headerSubtitle}>{activeTab}</Text>
         </View>
 
-        {/* IDINAGDAG LANG - Notification Button sa Header */}
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => navigateTo('Notifications')}
-          activeOpacity={0.7}
-        >
-          <Icon name="notifications" size={24} color="#FFFFFF" />
-          {unreadCount > 0 && ( // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
-            <View style={styles.notificationBadgeHeader}>
-              <Text style={styles.notificationBadgeTextHeader}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* IDINAGDAG - Messages Button sa Header */}
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.headerIconButton}
+            onPress={() => navigateTo('Messages')}
+            activeOpacity={0.7}
+          >
+            <Icon name="chat" size={24} color="#FFFFFF" />
+            {unreadMessagesCount > 0 && (
+              <View style={styles.notificationBadgeHeader}>
+                <Text style={styles.notificationBadgeTextHeader}>
+                  {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.headerIconButton}
+            onPress={() => navigateTo('Notifications')}
+            activeOpacity={0.7}
+          >
+            <Icon name="notifications" size={24} color="#FFFFFF" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadgeHeader}>
+                <Text style={styles.notificationBadgeTextHeader}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       {/* Main Content with Scale Animation */}
@@ -775,6 +936,57 @@ const UserDashboard = () => {
                   <Text style={styles.menuText}>Detection History</Text>
                 </TouchableOpacity>
 
+                {/* Communication Section - IDINAGDAG */}
+                <Text style={styles.menuSectionTitle}>Communication</Text>
+
+                {/* IDINAGDAG - Messages Menu Item */}
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'Messages' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('Messages')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="chat" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Messages</Text>
+                  {unreadMessagesCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'Notifications' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('Notifications')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="notifications" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Notifications</Text>
+                  {unreadCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'FeedbackSupport' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('FeedbackSupport')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Icon name="feedback" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.menuText}>Feedback & Support</Text>
+                </TouchableOpacity>
+
                 {/* Maps Section */}
                 <Text style={styles.menuSectionTitle}>Facilities & Guidance</Text>
 
@@ -812,39 +1024,6 @@ const UserDashboard = () => {
                     <Icon name="school" size={24} color="#FFFFFF" />
                   </View>
                   <Text style={styles.menuText}>Educational Resources</Text>
-                </TouchableOpacity>
-
-                {/* Support Section */}
-                <Text style={styles.menuSectionTitle}>Support</Text>
-
-                {/* IDINAGDAG LANG - Notification Menu Item */}
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Notifications' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Notifications')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="notifications" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Notifications</Text>
-                  {unreadCount > 0 && ( // GINAMIT ANG unreadCount MULA SA NOTIFICATION SLICE
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'FeedbackSupport' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('FeedbackSupport')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="feedback" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Feedback & Support</Text>
                 </TouchableOpacity>
 
                 {/* Account Section */}

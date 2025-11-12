@@ -33,7 +33,6 @@ const notificationSchema = new mongoose.Schema({
   }
 });
 
-// Add indexes for better performance
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, read: 1 });
 
