@@ -51,6 +51,14 @@ router.post('/send', async (req, res) => {
       return res.status(400).json({ message: 'senderId, receiverId, and text are required' });
     }
 
+    // Validate that users exist
+    const sender = await User.findById(senderId);
+    const receiver = await User.findById(receiverId);
+    
+    if (!sender || !receiver) {
+      return res.status(404).json({ message: 'Sender or receiver not found' });
+    }
+
     const message = new Message({ 
       sender: senderId, 
       receiver: receiverId, 
@@ -97,8 +105,14 @@ router.get('/conversation/:userId/:otherUserId', async (req, res) => {
     .populate('receiver', 'username email profile')
     .sort({ timestamp: 1 });
 
+    // Filter out any messages with null sender/receiver (corrupted data)
+    const validMessages = messages.filter(msg => 
+      msg.sender && msg.receiver && 
+      msg.sender._id && msg.receiver._id
+    );
+
     // Transform the data to match frontend expectations
-    const transformedMessages = messages.map(msg => ({
+    const transformedMessages = validMessages.map(msg => ({
       _id: msg._id,
       senderId: msg.sender._id,
       receiverId: msg.receiver._id,
@@ -136,6 +150,18 @@ router.get('/conversations/:userId', async (req, res) => {
     const conversationsMap = new Map();
 
     messages.forEach(message => {
+      // Skip messages with null sender or receiver
+      if (!message.sender || !message.receiver) {
+        console.log('Skipping message with null sender/receiver:', message._id);
+        return;
+      }
+
+      // Skip if populated fields are null
+      if (!message.sender._id || !message.receiver._id) {
+        console.log('Skipping message with null populated fields:', message._id);
+        return;
+      }
+
       // Determine the other user in the conversation
       const otherUser = message.sender._id.toString() === userId ? message.receiver : message.sender;
       const otherUserId = otherUser._id.toString();
@@ -164,6 +190,18 @@ router.get('/conversations/:userId', async (req, res) => {
         const existingConv = conversationsMap.get(otherUserId);
         if (message.sender._id.toString() !== userId && !message.read) {
           existingConv.unread = true;
+        }
+        
+        // Update last message if this message is newer
+        if (new Date(message.timestamp) > new Date(existingConv.timestamp)) {
+          existingConv.lastMessage = {
+            _id: message._id,
+            text: message.message,
+            timestamp: message.timestamp,
+            read: message.read,
+            sender: message.sender._id
+          };
+          existingConv.timestamp = message.timestamp;
         }
       }
     });
@@ -201,6 +239,60 @@ router.put('/read/:senderId/:receiverId', async (req, res) => {
   } catch (err) {
     console.error('Mark as read error:', err);
     res.status(500).json({ message: 'Failed to update read status', error: err.message });
+  }
+});
+
+// 8️⃣ Clean up corrupted messages (run this once)
+router.delete('/cleanup-corrupted-messages', async (req, res) => {
+  try {
+    // Find and delete messages where sender or receiver is null
+    const result = await Message.deleteMany({
+      $or: [
+        { sender: null },
+        { receiver: null },
+        { sender: { $exists: false } },
+        { receiver: { $exists: false } }
+      ]
+    });
+    
+    console.log(`Cleaned up ${result.deletedCount} corrupted messages`);
+    res.json({ 
+      success: true, 
+      message: `Cleaned up ${result.deletedCount} corrupted messages` 
+    });
+  } catch (err) {
+    console.error('Cleanup error:', err);
+    res.status(500).json({ message: 'Cleanup failed', error: err.message });
+  }
+});
+
+// 9️⃣ Get message statistics (for debugging)
+router.get('/stats/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const totalMessages = await Message.countDocuments({
+      $or: [
+        { sender: userId },
+        { receiver: userId }
+      ]
+    });
+    
+    const corruptedMessages = await Message.countDocuments({
+      $or: [
+        { sender: null },
+        { receiver: null }
+      ]
+    });
+    
+    res.json({
+      totalMessages,
+      corruptedMessages,
+      userId
+    });
+  } catch (err) {
+    console.error('Stats error:', err);
+    res.status(500).json({ message: 'Failed to get stats', error: err.message });
   }
 });
 

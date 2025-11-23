@@ -3,18 +3,18 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const axiosInstance = axios.create({
-  baseURL: 'http://192.168.1.44:4000/api', // Your backend URL
-  timeout: 30000, // 30 seconds timeout
+  baseURL: 'http://192.168.1.44:4000/api', 
+  timeout: 30000, 
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
+
 axiosInstance.interceptors.request.use(
   async (config) => {
     try {
-      // Get token from AsyncStorage
+ 
       const token = await AsyncStorage.getItem('userToken');
       
       if (token) {

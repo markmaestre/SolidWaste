@@ -753,4 +753,5 @@ notificationBadgeText: {
   fontWeight: 'bold',
   paddingHorizontal: 4,
 },
+
 });

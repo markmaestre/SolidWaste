@@ -4,6 +4,7 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const { Expo } = require('expo-server-sdk');
+const mongoose = require('mongoose');
 
 // Create Expo instance
 const expo = new Expo();
@@ -40,18 +41,60 @@ const sendPushNotification = async (pushToken, title, message, data = {}) => {
   }
 };
 
-// Get user notifications
+// Middleware to automatically delete notifications older than 30 days
+const autoDeleteOldNotifications = async (userId) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Permanently delete notifications marked for deletion that are older than 30 days
+    const result = await Notification.deleteMany({
+      user: userId,
+      $or: [
+        { 
+          markedForDeletion: true,
+          markedForDeletionAt: { $lte: thirtyDaysAgo }
+        },
+        {
+          // Also delete very old notifications regardless of read status (optional)
+          createdAt: { $lte: thirtyDaysAgo },
+          read: true
+        }
+      ]
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(`🗑️ Auto-deleted ${result.deletedCount} old notifications for user ${userId}`);
+    }
+
+    return result.deletedCount;
+  } catch (error) {
+    console.error('Auto-delete notifications error:', error);
+    return 0;
+  }
+};
+
+// Get user notifications (excludes soft-deleted ones)
 router.get('/', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, includeDeleted = false } = req.query;
     
-    const notifications = await Notification.find({ user: req.user.id })
+    // Auto-delete old notifications before fetching
+    await autoDeleteOldNotifications(req.user.id);
+    
+    // Build query - exclude soft-deleted notifications by default
+    let query = { user: req.user.id };
+    if (!includeDeleted) {
+      query.markedForDeletion = { $ne: true };
+    }
+    
+    const notifications = await Notification.find(query)
       .populate('relatedReport')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
     
-    const total = await Notification.countDocuments({ user: req.user.id });
+    const total = await Notification.countDocuments(query);
     
     res.json({
       notifications,
@@ -127,7 +170,8 @@ router.put('/:id/read', auth, async (req, res) => {
   try {
     const notification = await Notification.findOne({
       _id: req.params.id,
-      user: req.user.id
+      user: req.user.id,
+      markedForDeletion: { $ne: true } // Don't allow marking soft-deleted notifications as read
     });
 
     if (!notification) {
@@ -135,6 +179,7 @@ router.put('/:id/read', auth, async (req, res) => {
     }
 
     notification.read = true;
+    notification.readAt = new Date();
     await notification.save();
 
     res.json({ success: true, notification });
@@ -144,12 +189,77 @@ router.put('/:id/read', auth, async (req, res) => {
   }
 });
 
+// Mark notification for deletion (soft delete) - will be permanently deleted after 30 days
+router.put('/:id/mark-for-deletion', auth, async (req, res) => {
+  try {
+    const notification = await Notification.findOne({
+      _id: req.params.id,
+      user: req.user.id
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    // Mark for deletion instead of immediate delete
+    notification.markedForDeletion = true;
+    notification.markedForDeletionAt = new Date();
+    await notification.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Notification marked for deletion. It will be permanently deleted after 30 days.',
+      notification 
+    });
+  } catch (error) {
+    console.error('Mark for deletion error:', error);
+    res.status(500).json({ error: 'Failed to mark notification for deletion' });
+  }
+});
+
+// Restore soft-deleted notification
+router.put('/:id/restore', auth, async (req, res) => {
+  try {
+    const notification = await Notification.findOne({
+      _id: req.params.id,
+      user: req.user.id,
+      markedForDeletion: true
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found or not marked for deletion' });
+    }
+
+    notification.markedForDeletion = false;
+    notification.markedForDeletionAt = null;
+    await notification.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Notification restored successfully',
+      notification 
+    });
+  } catch (error) {
+    console.error('Restore notification error:', error);
+    res.status(500).json({ error: 'Failed to restore notification' });
+  }
+});
+
 // Mark all notifications as read
 router.put('/mark-all-read', auth, async (req, res) => {
   try {
     await Notification.updateMany(
-      { user: req.user.id, read: false },
-      { $set: { read: true } }
+      { 
+        user: req.user.id, 
+        read: false,
+        markedForDeletion: { $ne: true } // Don't update soft-deleted notifications
+      },
+      { 
+        $set: { 
+          read: true,
+          readAt: new Date()
+        } 
+      }
     );
 
     res.json({ success: true });
@@ -225,15 +335,29 @@ router.put('/preferences', auth, async (req, res) => {
 // Get notification statistics
 router.get('/stats', auth, async (req, res) => {
   try {
-    const totalNotifications = await Notification.countDocuments({ user: req.user.id });
+    // Auto-delete old notifications before getting stats
+    await autoDeleteOldNotifications(req.user.id);
+    
+    const totalNotifications = await Notification.countDocuments({ 
+      user: req.user.id,
+      markedForDeletion: { $ne: true }
+    });
     const unreadCount = await Notification.countDocuments({ 
       user: req.user.id, 
-      read: false 
+      read: false,
+      markedForDeletion: { $ne: true }
+    });
+    
+    // Count notifications marked for deletion
+    const markedForDeletionCount = await Notification.countDocuments({
+      user: req.user.id,
+      markedForDeletion: true
     });
 
     res.json({
       total: totalNotifications,
-      unread: unreadCount
+      unread: unreadCount,
+      markedForDeletion: markedForDeletionCount
     });
   } catch (error) {
     console.error('Get stats error:', error);
@@ -241,34 +365,139 @@ router.get('/stats', auth, async (req, res) => {
   }
 });
 
-// Delete notification
+// Delete notification immediately (permanent delete - admin/force delete)
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const notification = await Notification.findOneAndDelete({
-      _id: req.params.id,
-      user: req.user.id
-    });
+    const { force = false } = req.query;
+    
+    let notification;
+    
+    if (force) {
+      // Immediate permanent delete (admin function)
+      notification = await Notification.findOneAndDelete({
+        _id: req.params.id,
+        user: req.user.id
+      });
+    } else {
+      // Soft delete - mark for deletion (normal user function)
+      notification = await Notification.findOne({
+        _id: req.params.id,
+        user: req.user.id
+      });
+      
+      if (notification) {
+        notification.markedForDeletion = true;
+        notification.markedForDeletionAt = new Date();
+        await notification.save();
+      }
+    }
 
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    res.json({ success: true, message: 'Notification deleted successfully' });
+    const message = force 
+      ? 'Notification permanently deleted successfully'
+      : 'Notification marked for deletion. It will be permanently deleted after 30 days.';
+
+    res.json({ success: true, message });
   } catch (error) {
     console.error('Delete notification error:', error);
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 });
 
-// Clear all notifications
+// Clear all notifications (soft delete)
 router.delete('/', auth, async (req, res) => {
   try {
-    await Notification.deleteMany({ user: req.user.id });
+    const { force = false } = req.query;
+    
+    if (force) {
+      // Immediate permanent delete all
+      await Notification.deleteMany({ user: req.user.id });
+    } else {
+      // Mark all for deletion (soft delete)
+      await Notification.updateMany(
+        { user: req.user.id, markedForDeletion: { $ne: true } },
+        { 
+          $set: { 
+            markedForDeletion: true,
+            markedForDeletionAt: new Date()
+          } 
+        }
+      );
+    }
 
-    res.json({ success: true, message: 'All notifications cleared successfully' });
+    const message = force
+      ? 'All notifications permanently deleted successfully'
+      : 'All notifications marked for deletion. They will be permanently deleted after 30 days.';
+
+    res.json({ success: true, message });
   } catch (error) {
     console.error('Clear notifications error:', error);
     res.status(500).json({ error: 'Failed to clear notifications' });
+  }
+});
+
+// Get deleted notifications (for recovery purposes)
+router.get('/deleted', auth, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    
+    const notifications = await Notification.find({ 
+      user: req.user.id,
+      markedForDeletion: true
+    })
+      .populate('relatedReport')
+      .sort({ markedForDeletionAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+    
+    const total = await Notification.countDocuments({ 
+      user: req.user.id,
+      markedForDeletion: true 
+    });
+    
+    res.json({
+      notifications,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
+  } catch (error) {
+    console.error('Get deleted notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch deleted notifications' });
+  }
+});
+
+// Cleanup job endpoint (can be called by cron job)
+router.post('/cleanup', async (req, res) => {
+  try {
+    const { secret } = req.body;
+    
+    // Simple security check - in production use proper authentication
+    if (secret !== process.env.CLEANUP_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const result = await Notification.deleteMany({
+      markedForDeletion: true,
+      markedForDeletionAt: { $lte: thirtyDaysAgo }
+    });
+    
+    console.log(`🧹 Cleanup job: Deleted ${result.deletedCount} old notifications`);
+    
+    res.json({ 
+      success: true, 
+      deletedCount: result.deletedCount,
+      message: `Successfully deleted ${result.deletedCount} old notifications`
+    });
+  } catch (error) {
+    console.error('Cleanup job error:', error);
+    res.status(500).json({ error: 'Cleanup job failed' });
   }
 });
 

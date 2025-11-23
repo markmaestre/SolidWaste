@@ -13,7 +13,8 @@ import {
   StatusBar,
   Modal,
   Animated,
-  Easing
+  Easing,
+  Image
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, checkEmail } from '../../redux/slices/authSlice';
@@ -196,7 +197,7 @@ const Register = () => {
         setShowVerificationModal(false);
         Alert.alert(
           'Registration Successful', 
-          'Your WasteWise account has been created successfully. Please login to continue.',
+          'Your T.M.F.K. Waste Innovations account has been created successfully. Please login to continue.',
           [
             {
               text: 'Continue to Login',
@@ -240,10 +241,14 @@ const Register = () => {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoText}>WW</Text>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../assets/T.M.F.K.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.title}>T.M.F.K. Waste Innovations</Text>
             <Text style={styles.subtitle}>Join the future of smart waste management</Text>
             <View style={styles.headerLine} />
           </View>
@@ -251,13 +256,13 @@ const Register = () => {
           {/* Form Card */}
           <View style={styles.formCard}>
             <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>Registration Form</Text>
-              <Text style={styles.formSubtitle}>Please fill in all required fields</Text>
+              <Text style={styles.formTitle}>Create Your Account</Text>
+              <Text style={styles.formSubtitle}>Fill in your details to get started</Text>
             </View>
 
             {/* Full Name */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>FULL NAME *</Text>
+              <Text style={styles.inputLabel}>FULL NAME</Text>
               <TextInput
                 placeholder="Enter your full name"
                 placeholderTextColor="#94A3B8"
@@ -277,7 +282,7 @@ const Register = () => {
             {/* Email */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
+                <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
                 {isCheckingEmail && (
                   <Text style={styles.checkingText}>Checking...</Text>
                 )}
@@ -300,7 +305,6 @@ const Register = () => {
               />
               {emailError ? (
                 <View style={styles.errorMessage}>
-                  <View style={styles.errorDot} />
                   <Text style={styles.errorMessageText}>{emailError}</Text>
                 </View>
               ) : null}
@@ -308,7 +312,7 @@ const Register = () => {
 
             {/* Password */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>PASSWORD *</Text>
+              <Text style={styles.inputLabel}>PASSWORD</Text>
               <TextInput
                 placeholder="Create a secure password"
                 placeholderTextColor="#94A3B8"
@@ -328,7 +332,7 @@ const Register = () => {
 
             {/* Date of Birth */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>DATE OF BIRTH *</Text>
+              <Text style={styles.inputLabel}>DATE OF BIRTH</Text>
               <TouchableOpacity
                 style={[
                   styles.input,
@@ -350,7 +354,7 @@ const Register = () => {
 
             {/* Gender */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>GENDER *</Text>
+              <Text style={styles.inputLabel}>GENDER</Text>
               <TouchableOpacity
                 style={[
                   styles.input,
@@ -372,7 +376,7 @@ const Register = () => {
 
             {/* Address */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>ADDRESS *</Text>
+              <Text style={styles.inputLabel}>ADDRESS</Text>
               <TextInput
                 placeholder="Enter your complete address"
                 placeholderTextColor="#94A3B8"
@@ -394,7 +398,6 @@ const Register = () => {
             {/* General Error */}
             {error && (
               <View style={styles.generalError}>
-                <View style={styles.errorBar} />
                 <Text style={styles.generalErrorText}>{error}</Text>
               </View>
             )}
@@ -438,6 +441,9 @@ const Register = () => {
             <View style={styles.footerDivider} />
             <Text style={styles.footerText}>
               By creating an account, you agree to our Terms & Privacy Policy
+            </Text>
+            <Text style={styles.copyrightText}>
+              © 2025 T.M.F.K. Waste Innovations. All rights reserved.
             </Text>
           </View>
         </ScrollView>
@@ -644,93 +650,97 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingVertical: 20,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 30,
+    marginTop: 20,
   },
-  logoBox: {
-    width: 70,
-    height: 70,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+  logoContainer: {
+    marginBottom: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 15,
     elevation: 10,
   },
-  logoText: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#0D47A1',
-    letterSpacing: 1,
+  logoImage: {
+    width: 120,
+    height: 120,
   },
   title: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
     marginBottom: 8,
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   subtitle: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
     letterSpacing: 0.3,
   },
   headerLine: {
-    width: 60,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    width: 80,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
     borderRadius: 2,
   },
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 28,
-    marginBottom: 24,
+    padding: 25,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.35,
-    shadowRadius: 25,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
     elevation: 15,
   },
   formHeader: {
-    marginBottom: 24,
+    marginBottom: 25,
+    alignItems: 'center',
   },
   formTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0D47A1',
-    marginBottom: 4,
+    marginBottom: 6,
     letterSpacing: 0.3,
   },
   formSubtitle: {
     fontSize: 14,
     color: '#607D8B',
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   inputLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#455A64',
-    marginBottom: 10,
-    letterSpacing: 0.8,
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   checkingText: {
     fontSize: 12,
@@ -738,14 +748,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   input: {
-    height: 56,
-    borderWidth: 2,
-    borderColor: '#CFD8DC',
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: '#E1E5E9',
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: '#F5F5F5',
-    color: '#263238',
+    backgroundColor: '#F8FAFC',
+    color: '#1E293B',
     fontWeight: '500',
   },
   inputFocused: {
@@ -753,9 +763,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     shadowColor: '#1976D2',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   inputError: {
     borderColor: '#E53935',
@@ -767,102 +777,84 @@ const styles = StyleSheet.create({
   },
   selectText: {
     fontSize: 16,
-    color: '#263238',
+    color: '#1E293B',
     fontWeight: '500',
   },
   placeholderText: {
     color: '#94A3B8',
   },
   selectArrow: {
-    fontSize: 24,
-    color: '#90A4AE',
+    fontSize: 20,
+    color: '#64748B',
     fontWeight: 'bold',
   },
   textArea: {
-    height: 90,
-    paddingTop: 16,
+    height: 80,
+    paddingTop: 14,
     textAlignVertical: 'top',
   },
   errorMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  errorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E53935',
-    marginRight: 8,
+    marginTop: 6,
   },
   errorMessageText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#C62828',
-    lineHeight: 18,
+    fontSize: 12,
+    color: '#DC2626',
+    lineHeight: 16,
   },
   generalError: {
-    flexDirection: 'row',
-    backgroundColor: '#FFEBEE',
+    backgroundColor: '#FEF2F2',
     borderRadius: 10,
     padding: 14,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  errorBar: {
-    width: 4,
-    backgroundColor: '#E53935',
-    marginRight: 12,
-    borderRadius: 2,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
   },
   generalErrorText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#C62828',
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '500',
+    lineHeight: 18,
   },
   registerButton: {
-    marginTop: 8,
+    marginTop: 10,
     marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#1565C0',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   registerButtonDisabled: {
     opacity: 0.6,
   },
   buttonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   registerButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 'bold',
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   loginContainer: {
     alignItems: 'center',
+    paddingTop: 10,
   },
   loginText: {
     fontSize: 15,
-    color: '#607D8B',
-    marginBottom: 10,
+    color: '#64748B',
+    marginBottom: 8,
     letterSpacing: 0.2,
   },
   loginLink: {
     fontSize: 16,
-    color: '#1565C0',
-    fontWeight: 'bold',
+    color: '#2563EB',
+    fontWeight: '600',
     letterSpacing: 0.3,
-    textDecorationLine: 'underline',
   },
   footer: {
     alignItems: 'center',
@@ -870,18 +862,25 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   footerDivider: {
-    width: 50,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 1,
+    width: 60,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 2,
     marginBottom: 12,
   },
   footerText: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     letterSpacing: 0.2,
     lineHeight: 18,
+    marginBottom: 4,
+  },
+  copyrightText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
   
   // Gender Modal Styles
@@ -907,7 +906,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#CFD8DC',
+    backgroundColor: '#CBD5E1',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -920,7 +919,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E2E8F0',
   },
   genderModalTitle: {
     fontSize: 20,
@@ -932,13 +931,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeButtonText: {
-    fontSize: 24,
-    color: '#607D8B',
+    fontSize: 20,
+    color: '#64748B',
     fontWeight: '300',
   },
   genderOptions: {
@@ -956,30 +955,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   genderOptionSelected: {
-    backgroundColor: '#E3F2FD',
-    borderWidth: 2,
-    borderColor: '#1976D2',
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1.5,
+    borderColor: '#0EA5E9',
   },
   genderOptionText: {
     fontSize: 16,
-    color: '#455A64',
+    color: '#374151',
     fontWeight: '500',
     letterSpacing: 0.2,
   },
   genderOptionTextSelected: {
-    color: '#0D47A1',
-    fontWeight: '700',
+    color: '#0369A1',
+    fontWeight: '600',
   },
   checkIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1976D2',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#0EA5E9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkIconText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
@@ -997,7 +996,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 28,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
@@ -1005,7 +1004,7 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   verificationTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0D47A1',
     textAlign: 'center',
@@ -1014,24 +1013,24 @@ const styles = StyleSheet.create({
   },
   verificationSubtitle: {
     fontSize: 14,
-    color: '#607D8B',
+    color: '#64748B',
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
     lineHeight: 20,
     letterSpacing: 0.2,
   },
   captchaBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
     marginBottom: 24,
-    minHeight: 160,
+    minHeight: 140,
     justifyContent: 'center',
     alignItems: 'center',
   },
   captchaInstruction: {
     fontSize: 15,
-    color: '#455A64',
+    color: '#475569',
     fontWeight: '600',
     marginBottom: 20,
     textAlign: 'center',
@@ -1039,9 +1038,9 @@ const styles = StyleSheet.create({
   },
   sliderBox: {
     width: '100%',
-    height: 56,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 28,
+    height: 52,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 26,
     position: 'relative',
     overflow: 'hidden',
     justifyContent: 'center',
@@ -1051,15 +1050,15 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#4CAF50',
-    borderRadius: 28,
+    backgroundColor: '#10B981',
+    borderRadius: 26,
   },
   sliderButton: {
     position: 'absolute',
-    left: 4,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    left: 3,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1070,13 +1069,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sliderButtonText: {
-    fontSize: 24,
-    color: '#1976D2',
+    fontSize: 20,
+    color: '#0EA5E9',
     fontWeight: 'bold',
   },
   verifyingText: {
     fontSize: 13,
-    color: '#1976D2',
+    color: '#0EA5E9',
     fontWeight: '600',
     marginTop: 16,
     letterSpacing: 0.3,
@@ -1085,22 +1084,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   verifiedIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#4CAF50',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   verifiedIconText: {
-    fontSize: 48,
+    fontSize: 36,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
   verifiedText: {
-    fontSize: 18,
-    color: '#2E7D32',
+    fontSize: 16,
+    color: '#065F46',
     fontWeight: 'bold',
     letterSpacing: 0.3,
   },
@@ -1110,43 +1109,43 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F5',
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E2E8F0',
   },
   cancelButtonText: {
-    fontSize: 15,
-    color: '#607D8B',
-    fontWeight: '700',
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   submitButton: {
     flex: 2,
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     shadowColor: '#1565C0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   submitButtonDisabled: {
     opacity: 0.5,
     shadowOpacity: 0.1,
   },
   submitButtonGradient: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   submitButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
 });

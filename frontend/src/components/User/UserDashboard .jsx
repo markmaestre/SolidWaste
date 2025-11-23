@@ -45,6 +45,9 @@ const UserDashboard = () => {
   // Calculate unread messages count - IDINAGDAG
   const unreadMessagesCount = conversations?.filter(conv => conv.unread).length || 0;
 
+  // Track previous screens
+  const [navigationStack, setNavigationStack] = useState(['UserDashboard']);
+
   // Sync activeTab with current screen when component focuses
   useFocusEffect(
     React.useCallback(() => {
@@ -64,13 +67,26 @@ const UserDashboard = () => {
         'EducationalSection': 'EducationalSection',
         'Notifications': 'Notifications',
         'Maps': 'Maps',
-        'MessageList': 'Messages', // IDINAGDAG
-        'ChatScreen': 'Messages', // IDINAGDAG
+        'MessageList': 'Messages', 
+        'ChatScreen': 'Messages', 
       };
       
       if (routeToTabMap[currentRoute]) {
         setActiveTab(routeToTabMap[currentRoute]);
       }
+      
+      // Update navigation stack
+      setNavigationStack(prev => {
+        const newStack = [...prev];
+        if (newStack[newStack.length - 1] !== currentRoute) {
+          newStack.push(currentRoute);
+          // Keep only last 5 screens to prevent memory issues
+          if (newStack.length > 5) {
+            newStack.shift();
+          }
+        }
+        return newStack;
+      });
       
       return () => {
         // Cleanup if needed
@@ -78,7 +94,7 @@ const UserDashboard = () => {
     }, [route.name, user])
   );
 
-  // Handle back button press
+  // Handle back button press - UPDATED
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (sidebarVisible) {
@@ -91,19 +107,24 @@ const UserDashboard = () => {
         return true; // Prevent default behavior
       }
       
-      // Show exit confirmation instead of logging out
-      if (activeTab === 'Home') {
-        showExitConfirmation();
-        return true; // Prevent default behavior
-      } else {
-        // If not on home tab, go back to home
-        setActiveTab('Home');
+      // REMOVED exit confirmation - now navigates back in history
+      if (navigationStack.length > 1) {
+        // Go back to previous screen
+        const previousScreen = navigationStack[navigationStack.length - 2];
+        navigation.navigate(previousScreen);
+        
+        // Update navigation stack
+        setNavigationStack(prev => prev.slice(0, -1));
+        
         return true; // Prevent default behavior
       }
+      
+      // If we're at the root (UserDashboard), use default back behavior
+      return false;
     });
 
     return () => backHandler.remove();
-  }, [sidebarVisible, logoutModalVisible, activeTab]);
+  }, [sidebarVisible, logoutModalVisible, navigationStack, navigation]);
 
   // Cleanup function to prevent memory leaks
   useEffect(() => {
@@ -210,25 +231,7 @@ const UserDashboard = () => {
     }
   };
 
-  // New function to show exit confirmation instead of logout
-  const showExitConfirmation = () => {
-    Alert.alert(
-      'Exit WasteWise?',
-      'Are you sure you want to exit the app?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: () => BackHandler.exitApp(),
-        },
-      ],
-      { cancelable: true }
-    );
-  };
+  // REMOVED showExitConfirmation function
 
   const navigateTo = (screen) => {
     setActiveTab(screen);
@@ -255,15 +258,10 @@ const UserDashboard = () => {
         case 'WasteDetection':
           navigation.navigate('WasteDetection');
           break;
-        case 'ReportWaste':
-          navigation.navigate('ReportWaste');
+        case 'ReportHistory':
+          navigation.navigate('ReportHistory');
           break;
-        case 'ReportStatus':
-          navigation.navigate('ReportStatus');
-          break;
-        case 'DetectionHistory':
-          navigation.navigate('DetectionHistory');
-          break;
+      
         case 'DisposalGuidance':
           navigation.navigate('DisposalGuidance');
           break;
@@ -318,7 +316,7 @@ const UserDashboard = () => {
 
   // Get user's display name
   const getDisplayName = () => {
-    return user?.username || user?.name || 'WasteWise User';
+    return user?.username || user?.name || 'T.M.F.K User';
   };
 
   // Get user's role with proper capitalization
@@ -903,38 +901,20 @@ const UserDashboard = () => {
                   <Text style={styles.menuText}>Waste Detection</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'ReportWaste' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('ReportWaste')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="report" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Report Waste</Text>
-                </TouchableOpacity>
+              
 
                 <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'ReportStatus' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('ReportStatus')}
+                  style={[styles.menuItem, activeTab === 'ReportHistory' && styles.activeMenuItem]}
+                  onPress={() => navigateTo('ReportHistory')}
                   activeOpacity={0.7}
                 >
                   <View style={styles.menuIconContainer}>
                     <Icon name="list-alt" size={24} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.menuText}>Report Status</Text>
+                  <Text style={styles.menuText}>Report History</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'DetectionHistory' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('DetectionHistory')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="history" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Detection History</Text>
-                </TouchableOpacity>
+              
 
                 {/* Communication Section - IDINAGDAG */}
                 <Text style={styles.menuSectionTitle}>Communication</Text>
@@ -1005,19 +985,8 @@ const UserDashboard = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'DisposalGuidance' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('DisposalGuidance')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="eco" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Disposal Guidance</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
                   style={[styles.menuItem, activeTab === 'EducationalSection' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('EducationalSection')}
+                  onPress={() => navigateTo('Learning')}
                   activeOpacity={0.7}
                 >
                   <View style={styles.menuIconContainer}>

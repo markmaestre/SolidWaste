@@ -9,6 +9,7 @@ import {
   StatusBar,
   TextInput,
   SafeAreaView,
+  Image,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -45,7 +46,14 @@ const HomeScreen = ({ navigation }) => {
       {/* Header Navigation */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>WasteWise</Text>
+          <View style={styles.logoWrapper}>
+            <Image 
+              source={require('../assets/T.M.F.K.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoText}>T.M.F.K</Text>
+          </View>
         </View>
 
         <View style={styles.navLinks}>
@@ -532,6 +540,15 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: 16,
   },
+  logoWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoImage: {
+    width: 40,
+    height: 40,
+  },
   logoText: {
     fontSize: 28,
     fontWeight: '700',
@@ -861,7 +878,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E40AF',
     paddingVertical: 16,
     borderRadius: 8,
-        alignItems: 'center',
+    alignItems: 'center',
     marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

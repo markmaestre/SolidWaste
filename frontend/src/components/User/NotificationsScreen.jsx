@@ -8,36 +8,30 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  Switch
+  Switch,
+  TextInput
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   getNotifications, 
   markAsRead, 
   markAllAsRead, 
-  testExpoNotification,
-  simulateReportCreated,
-  simulateReportProcessed,
-  simulateRecyclingTip,
-  initializeNotifications,
   updateNotificationPreferences,
-  registerPushToken
+  initializeNotifications
 } from '../../redux/slices/notificationSlice';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const NotificationsScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { 
     notifications, 
     loading, 
-    unreadCount, 
-    notificationEnabled, 
-    pushToken, 
-    lastNotification,
+    unreadCount,
     notificationPreferences 
   } = useSelector((state) => state.notification);
   
   const [refreshing, setRefreshing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [preferences, setPreferences] = useState({
     notificationsEnabled: true,
     reportUpdates: true,
@@ -46,12 +40,10 @@ const NotificationsScreen = ({ navigation }) => {
   });
 
   useEffect(() => {
-    console.log('🚀 NotificationsScreen mounted');
     loadNotifications();
     initializeNotificationService();
   }, []);
 
-  // Update local preferences when Redux state changes
   useEffect(() => {
     if (notificationPreferences) {
       setPreferences(prev => ({
@@ -61,38 +53,24 @@ const NotificationsScreen = ({ navigation }) => {
     }
   }, [notificationPreferences]);
 
-  // Monitor lastNotification changes to debug
-  useEffect(() => {
-    if (lastNotification) {
-      console.log('📱 Last notification updated:', lastNotification.title);
-    }
-  }, [lastNotification]);
+  const filteredNotifications = notifications.filter(notification => 
+    notification.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    notification.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    notification.type?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const initializeNotificationService = async () => {
     try {
-      console.log('🔄 Initializing notification service...');
-      const result = await dispatch(initializeNotifications()).unwrap();
-      console.log('✅ Notification service initialized', result);
-      
-      // Update preferences from backend
-      if (result.preferences) {
-        setPreferences(prev => ({
-          ...prev,
-          ...result.preferences
-        }));
-      }
+      await dispatch(initializeNotifications()).unwrap();
     } catch (error) {
-      console.log('❌ Failed to initialize notification service:', error);
+      console.log('Failed to initialize notification service:', error);
     }
   };
 
   const loadNotifications = async () => {
     try {
-      console.log('📥 Loading notifications...');
       await dispatch(getNotifications()).unwrap();
-      console.log('✅ Notifications loaded');
     } catch (error) {
-      console.log('❌ Failed to load notifications:', error);
       Alert.alert('Error', 'Failed to load notifications');
     }
   };
@@ -105,11 +83,8 @@ const NotificationsScreen = ({ navigation }) => {
 
   const handleMarkAsRead = async (notificationId) => {
     try {
-      console.log('📝 Marking notification as read:', notificationId);
       await dispatch(markAsRead(notificationId)).unwrap();
-      console.log('✅ Notification marked as read');
     } catch (error) {
-      console.log('❌ Failed to mark notification as read:', error);
       Alert.alert('Error', 'Failed to mark notification as read');
     }
   };
@@ -118,12 +93,8 @@ const NotificationsScreen = ({ navigation }) => {
     if (unreadCount === 0) return;
     
     try {
-      console.log('📝 Marking all notifications as read...');
       await dispatch(markAllAsRead()).unwrap();
-      console.log('✅ All notifications marked as read');
-      Alert.alert('Success', 'All notifications marked as read');
     } catch (error) {
-      console.log('❌ Failed to mark all notifications as read:', error);
       Alert.alert('Error', 'Failed to mark all notifications as read');
     }
   };
@@ -132,70 +103,31 @@ const NotificationsScreen = ({ navigation }) => {
     navigation.goBack();
   };
 
-  // Update notification preferences
   const handlePreferenceChange = async (key, value) => {
     try {
       const updatedPreferences = { ...preferences, [key]: value };
       setPreferences(updatedPreferences);
-      
       await dispatch(updateNotificationPreferences(updatedPreferences)).unwrap();
-      console.log('✅ Notification preferences updated:', key, value);
     } catch (error) {
-      console.log('❌ Failed to update preferences:', error);
-      // Revert on error
       setPreferences(prev => ({ ...prev, [key]: !value }));
       Alert.alert('Error', 'Failed to update notification preferences');
     }
   };
 
-  // Test Expo notification
-  const handleTestExpoNotification = async () => {
-    console.log('🧪 Testing Expo notification...');
-    dispatch(testExpoNotification());
-  };
-
-  // Simulate different notification types
-  const handleSimulateReportCreated = () => {
-    console.log('📝 Simulating report created...');
-    dispatch(simulateReportCreated());
-  };
-
-  const handleSimulateReportProcessed = () => {
-    console.log('✅ Simulating report processed...');
-    dispatch(simulateReportProcessed());
-  };
-
-  const handleSimulateRecyclingTip = () => {
-    console.log('🌱 Simulating recycling tip...');
-    dispatch(simulateRecyclingTip());
-  };
-
-  // Register push token manually
-  const handleRegisterPushToken = async () => {
-    try {
-      console.log('📱 Registering push token...');
-      await dispatch(registerPushToken()).unwrap();
-      Alert.alert('Success', 'Push token registered successfully');
-    } catch (error) {
-      console.log('❌ Failed to register push token:', error);
-      Alert.alert('Error', 'Failed to register push token');
-    }
-  };
-
-  const getNotificationIcon = (type) => {
+  const getNotificationType = (type) => {
     switch (type) {
       case 'report_created':
-        return 'assignment';
+        return 'REPORT';
       case 'report_processed':
-        return 'check-circle';
+        return 'UPDATE';
       case 'recycling_tips':
-        return 'eco';
+        return 'TIP';
       default:
-        return 'notifications';
+        return 'NOTIFICATION';
     }
   };
 
-  const getNotificationColor = (type) => {
+  const getTypeColor = (type) => {
     switch (type) {
       case 'report_created':
         return '#2196F3';
@@ -231,23 +163,23 @@ const NotificationsScreen = ({ navigation }) => {
       onPress={() => handleMarkAsRead(item._id)}
       activeOpacity={0.7}
     >
-      <View style={styles.iconContainer}>
-        <Icon
-          name={getNotificationIcon(item.type)}
-          size={24}
-          color={getNotificationColor(item.type)}
-        />
-      </View>
-      
       <View style={styles.contentContainer}>
-        <Text style={styles.title}>{item.title}</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{item.title}</Text>
+          <View style={[styles.typeBadge, { backgroundColor: getTypeColor(item.type) }]}>
+            <Text style={styles.typeText}>{getNotificationType(item.type)}</Text>
+          </View>
+        </View>
         <Text style={styles.message}>{item.message}</Text>
-        <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+        <View style={styles.footerRow}>
+          <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+          {!item.read && (
+            <View style={styles.unreadIndicator}>
+              <Text style={styles.unreadText}>NEW</Text>
+            </View>
+          )}
+        </View>
       </View>
-      
-      {!item.read && (
-        <View style={styles.unreadIndicator} />
-      )}
     </TouchableOpacity>
   );
 
@@ -262,171 +194,141 @@ const NotificationsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Back Button */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity 
             onPress={handleBack}
             style={styles.backButton}
-            activeOpacity={0.7}
           >
-            <Icon name="arrow-back" size={24} color="#1A1A1A" />
+            <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
         </View>
         
-        {unreadCount > 0 && (
+        <View style={styles.headerRight}>
+          {unreadCount > 0 && (
+            <TouchableOpacity 
+              onPress={handleMarkAllAsRead} 
+              style={styles.markAllButton}
+            >
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
-            onPress={handleMarkAllAsRead} 
-            style={styles.markAllButton}
+            onPress={() => setShowSettings(!showSettings)}
+            style={styles.settingsButton}
           >
-            <Text style={styles.markAllText}>Mark all as read</Text>
+            <Text style={styles.settingsButtonText}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search notifications..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor="#999"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity 
+            onPress={() => setSearchQuery('')}
+            style={styles.clearSearchButton}
+          >
+            <Text style={styles.clearSearchText}>Clear</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Debug Info */}
-      <View style={styles.debugContainer}>
-        <Text style={styles.debugText}>
-          Status: {notificationEnabled ? '✅ Enabled' : '❌ Disabled'} | 
-          Unread: {unreadCount} | 
-          Total: {notifications.length}
-        </Text>
-        {lastNotification && (
-          <Text style={styles.debugText}>
-            Last: {lastNotification.title}
-          </Text>
-        )}
-        {pushToken && (
-          <Text style={styles.debugText}>
-            Token: {pushToken.substring(0, 25)}...
-          </Text>
-        )}
-      </View>
-
-      {/* Notification Preferences */}
-      <View style={styles.preferencesContainer}>
-        <Text style={styles.preferencesTitle}>Notification Settings</Text>
-        
-        <View style={styles.preferenceItem}>
-          <View style={styles.preferenceInfo}>
-            <Icon name="notifications" size={20} color="#333" />
-            <Text style={styles.preferenceText}>Enable Notifications</Text>
-          </View>
-          <Switch
-            value={preferences.notificationsEnabled}
-            onValueChange={(value) => handlePreferenceChange('notificationsEnabled', value)}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={preferences.notificationsEnabled ? '#2196F3' : '#f4f3f4'}
-          />
-        </View>
-
-        <View style={styles.preferenceItem}>
-          <View style={styles.preferenceInfo}>
-            <Icon name="assignment" size={20} color="#333" />
-            <Text style={styles.preferenceText}>Report Updates</Text>
-          </View>
-          <Switch
-            value={preferences.reportUpdates}
-            onValueChange={(value) => handlePreferenceChange('reportUpdates', value)}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={preferences.reportUpdates ? '#2196F3' : '#f4f3f4'}
-            disabled={!preferences.notificationsEnabled}
-          />
-        </View>
-
-        <View style={styles.preferenceItem}>
-          <View style={styles.preferenceInfo}>
-            <Icon name="eco" size={20} color="#333" />
-            <Text style={styles.preferenceText}>Recycling Tips</Text>
-          </View>
-          <Switch
-            value={preferences.recyclingTips}
-            onValueChange={(value) => handlePreferenceChange('recyclingTips', value)}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={preferences.recyclingTips ? '#2196F3' : '#f4f3f4'}
-            disabled={!preferences.notificationsEnabled}
-          />
-        </View>
-
-        <View style={styles.preferenceItem}>
-          <View style={styles.preferenceInfo}>
-            <Icon name="info" size={20} color="#333" />
-            <Text style={styles.preferenceText}>System Notifications</Text>
-          </View>
-          <Switch
-            value={preferences.systemNotifications}
-            onValueChange={(value) => handlePreferenceChange('systemNotifications', value)}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={preferences.systemNotifications ? '#2196F3' : '#f4f3f4'}
-            disabled={!preferences.notificationsEnabled}
-          />
-        </View>
-      </View>
-
-      {/* Expo Notification Test Buttons */}
-      <View style={styles.testButtonsContainer}>
-        <Text style={styles.testSectionTitle}>Test Notifications</Text>
-        
-        <View style={styles.testButtonsRow}>
-          <TouchableOpacity 
-            style={[styles.testButton, styles.expoButton]}
-            onPress={handleTestExpoNotification}
-            disabled={!preferences.notificationsEnabled}
-          >
-            <Icon name="notifications" size={18} color="#FFFFFF" />
-            <Text style={styles.testButtonText}>Test Expo</Text>
-          </TouchableOpacity>
+      {/* Settings Panel */}
+      {showSettings && (
+        <View style={styles.settingsPanel}>
+          <Text style={styles.settingsTitle}>Notification Settings</Text>
           
-          <TouchableOpacity 
-            style={[styles.testButton, styles.reportButton]}
-            onPress={handleSimulateReportCreated}
-            disabled={!preferences.notificationsEnabled || !preferences.reportUpdates}
-          >
-            <Icon name="assignment" size={18} color="#FFFFFF" />
-            <Text style={styles.testButtonText}>New Report</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.testButtonsRow}>
-          <TouchableOpacity 
-            style={[styles.testButton, styles.successButton]}
-            onPress={handleSimulateReportProcessed}
-            disabled={!preferences.notificationsEnabled || !preferences.reportUpdates}
-          >
-            <Icon name="check-circle" size={18} color="#FFFFFF" />
-            <Text style={styles.testButtonText}>Processed</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.testButton, styles.tipButton]}
-            onPress={handleSimulateRecyclingTip}
-            disabled={!preferences.notificationsEnabled || !preferences.recyclingTips}
-          >
-            <Icon name="eco" size={18} color="#FFFFFF" />
-            <Text style={styles.testButtonText}>Recycling Tip</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.preferenceItem}>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceText}>Enable Notifications</Text>
+              <Text style={styles.preferenceDescription}>Receive all notifications</Text>
+            </View>
+            <Switch
+              value={preferences.notificationsEnabled}
+              onValueChange={(value) => handlePreferenceChange('notificationsEnabled', value)}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={preferences.notificationsEnabled ? '#2196F3' : '#f4f3f4'}
+            />
+          </View>
 
-        <TouchableOpacity 
-          style={[styles.testButton, styles.tokenButton]}
-          onPress={handleRegisterPushToken}
-        >
-          <Icon name="vpn-key" size={18} color="#FFFFFF" />
-          <Text style={styles.testButtonText}>Register Push Token</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.preferenceItem}>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceText}>Report Updates</Text>
+              <Text style={styles.preferenceDescription}>Status changes for your reports</Text>
+            </View>
+            <Switch
+              value={preferences.reportUpdates}
+              onValueChange={(value) => handlePreferenceChange('reportUpdates', value)}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={preferences.reportUpdates ? '#2196F3' : '#f4f3f4'}
+              disabled={!preferences.notificationsEnabled}
+            />
+          </View>
 
-      {unreadCount > 0 && (
+          <View style={styles.preferenceItem}>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceText}>Recycling Tips</Text>
+              <Text style={styles.preferenceDescription}>Helpful recycling advice</Text>
+            </View>
+            <Switch
+              value={preferences.recyclingTips}
+              onValueChange={(value) => handlePreferenceChange('recyclingTips', value)}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={preferences.recyclingTips ? '#2196F3' : '#f4f3f4'}
+              disabled={!preferences.notificationsEnabled}
+            />
+          </View>
+
+          <View style={styles.preferenceItem}>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceText}>System Notifications</Text>
+              <Text style={styles.preferenceDescription}>App updates and announcements</Text>
+            </View>
+            <Switch
+              value={preferences.systemNotifications}
+              onValueChange={(value) => handlePreferenceChange('systemNotifications', value)}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={preferences.systemNotifications ? '#2196F3' : '#f4f3f4'}
+              disabled={!preferences.notificationsEnabled}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* Unread Count Banner */}
+      {unreadCount > 0 && !showSettings && (
         <View style={styles.unreadBanner}>
           <Text style={styles.unreadBannerText}>
             {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
           </Text>
+          <TouchableOpacity onPress={handleMarkAllAsRead}>
+            <Text style={styles.markAllLink}>Mark all as read</Text>
+          </TouchableOpacity>
         </View>
       )}
 
+      {/* Search Results Info */}
+      {searchQuery.length > 0 && (
+        <View style={styles.searchResultsInfo}>
+          <Text style={styles.searchResultsText}>
+            Showing {filteredNotifications.length} result{filteredNotifications.length !== 1 ? 's' : ''} for "{searchQuery}"
+          </Text>
+        </View>
+      )}
+
+      {/* Notifications List */}
       <FlatList
-        data={notifications}
+        data={filteredNotifications}
         renderItem={renderNotificationItem}
         keyExtractor={(item) => item._id}
         refreshControl={
@@ -439,14 +341,18 @@ const NotificationsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Icon name="notifications-off" size={64} color="#CCCCCC" />
-            <Text style={styles.emptyTitle}>No notifications</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery.length > 0 ? 'No results found' : 'No notifications'}
+            </Text>
             <Text style={styles.emptyText}>
-              You're all caught up! Check back later for updates.
+              {searchQuery.length > 0 
+                ? 'Try adjusting your search terms'
+                : "You're all caught up! Check back later for updates."
+              }
             </Text>
           </View>
         }
-        contentContainerStyle={notifications.length === 0 && styles.emptyListContainer}
+        contentContainerStyle={filteredNotifications.length === 0 && styles.emptyListContainer}
       />
     </View>
   );
@@ -482,12 +388,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 16,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#2196F3',
+    fontWeight: '500',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1A1A1A',
   },
@@ -499,163 +415,148 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  debugContainer: {
-    backgroundColor: '#FFF3CD',
+  settingsButton: {
+    padding: 8,
+  },
+  settingsButtonText: {
+    color: '#666',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  // Search Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    margin: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  clearSearchButton: {
+    padding: 8,
+  },
+  clearSearchText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
+  searchResultsInfo: {
+    backgroundColor: '#E3F2FD',
     padding: 12,
     marginHorizontal: 16,
-    marginTop: 8,
     borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FFC107',
   },
-  debugText: {
-    fontSize: 12,
-    color: '#856404',
-    fontFamily: 'monospace',
-    marginBottom: 2,
+  searchResultsText: {
+    color: '#1976D2',
+    fontSize: 14,
+    textAlign: 'center',
   },
-  // Preferences styles
-  preferencesContainer: {
+  // Settings Panel
+  settingsPanel: {
     backgroundColor: 'white',
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
+    margin: 16,
+    padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
   },
-  preferencesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 20,
     textAlign: 'center',
   },
   preferenceItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   preferenceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
   },
   preferenceText: {
-    fontSize: 14,
-    color: '#333',
-    marginLeft: 12,
-    fontWeight: '500',
-  },
-  // Test buttons styles
-  testButtonsContainer: {
-    backgroundColor: 'white',
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  testSectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
     color: '#333',
-    marginBottom: 12,
-    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  testButtonsRow: {
+  preferenceDescription: {
+    fontSize: 12,
+    color: '#666',
+  },
+  // Unread Banner
+  unreadBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  testButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    marginHorizontal: 4,
-    opacity: 1,
-  },
-  expoButton: {
-    backgroundColor: '#4630EB', // Expo color
-  },
-  reportButton: {
-    backgroundColor: '#2196F3',
-  },
-  successButton: {
-    backgroundColor: '#4CAF50',
-  },
-  tipButton: {
-    backgroundColor: '#FF9800',
-  },
-  tokenButton: {
-    backgroundColor: '#9C27B0',
-    marginTop: 8,
-  },
-  testButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  unreadBanner: {
     backgroundColor: '#E3F2FD',
-    padding: 12,
+    padding: 16,
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 8,
     borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
   },
   unreadBannerText: {
     color: '#1976D2',
     fontWeight: '500',
     fontSize: 14,
-    textAlign: 'center',
   },
+  markAllLink: {
+    color: '#2196F3',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  // Notification Items
   notificationItem: {
-    flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 16,
-    marginVertical: 4,
+    marginVertical: 6,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
   },
   unreadItem: {
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#F8FBFF',
     borderLeftWidth: 4,
     borderLeftColor: '#2196F3',
   },
-  iconContainer: {
-    marginRight: 12,
-    justifyContent: 'center',
-  },
   contentContainer: {
     flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1A1A1A',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 12,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  typeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: 'white',
   },
   message: {
     fontSize: 14,
@@ -663,16 +564,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 8,
   },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   date: {
     fontSize: 12,
     color: '#999',
   },
   unreadIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
     backgroundColor: '#2196F3',
-    alignSelf: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  unreadText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: 'bold',
   },
   emptyListContainer: {
     flexGrow: 1,
@@ -685,17 +595,17 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#666',
-    marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#999',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });
 

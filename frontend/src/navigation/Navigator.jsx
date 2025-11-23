@@ -16,6 +16,7 @@
   import NotificationsScreen from '../components/User/NotificationsScreen';
   import MessageList from '../components/User/MessageList';
   import ChatScreen from '../components/User/ChatScreen';
+  import Learning from '../components/User/Learning';
 
   const Stack = createStackNavigator();
 
@@ -48,6 +49,7 @@
           <Stack.Screen name="NotificationHandler" component={NotificationHandler} />
           <Stack.Screen name="MessageList" component={MessageList} />
           <Stack.Screen name="ChatScreen" component={ChatScreen} />
+          <Stack.Screen name="Learning" component={Learning} />
         </Stack.Navigator>
       </Provider>
     );
