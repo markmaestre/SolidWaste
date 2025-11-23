@@ -913,7 +913,17 @@ const UserDashboard = () => {
                   </View>
                   <Text style={styles.menuText}>Report History</Text>
                 </TouchableOpacity>
-
+                
+                <TouchableOpacity 
+                  style={[styles.menuItem, activeTab === 'WasteAnalytics' && styles.activeMenuItem]}
+                   onPress={() => navigateTo('WasteAnalytics')}
+                  activeOpacity={0.7}
+                                                >
+                  <View style={styles.menuIconContainer}>
+                   <Icon name="analytics" size={24} color="#FFFFFF" />
+                  </View>
+                 <Text style={styles.menuText}>Waste Analytics</Text>
+                </TouchableOpacity>
               
 
                 {/* Communication Section - IDINAGDAG */}
@@ -979,9 +989,7 @@ const UserDashboard = () => {
                     <Icon name="map" size={24} color="#FFFFFF" />
                   </View>
                   <Text style={styles.menuText}>Recycling Map</Text>
-                  <View style={styles.newBadge}>
-                    <Text style={styles.newBadgeText}>NEW</Text>
-                  </View>
+                 
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -995,7 +1003,6 @@ const UserDashboard = () => {
                   <Text style={styles.menuText}>Educational Resources</Text>
                 </TouchableOpacity>
 
-                {/* Account Section */}
                 <Text style={styles.menuSectionTitle}>Account</Text>
 
                 <TouchableOpacity 

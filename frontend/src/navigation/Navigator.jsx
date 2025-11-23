@@ -17,6 +17,7 @@
   import MessageList from '../components/User/MessageList';
   import ChatScreen from '../components/User/ChatScreen';
   import Learning from '../components/User/Learning';
+  import WasteAnalytics from '../components/User/WasteAnalytics';
 
   const Stack = createStackNavigator();
 
@@ -50,6 +51,8 @@
           <Stack.Screen name="MessageList" component={MessageList} />
           <Stack.Screen name="ChatScreen" component={ChatScreen} />
           <Stack.Screen name="Learning" component={Learning} />
+          <Stack.Screen name="WasteAnalytics" component={WasteAnalytics} />
+
         </Stack.Navigator>
       </Provider>
     );

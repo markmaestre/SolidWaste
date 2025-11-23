@@ -803,10 +803,10 @@ const Maps = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Back Button */}
+      {/* Enhanced Header with X Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Text style={styles.backButtonText}>←</Text>
+        <TouchableOpacity style={styles.closeButton} onPress={handleBackPress}>
+          <Text style={styles.closeButtonText}>✕</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {selectedFacility ? 'Route Details' : 'Recycling Facilities'}
@@ -836,8 +836,10 @@ const Maps = ({ navigation }) => {
         
         {mapLoading && (
           <View style={styles.mapOverlay}>
-            <ActivityIndicator size="large" color="#2E8B57" />
-            <Text style={styles.loadingText}>Loading interactive map...</Text>
+            <View style={styles.mapLoadingContent}>
+              <ActivityIndicator size="large" color="#2E8B57" />
+              <Text style={styles.loadingText}>Loading interactive map...</Text>
+            </View>
           </View>
         )}
       </View>
@@ -846,12 +848,14 @@ const Maps = ({ navigation }) => {
       {selectedFacility && (
         <View style={styles.routePanel}>
           <View style={styles.routeHeader}>
-            <Text style={styles.routeTitle}>Route to {selectedFacility.name}</Text>
-            {selectedFacility.verified && (
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>Verified</Text>
-              </View>
-            )}
+            <View style={styles.routeTitleContainer}>
+              <Text style={styles.routeTitle} numberOfLines={1}>{selectedFacility.name}</Text>
+              {selectedFacility.verified && (
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              )}
+            </View>
           </View>
           
           {routeInfo ? (
@@ -920,6 +924,7 @@ const Maps = ({ navigation }) => {
               style={styles.facilitiesList} 
               horizontal 
               showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.facilitiesListContent}
             >
               {facilities.slice(0, 8).map((facility, index) => (
                 <TouchableOpacity 
@@ -928,7 +933,9 @@ const Maps = ({ navigation }) => {
                   onPress={() => handleFacilitySelect(facility)}
                 >
                   <View style={styles.cardHeader}>
-                    <Text style={styles.facilityNumber}>{index + 1}</Text>
+                    <View style={styles.cardNumber}>
+                      <Text style={styles.facilityNumber}>{index + 1}</Text>
+                    </View>
                     {facility.verified && (
                       <View style={styles.cardVerified}>
                         <Text style={styles.cardVerifiedText}>✓</Text>
@@ -941,9 +948,9 @@ const Maps = ({ navigation }) => {
                   <Text style={styles.facilityDistance}>
                     {facility.distance ? `${facility.distance.toFixed(1)} km away` : 'Nearby'}
                   </Text>
-                  <Text style={styles.facilityAction}>
-                    Tap for directions
-                  </Text>
+                  <View style={styles.facilityAction}>
+                    <Text style={styles.facilityActionText}>Tap for directions</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </ScrollView>
