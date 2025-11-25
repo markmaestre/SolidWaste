@@ -782,26 +782,13 @@ const UserDashboard = () => {
         </TouchableOpacity>
         
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>WasteWise</Text>
+          <Text style={styles.headerTitle}>T.M.F.K. WASTE</Text>
           <Text style={styles.headerSubtitle}>{activeTab}</Text>
         </View>
 
         {/* IDINAGDAG - Messages Button sa Header */}
         <View style={styles.headerButtons}>
-          <TouchableOpacity 
-            style={styles.headerIconButton}
-            onPress={() => navigateTo('Messages')}
-            activeOpacity={0.7}
-          >
-            <Icon name="chat" size={24} color="#FFFFFF" />
-            {unreadMessagesCount > 0 && (
-              <View style={styles.notificationBadgeHeader}>
-                <Text style={styles.notificationBadgeTextHeader}>
-                  {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+         
 
           <TouchableOpacity 
             style={styles.headerIconButton}

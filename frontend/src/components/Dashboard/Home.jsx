@@ -41,7 +41,7 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#6bc8e4ff" />
       
       {/* Header Navigation */}
       <View style={styles.header}>
@@ -52,7 +52,7 @@ const HomeScreen = ({ navigation }) => {
               style={styles.logoImage}
               resizeMode="contain"
             />
-            <Text style={styles.logoText}>T.M.F.K</Text>
+            <Text style={styles.logoText}>T.M.F.K Waste Innovations</Text>
           </View>
         </View>
 
@@ -517,7 +517,7 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#6bc8e4ff',
   },
   scrollView: {
     flex: 1,
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   
   // Header
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#6bc8e4ff',
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 24,
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   logoText: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: '#1E40AF',
     letterSpacing: -0.5,

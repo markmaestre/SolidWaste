@@ -12,6 +12,7 @@ import {
   TextInput
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { 
   getNotifications, 
   markAsRead, 
@@ -114,6 +115,19 @@ const NotificationsScreen = ({ navigation }) => {
     }
   };
 
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'report_created':
+        return { name: 'assignment', color: '#87CEEB' };
+      case 'report_processed':
+        return { name: 'check-circle', color: '#4682B4' };
+      case 'recycling_tips':
+        return { name: 'eco', color: '#5F9EA0' };
+      default:
+        return { name: 'notifications', color: '#B0C4DE' };
+    }
+  };
+
   const getNotificationType = (type) => {
     switch (type) {
       case 'report_created':
@@ -130,13 +144,13 @@ const NotificationsScreen = ({ navigation }) => {
   const getTypeColor = (type) => {
     switch (type) {
       case 'report_created':
-        return '#2196F3';
+        return '#87CEEB';
       case 'report_processed':
-        return '#4CAF50';
+        return '#4682B4';
       case 'recycling_tips':
-        return '#FF9800';
+        return '#5F9EA0';
       default:
-        return '#9E9E9E';
+        return '#B0C4DE';
     }
   };
 
@@ -157,36 +171,46 @@ const NotificationsScreen = ({ navigation }) => {
     return date.toLocaleDateString();
   };
 
-  const renderNotificationItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.notificationItem, !item.read && styles.unreadItem]}
-      onPress={() => handleMarkAsRead(item._id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.contentContainer}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{item.title}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: getTypeColor(item.type) }]}>
-            <Text style={styles.typeText}>{getNotificationType(item.type)}</Text>
+  const renderNotificationItem = ({ item }) => {
+    const icon = getNotificationIcon(item.type);
+    return (
+      <TouchableOpacity
+        style={[styles.notificationItem, !item.read && styles.unreadItem]}
+        onPress={() => handleMarkAsRead(item._id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.iconContainer}>
+          <Icon name={icon.name} size={24} color={icon.color} />
+        </View>
+        <View style={styles.contentContainer}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>{item.title}</Text>
+            <View style={[styles.typeBadge, { backgroundColor: getTypeColor(item.type) }]}>
+              <Text style={styles.typeText}>{getNotificationType(item.type)}</Text>
+            </View>
+          </View>
+          <Text style={styles.message}>{item.message}</Text>
+          <View style={styles.footerRow}>
+            <View style={styles.dateContainer}>
+              <Icon name="access-time" size={12} color="#999" />
+              <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+            </View>
+            {!item.read && (
+              <View style={styles.unreadIndicator}>
+                <Icon name="fiber-manual-record" size={8} color="#87CEEB" />
+                <Text style={styles.unreadText}>NEW</Text>
+              </View>
+            )}
           </View>
         </View>
-        <Text style={styles.message}>{item.message}</Text>
-        <View style={styles.footerRow}>
-          <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
-          {!item.read && (
-            <View style={styles.unreadIndicator}>
-              <Text style={styles.unreadText}>NEW</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
+        <ActivityIndicator size="large" color="#87CEEB" />
         <Text style={styles.loadingText}>Loading notifications...</Text>
       </View>
     );
@@ -201,9 +225,16 @@ const NotificationsScreen = ({ navigation }) => {
             onPress={handleBack}
             style={styles.backButton}
           >
-            <Text style={styles.backButtonText}>Back</Text>
+            <Icon name="arrow-back" size={24} color="#87CEEB" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
         </View>
         
         <View style={styles.headerRight}>
@@ -212,20 +243,26 @@ const NotificationsScreen = ({ navigation }) => {
               onPress={handleMarkAllAsRead} 
               style={styles.markAllButton}
             >
-              <Text style={styles.markAllText}>Mark all read</Text>
+              <Icon name="done-all" size={20} color="#87CEEB" />
+              <Text style={styles.markAllText}>Mark all</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity 
             onPress={() => setShowSettings(!showSettings)}
             style={styles.settingsButton}
           >
-            <Text style={styles.settingsButtonText}>Settings</Text>
+            <Icon 
+              name={showSettings ? "close" : "settings"} 
+              size={22} 
+              color={showSettings ? "#87CEEB" : "#666"} 
+            />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
+        <Icon name="search" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search notifications..."
@@ -238,7 +275,7 @@ const NotificationsScreen = ({ navigation }) => {
             onPress={() => setSearchQuery('')}
             style={styles.clearSearchButton}
           >
-            <Text style={styles.clearSearchText}>Clear</Text>
+            <Icon name="close" size={18} color="#87CEEB" />
           </TouchableOpacity>
         )}
       </View>
@@ -246,59 +283,74 @@ const NotificationsScreen = ({ navigation }) => {
       {/* Settings Panel */}
       {showSettings && (
         <View style={styles.settingsPanel}>
-          <Text style={styles.settingsTitle}>Notification Settings</Text>
+          <View style={styles.settingsHeader}>
+            <Icon name="settings" size={24} color="#87CEEB" />
+            <Text style={styles.settingsTitle}>Notification Settings</Text>
+          </View>
           
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceText}>Enable Notifications</Text>
-              <Text style={styles.preferenceDescription}>Receive all notifications</Text>
+              <Icon name="notifications" size={20} color="#87CEEB" style={styles.preferenceIcon} />
+              <View>
+                <Text style={styles.preferenceText}>Enable Notifications</Text>
+                <Text style={styles.preferenceDescription}>Receive all notifications</Text>
+              </View>
             </View>
             <Switch
               value={preferences.notificationsEnabled}
               onValueChange={(value) => handlePreferenceChange('notificationsEnabled', value)}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={preferences.notificationsEnabled ? '#2196F3' : '#f4f3f4'}
+              trackColor={{ false: '#E0E0E0', true: '#B0E0E6' }}
+              thumbColor={preferences.notificationsEnabled ? '#87CEEB' : '#f4f3f4'}
             />
           </View>
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceText}>Report Updates</Text>
-              <Text style={styles.preferenceDescription}>Status changes for your reports</Text>
+              <Icon name="assignment" size={20} color="#87CEEB" style={styles.preferenceIcon} />
+              <View>
+                <Text style={styles.preferenceText}>Report Updates</Text>
+                <Text style={styles.preferenceDescription}>Status changes for your reports</Text>
+              </View>
             </View>
             <Switch
               value={preferences.reportUpdates}
               onValueChange={(value) => handlePreferenceChange('reportUpdates', value)}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={preferences.reportUpdates ? '#2196F3' : '#f4f3f4'}
+              trackColor={{ false: '#E0E0E0', true: '#B0E0E6' }}
+              thumbColor={preferences.reportUpdates ? '#87CEEB' : '#f4f3f4'}
               disabled={!preferences.notificationsEnabled}
             />
           </View>
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceText}>Recycling Tips</Text>
-              <Text style={styles.preferenceDescription}>Helpful recycling advice</Text>
+              <Icon name="eco" size={20} color="#87CEEB" style={styles.preferenceIcon} />
+              <View>
+                <Text style={styles.preferenceText}>Recycling Tips</Text>
+                <Text style={styles.preferenceDescription}>Helpful recycling advice</Text>
+              </View>
             </View>
             <Switch
               value={preferences.recyclingTips}
               onValueChange={(value) => handlePreferenceChange('recyclingTips', value)}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={preferences.recyclingTips ? '#2196F3' : '#f4f3f4'}
+              trackColor={{ false: '#E0E0E0', true: '#B0E0E6' }}
+              thumbColor={preferences.recyclingTips ? '#87CEEB' : '#f4f3f4'}
               disabled={!preferences.notificationsEnabled}
             />
           </View>
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceText}>System Notifications</Text>
-              <Text style={styles.preferenceDescription}>App updates and announcements</Text>
+              <Icon name="info" size={20} color="#87CEEB" style={styles.preferenceIcon} />
+              <View>
+                <Text style={styles.preferenceText}>System Notifications</Text>
+                <Text style={styles.preferenceDescription}>App updates and announcements</Text>
+              </View>
             </View>
             <Switch
               value={preferences.systemNotifications}
               onValueChange={(value) => handlePreferenceChange('systemNotifications', value)}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={preferences.systemNotifications ? '#2196F3' : '#f4f3f4'}
+              trackColor={{ false: '#E0E0E0', true: '#B0E0E6' }}
+              thumbColor={preferences.systemNotifications ? '#87CEEB' : '#f4f3f4'}
               disabled={!preferences.notificationsEnabled}
             />
           </View>
@@ -308,6 +360,7 @@ const NotificationsScreen = ({ navigation }) => {
       {/* Unread Count Banner */}
       {unreadCount > 0 && !showSettings && (
         <View style={styles.unreadBanner}>
+          <Icon name="notifications-active" size={16} color="#fff" />
           <Text style={styles.unreadBannerText}>
             {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
           </Text>
@@ -320,6 +373,7 @@ const NotificationsScreen = ({ navigation }) => {
       {/* Search Results Info */}
       {searchQuery.length > 0 && (
         <View style={styles.searchResultsInfo}>
+          <Icon name="search" size={16} color="#87CEEB" />
           <Text style={styles.searchResultsText}>
             Showing {filteredNotifications.length} result{filteredNotifications.length !== 1 ? 's' : ''} for "{searchQuery}"
           </Text>
@@ -335,12 +389,13 @@ const NotificationsScreen = ({ navigation }) => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            colors={['#2196F3']}
+            colors={['#87CEEB']}
           />
         }
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <Icon name="notifications-off" size={64} color="#B0C4DE" />
             <Text style={styles.emptyTitle}>
               {searchQuery.length > 0 ? 'No results found' : 'No notifications'}
             </Text>
@@ -382,11 +437,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerRight: {
     flexDirection: 'row',
@@ -395,33 +460,39 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
-    marginRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#2196F3',
-    fontWeight: '500',
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: '#333',
+  },
+  unreadBadge: {
+    backgroundColor: '#87CEEB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  unreadBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   markAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 8,
+    gap: 4,
   },
   markAllText: {
-    color: '#2196F3',
+    color: '#87CEEB',
     fontWeight: '600',
     fontSize: 14,
   },
   settingsButton: {
     padding: 8,
-  },
-  settingsButtonText: {
-    color: '#666',
-    fontWeight: '500',
-    fontSize: 14,
   },
   // Search Styles
   searchContainer: {
@@ -433,6 +504,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
@@ -441,23 +520,21 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   clearSearchButton: {
-    padding: 8,
-  },
-  clearSearchText: {
-    fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '500',
+    padding: 4,
   },
   searchResultsInfo: {
-    backgroundColor: '#E3F2FD',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f8ff',
     padding: 12,
     marginHorizontal: 16,
     borderRadius: 8,
+    gap: 8,
   },
   searchResultsText: {
-    color: '#1976D2',
+    color: '#87CEEB',
     fontSize: 14,
-    textAlign: 'center',
+    fontWeight: '500',
   },
   // Settings Panel
   settingsPanel: {
@@ -467,24 +544,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 8,
   },
   settingsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 20,
-    textAlign: 'center',
+    color: '#333',
   },
   preferenceItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   preferenceInfo: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  preferenceIcon: {
+    width: 24,
   },
   preferenceText: {
     fontSize: 16,
@@ -501,24 +593,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#87CEEB',
     padding: 16,
     marginHorizontal: 16,
     marginTop: 8,
     borderRadius: 8,
   },
   unreadBannerText: {
-    color: '#1976D2',
+    color: '#fff',
     fontWeight: '500',
     fontSize: 14,
+    flex: 1,
+    marginLeft: 8,
   },
   markAllLink: {
-    color: '#2196F3',
+    color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+    textDecorationLine: 'underline',
   },
   // Notification Items
   notificationItem: {
+    flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 16,
     marginVertical: 6,
@@ -526,11 +622,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   unreadItem: {
-    backgroundColor: '#F8FBFF',
+    backgroundColor: '#f8fbff',
     borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+    borderLeftColor: '#87CEEB',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f8ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   contentContainer: {
     flex: 1,
@@ -544,7 +654,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#333',
     flex: 1,
     marginRight: 12,
   },
@@ -569,19 +679,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   date: {
     fontSize: 12,
     color: '#999',
   },
   unreadIndicator: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f8ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 4,
+    gap: 4,
   },
   unreadText: {
     fontSize: 10,
-    color: 'white',
+    color: '#87CEEB',
     fontWeight: 'bold',
   },
   emptyListContainer: {
@@ -599,6 +717,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
     marginBottom: 8,
+    marginTop: 16,
     textAlign: 'center',
   },
   emptyText: {
