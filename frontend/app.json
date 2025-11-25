@@ -1,51 +1,71 @@
 {
   "expo": {
-    "name": "WasteWise",
+    "name": "Waste Scan",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/WasteWise.png",
-    "scheme": "WasteWise",
+    "icon": "./assets/images/scan.png",
+
+    "scheme": "wastescan",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
       "supportsTablet": true
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/WasteWises.png",
-        "backgroundColor": "#c9d9f0"
 
+    "android": {
+      "package": "com.kram_maestre.frontend",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/scan.png",
+        "backgroundColor": "#001f3f"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.kram_maestre.frontend"
+      "permissions": [
+        "VIBRATE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+   
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/WasteWise.png",
-          "imageWidth": 500,
-          "resizeMode": "contain",
-         "backgroundColor": "#c9d9f0"
+          "image": "./assets/images/T.M.F.K.png",
+          "imageWidth": 350,
+          "resizeMode": "cover",
+          "backgroundColor": "#001f3f"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/scan.png",
+          "color": "#001f3f"
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true
     },
+
     "extra": {
       "router": {},
       "eas": {
         "projectId": "a1ef8d28-aa47-4b60-9536-7d5cb172031a"
       }
     },
+
     "owner": "kram_maestre"
   }
 }

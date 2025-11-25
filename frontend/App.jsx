@@ -1,79 +1,80 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { NavigationContainer } from '@react-navigation/native';
-import { Provider, useDispatch } from 'react-redux';
+import { Provider } from 'react-redux';
 import store from "./src/redux/store/store";
 import Navigator from "./src/navigation/Navigator";
-import * as Notifications from 'expo-notifications';
-import { initializeNotifications } from "./src/redux/slices/notificationSlice";
+import { LogBox } from "react-native";
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Ignore Expo notifications warnings temporarily
+LogBox.ignoreLogs([
+  'expo-notifications',
+  'Remote notifications are not supported in Expo Go',
+]);
 
-// Create a navigation reference
-const navigationRef = React.createRef();
+// Optional: hide all warnings (not recommended in dev)
+// LogBox.ignoreAllLogs(true);
 
-// Component to handle notification setup with navigation
-const NotificationHandler = () => {
-  const dispatch = useDispatch();
-  const notificationListener = useRef();
-  const responseListener = useRef();
+/* ------------------------------
+  TEMPORARILY DISABLED NOTIFICATIONS
+  Uncomment when using a development build
+------------------------------ */
+// import * as Notifications from 'expo-notifications';
+// import { useEffect, useRef } from "react";
+// import { useDispatch } from "react-redux";
+// import { initializeNotifications } from "./src/redux/slices/notificationSlice";
 
-  useEffect(() => {
-    // Initialize notifications
-    dispatch(initializeNotifications());
+// Notifications.setNotificationHandler({
+//   handleNotification: async () => ({
+//     shouldShowAlert: true,
+//     shouldPlaySound: true,
+//     shouldSetBadge: true,
+//   }),
+// });
 
-    // Listen for notifications in foreground
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('📢 Notification received:', notification);
-    });
+// const NotificationHandler = () => {
+//   const dispatch = useDispatch();
+//   const notificationListener = useRef();
+//   const responseListener = useRef();
 
-    // Handle notification taps - navigate to appropriate screen
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const { data } = response.notification.request.content;
-      console.log('👆 Notification tapped with data:', data);
-      
-      // Navigate based on notification data
-      if (navigationRef.current && data?.screen) {
-        console.log(`🔄 Navigating to: ${data.screen}`, data.params);
-        navigationRef.current.navigate(data.screen, data.params);
-      }
-    });
+//   useEffect(() => {
+//     dispatch(initializeNotifications());
 
-    // Cleanup
-    return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
-      }
-    };
-  }, [dispatch]);
+//     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+//       console.log('📢 Notification received:', notification);
+//     });
 
-  return null;
-};
+//     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+//       const { data } = response.notification.request.content;
+//       console.log('👆 Notification tapped with data:', data);
 
-// Main App component
+//       if (navigationRef.current && data?.screen) {
+//         console.log(`🔄 Navigating to: ${data.screen}`, data.params);
+//         navigationRef.current.navigate(data.screen, data.params);
+//       }
+//     });
+
+//     return () => {
+//       if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
+//       if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+//     };
+//   }, [dispatch]);
+
+//   return null;
+// };
+
 const AppContent = () => {
   return (
     <>
-      <NotificationHandler />
+      {/* <NotificationHandler /> */}
       <Navigator />
     </>
   );
 };
 
-// Root App component
 const App = () => {
   return (
     <Provider store={store}>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer>
         <AppContent />
       </NavigationContainer>
     </Provider>

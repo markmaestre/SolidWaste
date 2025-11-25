@@ -28,6 +28,8 @@ const Login = () => {
   const [focusedField, setFocusedField] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [pushToken, setPushToken] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+  
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { loading, error } = useSelector((state) => state.auth);
@@ -51,39 +53,97 @@ const Login = () => {
       }
       
       if (finalStatus !== 'granted') {
-        console.log('❌ Push notification permission not granted');
         return;
       }
       
       // Get the token that identifies this device
       const token = (await Notifications.getExpoPushTokenAsync()).data;
-      console.log('📱 Expo Push Token:', token);
       setPushToken(token);
       
     } catch (error) {
-      console.log('❌ Error getting push token:', error);
+      // Silent error handling
     }
+  };
+
+  const validateField = (field, value) => {
+    let error = '';
+    
+    switch (field) {
+      case 'email':
+        if (!value.trim()) {
+          error = 'Email is required';
+        } else if (!validateEmail(value)) {
+          error = 'Please enter a valid email address';
+        }
+        break;
+        
+      case 'password':
+        if (!value) {
+          error = 'Password is required';
+        } else if (value.length < 6) {
+          error = 'Password must be at least 6 characters';
+        }
+        break;
+        
+      default:
+        break;
+    }
+    
+    setFieldErrors(prev => ({
+      ...prev,
+      [field]: error
+    }));
+    
+    return !error;
   };
 
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
+    
+    // Clear error when user starts typing
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+  };
+
+  const handleBlur = (field, value) => {
+    setFocusedField(null);
+    validateField(field, value);
+  };
+
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   };
 
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);
   };
 
+  const validateAllFields = () => {
+    const fields = ['email', 'password'];
+    let isValid = true;
+    
+    fields.forEach(field => {
+      if (!validateField(field, form[field])) {
+        isValid = false;
+      }
+    });
+    
+    return isValid;
+  };
+
   const handleLogin = async () => {
     try {
-      // Basic validation
-      if (!form.email || !form.password) {
-        Alert.alert('Validation Error', 'Please enter both email and password');
+      // Validate all fields first
+      if (!validateAllFields()) {
+        Alert.alert('Validation Error', 'Please fill in all required fields correctly');
         return;
       }
 
-      console.log('🔄 Attempting login...');
-      console.log('📱 Using push token:', pushToken ? `${pushToken.substring(0, 20)}...` : 'Not available');
-      
       const resultAction = await dispatch(loginUser({
         email: form.email,
         password: form.password,
@@ -94,43 +154,29 @@ const Login = () => {
       if (loginUser.fulfilled.match(resultAction)) {
         const { user, token } = resultAction.payload;
         
-        console.log('✅ Login successful, token received:', token ? 'Yes' : 'No');
-        console.log('📱 User push token after login:', user.pushToken ? `${user.pushToken.substring(0, 20)}...` : 'Not set');
-        
         // Save token to AsyncStorage
         if (token) {
           await AsyncStorage.setItem('userToken', token);
-          console.log('💾 Token saved to AsyncStorage');
-        } else {
-          console.warn('⚠️ No token received from server');
         }
 
         // Save user info to AsyncStorage
         await AsyncStorage.setItem('userInfo', JSON.stringify(user));
-        console.log('💾 User info saved to AsyncStorage');
 
         // Save push token to AsyncStorage if available
         if (pushToken) {
           await AsyncStorage.setItem('userPushToken', pushToken);
-          console.log('💾 Push token saved to AsyncStorage');
         }
 
         // Navigate based on user role
         if (user.role === 'admin') {
-          console.log('👑 Navigating to AdminDashboard');
           navigation.navigate('AdminDashboard');
         } else if (user.role === 'user') {
-          console.log('👤 Navigating to UserDashboard');
           navigation.navigate('UserDashboard');
         } else {
           Alert.alert('Login failed', 'Invalid role assigned to user');
         }
-      } else {
-        // The error message is already in the state from the rejected action
-        console.log('❌ Login failed:', resultAction.error);
       }
     } catch (err) {
-      console.log('❌ Login Error:', err);
       Alert.alert('Error', 'An unexpected error occurred during login');
     }
   };
@@ -141,6 +187,19 @@ const Login = () => {
 
   const navigateToDashboard = () => {
     navigation.navigate('Dashboard');
+  };
+
+  const getInputStyle = (field) => {
+    const hasError = fieldErrors[field];
+    const isFocused = focusedField === field;
+    
+    if (hasError) {
+      return [styles.input, styles.inputError];
+    }
+    if (isFocused) {
+      return [styles.input, styles.inputFocused];
+    }
+    return styles.input;
   };
 
   // Check if error indicates a banned account
@@ -155,17 +214,17 @@ const Login = () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#0D47A1" />
+      <StatusBar barStyle="light-content" backgroundColor="#0284C7" />
       
       <LinearGradient
-        colors={['#0D47A1', '#1565C0', '#1976D2']}
+        colors={['#0284C7', '#38BDF8', '#BAE6FD']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        {/* Decorative Elements */}
-        <View style={styles.topCircle} />
-        <View style={styles.bottomCircle} />
+        {/* Background Elements */}
+        <View style={styles.floatingCircle1} />
+        <View style={styles.floatingCircle2} />
         
         {/* Home Button */}
         <TouchableOpacity 
@@ -183,11 +242,13 @@ const Login = () => {
           {/* Header Section */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Image 
-                source={require('../assets/T.M.F.K.png')}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
+              <View style={styles.logoBackground}>
+                <Image 
+                  source={require('../assets/T.M.F.K.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
             </View>
             <Text style={styles.title}>T.M.F.K. Waste Innovations</Text>
             <Text style={styles.subtitle}>Building Cleaner Communities</Text>
@@ -201,8 +262,7 @@ const Login = () => {
               <Text style={styles.welcomeSubtext}>Please sign in to continue</Text>
               {pushToken && (
                 <View style={styles.pushTokenIndicator}>
-                  <Ionicons name="notifications" size={16} color="#4CAF50" />
-                  <Text style={styles.pushTokenText}>Push notifications enabled</Text>
+                  
                 </View>
               )}
             </View>
@@ -214,54 +274,72 @@ const Login = () => {
                 isBannedAccount && styles.bannedAccountContainer
               ]}>
                 <View style={styles.errorTextContainer}>
-                  <Text style={styles.errorText}>
+                  <Ionicons 
+                    name={isBannedAccount ? "warning" : "alert-circle"} 
+                    size={18} 
+                    color={isBannedAccount ? "#D97706" : "#DC2626"} 
+                  />
+                  <Text style={[
+                    styles.errorText,
+                    isBannedAccount && styles.bannedErrorText
+                  ]}>
                     {isBannedAccount ? `Account Suspended: ${error}` : error}
                   </Text>
-                  {isBannedAccount && (
-                    <Text style={styles.adminContactText}>
-                      Please contact admin at: {ADMIN_EMAIL}
-                    </Text>
-                  )}
                 </View>
+                {isBannedAccount && (
+                  <Text style={styles.adminContactText}>
+                    Please contact admin at: {ADMIN_EMAIL}
+                  </Text>
+                )}
               </View>
             )}
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+              <View style={styles.inputLabelContainer}>
+                <Ionicons name="mail" size={16} color="#475569" />
+                <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
+              </View>
               <TextInput
-                placeholder="Enter your email"
+                placeholder="your@email.com"
                 placeholderTextColor="#94A3B8"
-                style={[
-                  styles.input,
-                  focusedField === 'email' && styles.inputFocused
-                ]}
+                style={getInputStyle('email')}
                 value={form.email}
                 onChangeText={(val) => handleChange('email', val)}
                 onFocus={() => setFocusedField('email')}
-                onBlur={() => setFocusedField(null)}
+                onBlur={() => handleBlur('email', form.email)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              {fieldErrors.email ? (
+                <View style={styles.fieldErrorContainer}>
+                  <Ionicons name="close-circle" size={14} color="#DC2626" />
+                  <Text style={styles.fieldErrorText}>{fieldErrors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>PASSWORD</Text>
+              <View style={styles.inputLabelContainer}>
+                <Ionicons name="lock-closed" size={16} color="#475569" />
+                <Text style={styles.inputLabel}>PASSWORD *</Text>
+              </View>
               <View style={styles.passwordInputWrapper}>
                 <TextInput
                   placeholder="Enter your password"
                   placeholderTextColor="#94A3B8"
                   style={[
                     styles.passwordInput,
-                    focusedField === 'password' && styles.inputFocused
+                    fieldErrors.password ? styles.inputError : 
+                    focusedField === 'password' ? styles.inputFocused : null
                   ]}
                   value={form.password}
                   secureTextEntry={!showPassword}
                   onChangeText={(val) => handleChange('password', val)}
                   onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
+                  onBlur={() => handleBlur('password', form.password)}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
@@ -273,10 +351,21 @@ const Login = () => {
                   <Ionicons 
                     name={showPassword ? "eye-off-outline" : "eye-outline"} 
                     size={22} 
-                    color={focusedField === 'password' ? '#1976D2' : '#64748B'} 
+                    color={focusedField === 'password' ? '#0284C7' : '#64748B'} 
                   />
                 </TouchableOpacity>
               </View>
+              {fieldErrors.password ? (
+                <View style={styles.fieldErrorContainer}>
+                  <Ionicons name="close-circle" size={14} color="#DC2626" />
+                  <Text style={styles.fieldErrorText}>{fieldErrors.password}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Required Fields Note */}
+            <View style={styles.requiredNote}>
+              <Text style={styles.requiredText}>* Required fields</Text>
             </View>
 
             {/* Login Button */}
@@ -287,17 +376,25 @@ const Login = () => {
               ]}
               onPress={handleLogin}
               disabled={loading}
-              activeOpacity={0.8}
+              activeOpacity={0.9}
             >
               <LinearGradient
-                colors={loading ? ['#64B5F6', '#64B5F6'] : ['#1E88E5', '#1565C0']}
+                colors={loading ? ['#93C5FD', '#93C5FD'] : ['#0284C7', '#0369A1']}
                 style={styles.buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.loginButtonText}>
-                  {loading ? 'SIGNING IN...' : 'SIGN IN'}
-                </Text>
+                {loading ? (
+                  <View style={styles.loadingContent}>
+                    <Ionicons name="refresh" size={20} color="#FFFFFF" style={styles.loadingIcon} />
+                    <Text style={styles.loginButtonText}>SIGNING IN...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.buttonContent}>
+                    <Ionicons name="log-in" size={20} color="#FFFFFF" />
+                    <Text style={styles.loginButtonText}>SIGN IN</Text>
+                  </View>
+                )}
               </LinearGradient>
             </TouchableOpacity>
 
@@ -314,20 +411,21 @@ const Login = () => {
               <TouchableOpacity 
                 onPress={navigateToRegister}
                 activeOpacity={0.7}
+                style={styles.registerButton}
               >
                 <Text style={styles.registerLink}>Create Account</Text>
+                <Ionicons name="arrow-forward" size={16} color="#0284C7" />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <View style={styles.footerLine} />
             <Text style={styles.footerText}>
               Creating sustainable communities together
             </Text>
             <Text style={styles.copyrightText}>
-              © 2025 T.M.F.K. Waste Innovations. All rights reserved.
+              © 2025 T.M.F.K. Waste Innovations
             </Text>
           </View>
         </ScrollView>
@@ -341,32 +439,33 @@ export default Login;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0284C7',
   },
   gradient: {
     flex: 1,
   },
-  topCircle: {
+  floatingCircle1: {
     position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    top: -120,
-    right: -80,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    top: '10%',
+    right: -50,
   },
-  bottomCircle: {
+  floatingCircle2: {
     position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    bottom: -80,
-    left: -60,
+    bottom: '20%',
+    left: -30,
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 20,
   },
   homeButton: {
@@ -393,72 +492,71 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   logoContainer: {
-    marginBottom: 20,
-    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logoBackground: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-    padding: 15,
+    alignItems: 'center',
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   logoImage: {
-    width: 120,
-    height: 120,
+    width: 60,
+    height: 60,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 8,
     letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
   subtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: 0.3,
+    lineHeight: 22,
   },
   underline: {
     width: 80,
     height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.6)',
     borderRadius: 2,
+    marginTop: 8,
   },
   formContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 25,
+    padding: 24,
     marginBottom: 25,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
     shadowRadius: 20,
-    elevation: 15,
+    elevation: 12,
   },
   formHeader: {
     marginBottom: 25,
     alignItems: 'center',
   },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#0D47A1',
+    color: '#0F172A',
     marginBottom: 6,
-    letterSpacing: 0.3,
   },
   welcomeSubtext: {
     fontSize: 14,
     color: '#64748B',
-    letterSpacing: 0.2,
     textAlign: 'center',
   },
   pushTokenIndicator: {
@@ -474,15 +572,15 @@ const styles = StyleSheet.create({
   },
   pushTokenText: {
     fontSize: 12,
-    color: '#0369A1',
+    color: '#0284C7',
     marginLeft: 6,
     fontWeight: '500',
   },
   errorContainer: {
     backgroundColor: '#FEF2F2',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     borderLeftWidth: 4,
     borderLeftColor: '#DC2626',
   },
@@ -491,55 +589,90 @@ const styles = StyleSheet.create({
     borderLeftColor: '#D97706',
   },
   errorTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
   },
   errorText: {
     color: '#DC2626',
     fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginBottom: 4,
+    fontWeight: '500',
+    flex: 1,
+  },
+  bannedErrorText: {
+    color: '#92400E',
   },
   adminContactText: {
     color: '#92400E',
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 18,
+    marginTop: 4,
+  },
+  fieldErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    lineHeight: 16,
   },
   inputContainer: {
-    marginBottom: 18,
+    marginBottom: 20,
+  },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
+    color: '#475569',
     letterSpacing: 0.5,
   },
   input: {
     height: 52,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: '#F9FAFB',
-    color: '#1F2937',
+    backgroundColor: '#F8FAFC',
+    color: '#0F172A',
     fontWeight: '500',
+  },
+  inputFocused: {
+    borderColor: '#0284C7',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
   },
   passwordInputWrapper: {
     position: 'relative',
   },
   passwordInput: {
     height: 52,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingRight: 50,
     fontSize: 16,
-    backgroundColor: '#F9FAFB',
-    color: '#1F2937',
+    backgroundColor: '#F8FAFC',
+    color: '#0F172A',
     fontWeight: '500',
   },
   showPasswordButton: {
@@ -549,39 +682,52 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 4,
   },
-  inputFocused: {
-    borderColor: '#2563EB',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+  requiredNote: {
+    marginBottom: 16,
+  },
+  requiredText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontStyle: 'italic',
   },
   loginButton: {
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 24,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#1E40AF',
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   loginButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   buttonGradient: {
     paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  buttonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  loadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingIcon: {
+    transform: [{ rotate: '0deg' }],
   },
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   divider: {
     flexDirection: 'row',
@@ -601,38 +747,33 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   registerContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 10,
+    justifyContent: 'center',
+    gap: 8,
   },
   registerText: {
     fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 8,
-    letterSpacing: 0.2,
+    color: '#64748B',
+  },
+  registerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   registerLink: {
-    fontSize: 16,
-    color: '#2563EB',
+    fontSize: 15,
+    color: '#0284C7',
     fontWeight: '600',
-    letterSpacing: 0.3,
   },
   footer: {
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 10,
-  },
-  footerLine: {
-    width: 60,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 2,
-    marginBottom: 12,
+    paddingVertical: 16,
   },
   footerText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    letterSpacing: 0.2,
     lineHeight: 18,
     marginBottom: 4,
   },
@@ -640,6 +781,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    letterSpacing: 0.2,
   },
 });

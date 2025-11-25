@@ -1,4 +1,4 @@
-package com.wastewise
+package com.kram_maestre.frontend
 
 import android.app.Application
 import android.content.res.Configuration
