@@ -42,21 +42,40 @@ export const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#87CEEB',
-    marginBottom: 5,
+    marginBottom: 4,
+    textAlign: 'center',
   },
 
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#B0C4DE',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // Demo Mode Indicator
+  demoIndicator: {
+    backgroundColor: '#FFA500',
+    padding: 8,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+
+  demoIndicatorText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 
   // User Info
   userInfo: {
     marginHorizontal: 20,
-    marginVertical: 15,
+    marginVertical: 10,
     paddingHorizontal: 15,
     paddingVertical: 10,
     backgroundColor: '#0f3460',
@@ -67,14 +86,15 @@ export const styles = StyleSheet.create({
 
   userText: {
     color: '#87CEEB',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
+    textAlign: 'center',
   },
 
   // Section
   section: {
     marginHorizontal: 20,
-    marginVertical: 15,
+    marginVertical: 12,
     paddingHorizontal: 15,
     paddingVertical: 15,
     backgroundColor: '#16213e',
@@ -84,16 +104,17 @@ export const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#87CEEB',
     marginBottom: 12,
+    textAlign: 'center',
   },
 
   // Location Section
   locationSection: {
     marginHorizontal: 20,
-    marginTop: 15,
+    marginTop: 10,
     paddingHorizontal: 15,
     paddingVertical: 15,
     backgroundColor: '#16213e',
@@ -110,8 +131,9 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
     color: '#87CEEB',
-    fontSize: 14,
+    fontSize: 13,
     backgroundColor: '#0f3460',
+    textAlign: 'center',
   },
 
   locationButton: {
@@ -126,15 +148,13 @@ export const styles = StyleSheet.create({
 
   locationButtonText: {
     color: '#87CEEB',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
 
   // Buttons
   buttonContainer: {
-    flexDirection: 'row',
     gap: 10,
-    justifyContent: 'space-between',
   },
 
   actionButton: {
@@ -145,40 +165,52 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#87CEEB',
+    marginBottom: 8,
   },
 
   cameraButton: {
-    flex: 1,
     backgroundColor: '#0f3460',
   },
 
   galleryButton: {
-    flex: 1,
     backgroundColor: '#0f3460',
+  },
+
+  demoButton: {
+    backgroundColor: '#FFA500',
+    borderColor: '#FFA500',
   },
 
   historyButton: {
     marginHorizontal: 20,
-    marginVertical: 10,
+    marginVertical: 8,
     backgroundColor: '#0f3460',
   },
 
   detectButton: {
     backgroundColor: '#0f3460',
     marginHorizontal: 0,
-    marginVertical: 10,
+    marginVertical: 8,
   },
 
   reportButton: {
     backgroundColor: '#0f3460',
     marginHorizontal: 0,
-    marginVertical: 10,
+    marginVertical: 8,
   },
 
   buttonText: {
     color: '#87CEEB',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  demoButtonText: {
+    color: '#1a1a2e',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   buttonPressed: {
@@ -198,11 +230,12 @@ export const styles = StyleSheet.create({
     backgroundColor: '#000',
     borderWidth: 1,
     borderColor: '#0f3460',
+    alignSelf: 'center',
   },
 
   previewImage: {
-    width: screenWidth * 0.9,
-    height: screenWidth * 0.75,
+    width: screenWidth * 0.85,
+    height: screenWidth * 0.7,
     backgroundColor: '#000',
   },
 
@@ -214,44 +247,66 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 4,
+    position: 'absolute',
+    top: -20,
+    left: 0,
   },
 
   labelText: {
     color: '#1a1a2e',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
+    textAlign: 'center',
   },
 
   // Loading
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 25,
   },
 
   loadingText: {
-    marginTop: 15,
+    marginTop: 12,
     color: '#87CEEB',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
+    textAlign: 'center',
   },
 
   detectSection: {
     marginHorizontal: 0,
-    marginVertical: 10,
+    marginVertical: 8,
   },
 
   reportSection: {
     marginHorizontal: 0,
-    marginVertical: 10,
+    marginVertical: 8,
   },
 
   // Results Section
   resultsSection: {
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 15,
     marginBottom: 20,
-    gap: 15,
+    gap: 12,
+  },
+
+  // Demo Notice
+  demoNotice: {
+    backgroundColor: '#FFF3CD',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFA500',
+    marginBottom: 12,
+  },
+
+  demoNoticeText: {
+    color: '#856404',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 
   summaryCard: {
@@ -263,10 +318,11 @@ export const styles = StyleSheet.create({
   },
 
   summaryTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#87CEEB',
     marginBottom: 12,
+    textAlign: 'center',
   },
 
   summaryGrid: {
@@ -280,15 +336,17 @@ export const styles = StyleSheet.create({
   },
 
   summaryNumber: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#87CEEB',
+    textAlign: 'center',
   },
 
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#B0C4DE',
-    marginTop: 5,
+    marginTop: 4,
+    textAlign: 'center',
   },
 
   classificationCard: {
@@ -300,10 +358,11 @@ export const styles = StyleSheet.create({
   },
 
   resultTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#87CEEB',
     marginBottom: 12,
+    textAlign: 'center',
   },
 
   classificationBadge: {
@@ -314,17 +373,19 @@ export const styles = StyleSheet.create({
   },
 
   classificationText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1a1a2e',
     textTransform: 'capitalize',
+    textAlign: 'center',
   },
 
   confidenceText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#1a1a2e',
-    marginTop: 5,
+    marginTop: 4,
     fontWeight: '600',
+    textAlign: 'center',
   },
 
   objectsCard: {
@@ -336,9 +397,13 @@ export const styles = StyleSheet.create({
   },
 
   objectItem: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#0f3460',
+  },
+
+  objectItemLast: {
+    borderBottomWidth: 0,
   },
 
   objectInfo: {
@@ -346,16 +411,19 @@ export const styles = StyleSheet.create({
   },
 
   objectLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#87CEEB',
-    marginBottom: 5,
+    marginBottom: 4,
     textTransform: 'capitalize',
+    textAlign: 'center',
   },
 
   objectDetails: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#B0C4DE',
+    textAlign: 'center',
+    lineHeight: 14,
   },
 
   tipsCard: {
@@ -378,7 +446,9 @@ export const styles = StyleSheet.create({
 
   tipText: {
     color: '#87CEEB',
-    fontSize: 13,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 
   // Modal
@@ -399,43 +469,61 @@ export const styles = StyleSheet.create({
   },
 
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#87CEEB',
     marginBottom: 15,
     textAlign: 'center',
   },
 
-  reportSummary: {
-    marginBottom: 15,
-    maxHeight: screenHeight * 0.3,
-  },
-
-  reportSummaryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#87CEEB',
+  // Demo Modal Notice
+  demoModalNotice: {
+    backgroundColor: '#FFF3CD',
+    padding: 10,
+    borderRadius: 6,
     marginBottom: 10,
   },
 
+  demoModalNoticeText: {
+    color: '#856404',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+
+  reportSummary: {
+    marginBottom: 15,
+    maxHeight: screenHeight * 0.25,
+  },
+
+  reportSummaryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#87CEEB',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+
   reportDetail: {
-    marginBottom: 12,
-    paddingBottom: 12,
+    marginBottom: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#0f3460',
   },
 
   reportDetailLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#B0C4DE',
     marginBottom: 4,
+    textAlign: 'center',
   },
 
   reportDetailValue: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#87CEEB',
     fontWeight: '500',
+    textAlign: 'center',
   },
 
   messageSection: {
@@ -443,10 +531,11 @@ export const styles = StyleSheet.create({
   },
 
   messageLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#B0C4DE',
     marginBottom: 8,
+    textAlign: 'center',
   },
 
   messageInput: {
@@ -456,22 +545,24 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: '#87CEEB',
-    fontSize: 13,
+    fontSize: 12,
     backgroundColor: '#0f3460',
     textAlignVertical: 'top',
+    minHeight: 80,
+    textAlign: 'left',
   },
 
   modalButtons: {
     flexDirection: 'row',
     gap: 10,
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
   },
 
   modalButton: {
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
-    minWidth: 100,
+    flex: 1,
     alignItems: 'center',
     borderWidth: 1,
   },
@@ -483,8 +574,9 @@ export const styles = StyleSheet.create({
 
   cancelButtonText: {
     color: '#B0C4DE',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
   },
 
   confirmButton: {
@@ -494,7 +586,34 @@ export const styles = StyleSheet.create({
 
   confirmButtonText: {
     color: '#1a1a2e',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  // Additional utility styles
+  textCenter: {
+    textAlign: 'center',
+  },
+
+  flexCenter: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  marginBottomSmall: {
+    marginBottom: 8,
+  },
+
+  marginBottomMedium: {
+    marginBottom: 12,
+  },
+
+  paddingSmall: {
+    padding: 8,
+  },
+
+  paddingMedium: {
+    padding: 12,
   },
 });

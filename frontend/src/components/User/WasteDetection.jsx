@@ -42,6 +42,7 @@ const WasteDetection = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [userMessage, setUserMessage] = useState("");
   const [buttonPressAnim] = useState(new Animated.Value(1));
+  const [usingDemoData, setUsingDemoData] = useState(false); 
   
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
@@ -102,6 +103,7 @@ const WasteDetection = ({ navigation }) => {
     setDetectionCompleted(false);
     setReportModalVisible(false);
     setUserMessage("");
+    setUsingDemoData(false); // Reset demo flag
     dispatch(clearSuccess());
     dispatch(clearError());
   };
@@ -185,6 +187,7 @@ const WasteDetection = ({ navigation }) => {
         setMaterialBreakdown({});
         setRecyclingTips([]);
         setDetectionCompleted(false);
+        setUsingDemoData(false); // Reset demo flag when new image is selected
         
         dispatch(clearError());
       }
@@ -230,6 +233,7 @@ const WasteDetection = ({ navigation }) => {
     try {
       setLoading(true);
       setDetectionCompleted(false);
+      setUsingDemoData(false); // Reset demo flag
       dispatch(clearError());
       
       const response = await fetch(API_URL, {
@@ -292,6 +296,31 @@ const WasteDetection = ({ navigation }) => {
     }
   };
 
+  // NEW FUNCTION: Direct demo button handler
+  const handleDemoMode = () => {
+    Alert.alert(
+      "Demo Mode",
+      "Load demo waste analysis data for testing purposes?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Load Demo Data",
+          onPress: () => {
+            // Set a demo image (you can use a local image or a placeholder)
+            setImage("https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Demo+Waste+Image");
+            // Load demo data after a short delay to simulate processing
+            setTimeout(() => {
+              loadDemoData();
+            }, 500);
+          }
+        }
+      ]
+    );
+  };
+
   const loadDemoData = () => {
     const mockDetected = [
       {
@@ -307,6 +336,13 @@ const WasteDetection = ({ navigation }) => {
         box: [0.5, 0.2, 0.8, 0.5],
         material: "paper",
         area_percentage: 25.1
+      },
+      {
+        label: "can",
+        confidence: 72.8,
+        box: [0.3, 0.7, 0.6, 0.9],
+        material: "metal",
+        area_percentage: 15.7
       }
     ];
 
@@ -321,16 +357,24 @@ const WasteDetection = ({ navigation }) => {
     setMaterialBreakdown({
       plastic: 45,
       paper: 25,
-      metal: 5
+      metal: 15,
+      glass: 5,
+      organic: 10
     });
     setRecyclingTips([
       "Rinse plastic bottles before recycling",
       "Remove caps from bottles",
-      "Separate different material types"
+      "Separate different material types",
+      "Flatten cardboard boxes to save space"
     ]);
     setDetectionCompleted(true);
+    setUsingDemoData(true); // Set demo flag
 
-    Alert.alert("Demo Analysis Complete!", "Using demo data for testing purposes.");
+    Alert.alert(
+      "Demo Analysis Complete!", 
+      "Using demo data for testing purposes. This shows how the app works with sample waste detection results.",
+      [{ text: "OK" }]
+    );
   };
 
   const handleSaveReport = () => {
@@ -372,7 +416,8 @@ const WasteDetection = ({ navigation }) => {
       },
       scan_date: new Date().toISOString(),
       user_message: userMessage,
-      user_email: user.email
+      user_email: user.email,
+      is_demo: usingDemoData // Add demo flag to report
     };
 
     dispatch(createWasteReport(reportData));
@@ -451,6 +496,13 @@ const WasteDetection = ({ navigation }) => {
         <Text style={styles.subtitle}>Smart waste detection and classification</Text>
       </View>
 
+      {/* Demo Mode Indicator */}
+      {usingDemoData && (
+        <View style={styles.demoIndicator}>
+          <Text style={styles.demoIndicatorText}> DEMO MODE - TEST DATA</Text>
+        </View>
+      )}
+
       {/* User Info */}
       {user && (
         <View style={styles.userInfo}>
@@ -513,6 +565,19 @@ const WasteDetection = ({ navigation }) => {
           >
             <Text style={styles.buttonText}>Choose Gallery</Text>
           </Pressable>
+
+          {/* NEW: Demo Button */}
+          <Pressable 
+            style={({ pressed }) => [
+              styles.actionButton, 
+              styles.demoButton,
+              pressed && !loading && !reportLoading && styles.buttonPressed
+            ]} 
+            onPress={handleDemoMode}
+            disabled={loading || reportLoading}
+          >
+            <Text style={styles.buttonText}>Try Demo Mode</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -532,7 +597,9 @@ const WasteDetection = ({ navigation }) => {
       {/* Image Preview with Detection Overlays */}
       {image && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Scanned Image with Detections</Text>
+          <Text style={styles.sectionTitle}>
+            {usingDemoData ? "Demo Image with Detections" : "Scanned Image with Detections"}
+          </Text>
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: image }}
@@ -590,7 +657,7 @@ const WasteDetection = ({ navigation }) => {
 
       {/* Action Buttons */}
       <View style={styles.section}>
-        {image && !detectionCompleted && (
+        {image && !detectionCompleted && !usingDemoData && (
           <View style={styles.detectSection}>
             {loading ? (
               <View style={styles.loadingContainer}>
@@ -627,7 +694,9 @@ const WasteDetection = ({ navigation }) => {
               {reportLoading ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <Text style={styles.buttonText}>Save Analysis Report</Text>
+                <Text style={styles.buttonText}>
+                  {usingDemoData ? "Save Demo Report" : "Save Analysis Report"}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -637,6 +706,15 @@ const WasteDetection = ({ navigation }) => {
       {/* Results Section */}
       {detectionCompleted && (
         <View style={styles.resultsSection}>
+          {/* Demo Mode Notice */}
+          {usingDemoData && (
+            <View style={styles.demoNotice}>
+              <Text style={styles.demoNoticeText}>
+                🔧 You are viewing demo data. This shows sample waste detection results for testing purposes.
+              </Text>
+            </View>
+          )}
+
           {/* Summary Card */}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Detection Summary</Text>
@@ -708,7 +786,17 @@ const WasteDetection = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Save Waste Report</Text>
+            <Text style={styles.modalTitle}>
+              {usingDemoData ? "Save Demo Waste Report" : "Save Waste Report"}
+            </Text>
+            
+            {usingDemoData && (
+              <View style={styles.demoModalNotice}>
+                <Text style={styles.demoModalNoticeText}>
+                  This is a demo report for testing purposes.
+                </Text>
+              </View>
+            )}
             
             <ScrollView style={styles.reportSummary}>
               <Text style={styles.reportSummaryTitle}>Report Summary:</Text>
@@ -732,6 +820,12 @@ const WasteDetection = ({ navigation }) => {
                 <Text style={styles.reportDetailLabel}>Location:</Text>
                 <Text style={styles.reportDetailValue}>{manualLocation || "Not specified"}</Text>
               </View>
+              {usingDemoData && (
+                <View style={styles.reportDetail}>
+                  <Text style={styles.reportDetailLabel}>Data Source:</Text>
+                  <Text style={styles.reportDetailValue}>Demo Data</Text>
+                </View>
+              )}
             </ScrollView>
 
             {/* Message Input Field */}
@@ -774,7 +868,9 @@ const WasteDetection = ({ navigation }) => {
                 {reportLoading ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
-                  <Text style={styles.confirmButtonText}>Save Report</Text>
+                  <Text style={styles.confirmButtonText}>
+                    {usingDemoData ? "Save Demo Report" : "Save Report"}
+                  </Text>
                 )}
               </Pressable>
             </View>

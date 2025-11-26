@@ -471,65 +471,7 @@ const UserDashboard = () => {
               </View>
             </View>
 
-            {/* Recent Activity Section - IDINAGDAG */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recent Activity</Text>
-              <View style={styles.activityContainer}>
-                <View style={styles.activityItem}>
-                  <View style={[styles.activityIcon, { backgroundColor: '#4CAF50' }]}>
-                    <Icon name="camera-alt" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>Waste Detection Ready</Text>
-                    <Text style={styles.activityTime}>Just now</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.activityItem}>
-                  <View style={[styles.activityIcon, { backgroundColor: '#2196F3' }]}>
-                    <Icon name="chat" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>
-                      {unreadMessagesCount > 0 
-                        ? `${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`
-                        : 'No new messages'
-                      }
-                    </Text>
-                    <Text style={styles.activityTime}>
-                      {unreadMessagesCount > 0 ? 'Tap to view' : 'All caught up'}
-                    </Text>
-                  </View>
-                  {unreadMessagesCount > 0 && (
-                    <TouchableOpacity onPress={() => navigateTo('Messages')}>
-                      <Icon name="chevron-right" size={20} color="#666" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                
-                <View style={styles.activityItem}>
-                  <View style={[styles.activityIcon, { backgroundColor: '#FF9800' }]}>
-                    <Icon name="notifications" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>
-                      {unreadCount > 0 
-                        ? `${unreadCount} notification${unreadCount > 1 ? 's' : ''}`
-                        : 'No new notifications'
-                      }
-                    </Text>
-                    <Text style={styles.activityTime}>
-                      {unreadCount > 0 ? 'Tap to view' : 'All caught up'}
-                    </Text>
-                  </View>
-                  {unreadCount > 0 && (
-                    <TouchableOpacity onPress={() => navigateTo('Notifications')}>
-                      <Icon name="chevron-right" size={20} color="#666" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>    
+        
           </ScrollView>
         );
         
