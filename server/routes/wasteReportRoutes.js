@@ -6,7 +6,15 @@ const Notification = require('../models/Notification');
 const auth = require('../middleware/auth');
 const cloudinary = require('cloudinary').v2;
 
-// @desc    Create waste detection report with image upload
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dtisam8ot',
+  api_key: process.env.CLOUDINARY_API_KEY || '416996345946976',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'dcfIgNOmXE5GkMyXgOAHnMxVeLg',
+  secure: true
+});
+
+// @desc    Create waste detection report
 // @route   POST /api/waste-reports/detect
 // @access  Private
 router.post('/detect', 
@@ -44,15 +52,19 @@ router.post('/detect',
         material_breakdown = {},
         recycling_tips = [],
         location = {},
-        scan_date
+        scan_date,
+        user_message,
+        is_demo = false,
+        cloudinary_url
       } = req.body;
 
       console.log('📊 Processing report data:', {
         classification,
         confidence: classification_confidence,
-        confidenceType: typeof classification_confidence,
         objectsCount: detected_objects.length,
-        hasImage: !!image
+        hasImage: !!image,
+        isDemo: is_demo,
+        hasCloudinaryUrl: !!cloudinary_url
       });
 
       // Convert confidence if it's in percentage format (0-100 to 0-1)
@@ -71,19 +83,40 @@ router.post('/detect',
       let imageUrl = image;
       let cloudinaryId = '';
 
+      // If Cloudinary URL is already provided from Flask backend, use it
+      if (cloudinary_url) {
+        console.log('☁️ Using existing Cloudinary URL from detection');
+        imageUrl = cloudinary_url;
+        // Extract public_id from URL if possible
+        const urlParts = cloudinary_url.split('/');
+        const filename = urlParts[urlParts.length - 1];
+        cloudinaryId = `waste_detection/${filename.split('.')[0]}`;
+      }
       // Upload image to Cloudinary if it's base64
-      if (image && image.startsWith('data:image')) {
+      else if (image && image.startsWith('data:image')) {
         try {
           console.log('☁️ Uploading image to Cloudinary...');
+          
+          // Generate unique public ID
+          const timestamp = Date.now();
+          const randomId = Math.floor(Math.random() * 10000);
+          const publicId = `waste_report_${req.user.id}_${timestamp}_${randomId}`;
+          
           const uploadResponse = await cloudinary.uploader.upload(image, {
             folder: 'waste-reports',
+            public_id: publicId,
             resource_type: 'image',
             quality: 'auto:good',
-            fetch_format: 'auto'
+            fetch_format: 'auto',
+            transformation: [
+              { width: 800, crop: "limit" },
+              { quality: "auto" }
+            ]
           });
+          
           imageUrl = uploadResponse.secure_url;
           cloudinaryId = uploadResponse.public_id;
-          console.log('✅ Image uploaded to Cloudinary:', uploadResponse.secure_url);
+          console.log('✅ Image uploaded to Cloudinary:', imageUrl);
         } catch (uploadError) {
           console.error('❌ Cloudinary upload error:', uploadError);
           return res.status(500).json({
@@ -92,11 +125,20 @@ router.post('/detect',
             details: uploadError.message
           });
         }
-      } else if (image && (image.startsWith('file://') || image.startsWith('content://'))) {
-        // Handle file URIs from mobile - convert to base64 or handle differently
-        console.log('📱 Handling mobile file URI - skipping Cloudinary upload');
-        // For mobile file URIs, we'll use the URI directly or you might want to implement file upload
+      } else if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+        // If it's already a URL, use it directly
+        console.log('🌐 Using existing image URL');
         imageUrl = image;
+      } else if (is_demo) {
+        // For demo data, use a placeholder
+        console.log('🎭 Using demo image');
+        imageUrl = 'https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Demo+Waste+Image';
+      } else {
+        console.log('❌ No valid image provided');
+        return res.status(400).json({
+          success: false,
+          error: 'No valid image provided'
+        });
       }
 
       // Create report with transaction for data consistency
@@ -116,12 +158,16 @@ router.post('/detect',
           materialBreakdown: material_breakdown,
           recyclingTips: recycling_tips,
           location,
-          status: 'pending'
+          userMessage: user_message || '',
+          status: 'pending',
+          isDemo: is_demo || false
         };
 
         // Add scan date if provided
         if (scan_date) {
           reportData.scanDate = new Date(scan_date);
+        } else {
+          reportData.scanDate = new Date();
         }
 
         const report = new WasteReport(reportData);
@@ -195,20 +241,28 @@ router.post('/detect',
   }
 );
 
-
+// @desc    Get user's waste reports
+// @route   GET /api/waste-reports/my-reports
+// @access  Private
 router.get('/my-reports', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 10, status, sort = 'newest' } = req.query;
     
     const query = { user: req.user.id };
     if (status && status !== 'all') {
       query.status = status;
     }
 
+    // Sort configuration
+    let sortConfig = { scanDate: -1 };
+    if (sort === 'oldest') sortConfig = { scanDate: 1 };
+    if (sort === 'confidence_high') sortConfig = { classificationConfidence: -1 };
+    if (sort === 'confidence_low') sortConfig = { classificationConfidence: 1 };
+
     const reports = await WasteReport.find(query)
-      .sort({ scanDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .sort(sortConfig)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
       .select('-__v');
 
     const total = await WasteReport.countDocuments(query);
@@ -218,7 +272,8 @@ router.get('/my-reports', auth, async (req, res) => {
       reports,
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
-      total
+      total,
+      hasMore: (parseInt(page) * parseInt(limit)) < total
     });
   } catch (error) {
     console.error('Get reports error:', error);
@@ -277,17 +332,28 @@ router.get('/', auth, async (req, res) => {
       });
     }
 
-    const { page = 1, limit = 10, status, user } = req.query;
+    const { page = 1, limit = 10, status, user, dateFrom, dateTo } = req.query;
     
     const query = {};
     if (status && status !== 'all') query.status = status;
     if (user) query.user = user;
+    
+    // Date range filtering
+    if (dateFrom || dateTo) {
+      query.scanDate = {};
+      if (dateFrom) {
+        query.scanDate.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        query.scanDate.$lte = new Date(dateTo);
+      }
+    }
 
     const reports = await WasteReport.find(query)
       .populate('user', 'name email')
       .sort({ scanDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
       .select('-__v');
 
     const total = await WasteReport.countDocuments(query);
@@ -390,6 +456,54 @@ router.put('/:id/status',
   }
 );
 
+// @desc    Update report details
+// @route   PUT /api/waste-reports/:id
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const { user_message, location } = req.body;
+    
+    const report = await WasteReport.findById(req.params.id);
+    if (!report) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Report not found' 
+      });
+    }
+
+    // Check if user owns the report
+    if (report.user.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Access denied' 
+      });
+    }
+
+    // Update allowed fields
+    if (user_message !== undefined) {
+      report.userMessage = user_message;
+    }
+    if (location !== undefined) {
+      report.location = location;
+    }
+
+    await report.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Report updated successfully',
+      report 
+    });
+
+  } catch (error) {
+    console.error('Update report error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update report' 
+    });
+  }
+});
+
 // @desc    Delete waste report
 // @route   DELETE /api/waste-reports/:id
 // @access  Private
@@ -416,8 +530,10 @@ router.delete('/:id', auth, async (req, res) => {
     if (report.cloudinaryId) {
       try {
         await cloudinary.uploader.destroy(report.cloudinaryId);
+        console.log('✅ Image deleted from Cloudinary:', report.cloudinaryId);
       } catch (cloudinaryError) {
         console.error('Cloudinary delete error:', cloudinaryError);
+        // Continue with deletion even if Cloudinary delete fails
       }
     }
 
@@ -432,6 +548,116 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: 'Failed to delete report' 
+    });
+  }
+});
+
+// @desc    Get statistics for user's reports
+// @route   GET /api/waste-reports/stats
+// @access  Private
+router.get('/stats/overview', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get total reports
+    const totalReports = await WasteReport.countDocuments({ user: userId });
+    
+    // Get reports by status
+    const reportsByStatus = await WasteReport.aggregate([
+      { $match: { user: userId } },
+      { $group: { _id: "$status", count: { $sum: 1 } } }
+    ]);
+    
+    // Get reports by classification
+    const reportsByClassification = await WasteReport.aggregate([
+      { $match: { user: userId } },
+      { $group: { _id: "$classification", count: { $sum: 1 } } }
+    ]);
+    
+    // Get recent reports
+    const recentReports = await WasteReport.find({ user: userId })
+      .sort({ scanDate: -1 })
+      .limit(5)
+      .select('classification status scanDate classificationConfidence');
+    
+    // Get average confidence
+    const avgConfidenceResult = await WasteReport.aggregate([
+      { $match: { user: userId } },
+      { $group: { _id: null, avgConfidence: { $avg: "$classificationConfidence" } } }
+    ]);
+    
+    const avgConfidence = avgConfidenceResult.length > 0 ? avgConfidenceResult[0].avgConfidence : 0;
+    
+    res.json({
+      success: true,
+      stats: {
+        totalReports,
+        reportsByStatus: reportsByStatus.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {}),
+        reportsByClassification: reportsByClassification.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {}),
+        avgConfidence: Math.round(avgConfidence * 100),
+        recentReports
+      }
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch statistics' 
+    });
+  }
+});
+
+// @desc    Search waste reports
+// @route   GET /api/waste-reports/search
+// @access  Private
+router.get('/search', auth, async (req, res) => {
+  try {
+    const { q, page = 1, limit = 10 } = req.query;
+    
+    if (!q || q.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query is required'
+      });
+    }
+    
+    const searchQuery = {
+      user: req.user.id,
+      $or: [
+        { classification: { $regex: q, $options: 'i' } },
+        { 'detectedObjects.label': { $regex: q, $options: 'i' } },
+        { userMessage: { $regex: q, $options: 'i' } },
+        { 'location.address': { $regex: q, $options: 'i' } }
+      ]
+    };
+    
+    const reports = await WasteReport.find(searchQuery)
+      .sort({ scanDate: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .select('-__v');
+    
+    const total = await WasteReport.countDocuments(searchQuery);
+    
+    res.json({
+      success: true,
+      reports,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      total,
+      hasMore: (parseInt(page) * parseInt(limit)) < total
+    });
+  } catch (error) {
+    console.error('Search reports error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search reports'
     });
   }
 });

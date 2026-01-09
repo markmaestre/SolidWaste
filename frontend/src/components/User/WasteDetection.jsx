@@ -5,13 +5,11 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   Dimensions,
   ScrollView,
   Modal,
   TextInput,
   RefreshControl,
-  Animated,
   Pressable,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -25,6 +23,7 @@ const API_URL = "http://192.168.1.44:5000/detect";
 
 const WasteDetection = ({ navigation }) => {
   const [image, setImage] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
   const [detected, setDetected] = useState([]);
   const [classification, setClassification] = useState(null);
   const [classificationConfidence, setClassificationConfidence] = useState(0);
@@ -33,16 +32,15 @@ const WasteDetection = ({ navigation }) => {
   const [recyclingTips, setRecyclingTips] = useState([]);
   const [loading, setLoading] = useState(false);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [selectedObject, setSelectedObject] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [location, setLocation] = useState(null);
   const [manualLocation, setManualLocation] = useState("");
   const [detectionCompleted, setDetectionCompleted] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userMessage, setUserMessage] = useState("");
-  const [buttonPressAnim] = useState(new Animated.Value(1));
   const [usingDemoData, setUsingDemoData] = useState(false); 
+  const [cloudinaryUrl, setCloudinaryUrl] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
@@ -94,6 +92,7 @@ const WasteDetection = ({ navigation }) => {
 
   const resetForm = () => {
     setImage(null);
+    setImageBase64(null);
     setDetected([]);
     setClassification(null);
     setClassificationConfidence(0);
@@ -103,7 +102,9 @@ const WasteDetection = ({ navigation }) => {
     setDetectionCompleted(false);
     setReportModalVisible(false);
     setUserMessage("");
-    setUsingDemoData(false); // Reset demo flag
+    setUsingDemoData(false);
+    setCloudinaryUrl(null);
+    setUploadProgress(0);
     dispatch(clearSuccess());
     dispatch(clearError());
   };
@@ -153,6 +154,27 @@ const WasteDetection = ({ navigation }) => {
     }
   };
 
+  const compressImage = async (uri) => {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Create a compressed version
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result;
+          resolve(base64data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Image compression error:', error);
+      return null;
+    }
+  };
+
   const pickImage = async (fromCamera = false) => {
     try {
       let permissionResult = fromCamera
@@ -165,10 +187,11 @@ const WasteDetection = ({ navigation }) => {
       }
 
       const pickerOptions = {
-        quality: 0.8,
+        quality: 0.5, // Reduced quality for smaller file size
         allowsEditing: false,
         aspect: [4, 3],
         base64: true,
+        exif: false,
       };
 
       const pickerResult = fromCamera
@@ -178,7 +201,30 @@ const WasteDetection = ({ navigation }) => {
       if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets[0]) {
         const selectedImage = pickerResult.assets[0];
         console.log('Selected image URI:', selectedImage.uri);
+        
+        // Show compression progress
+        setUploadProgress(10);
+        
         setImage(selectedImage.uri);
+        
+        // Store base64 for API call
+        if (selectedImage.base64) {
+          const base64WithPrefix = `data:image/jpeg;base64,${selectedImage.base64}`;
+          console.log(`Base64 size: ${base64WithPrefix.length} characters`);
+          
+          // Check if image is too large
+          if (base64WithPrefix.length > 10 * 1024 * 1024) { // ~7.5MB image
+            Alert.alert(
+              "Image Too Large",
+              "The selected image is very large. Please choose a smaller image or take a new photo.",
+              [{ text: "OK" }]
+            );
+            return;
+          }
+          
+          setImageBase64(base64WithPrefix);
+          setUploadProgress(50);
+        }
         
         setDetected([]);
         setClassification(null);
@@ -187,44 +233,37 @@ const WasteDetection = ({ navigation }) => {
         setMaterialBreakdown({});
         setRecyclingTips([]);
         setDetectionCompleted(false);
-        setUsingDemoData(false); // Reset demo flag when new image is selected
+        setUsingDemoData(false);
+        setCloudinaryUrl(null);
         
         dispatch(clearError());
+        setUploadProgress(0);
       }
     } catch (error) {
       console.error('Image picker error:', error);
       Alert.alert("Error", "Failed to select image. Please try again.");
+      setUploadProgress(0);
     }
   };
 
-  const handleButtonPress = () => {
-    Animated.sequence([
-      Animated.timing(buttonPressAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(buttonPressAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
   const handleDetect = async () => {
-    if (!image) {
+    if (!imageBase64) {
       Alert.alert("No Image", "Please select or capture an image first.");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("image", {
-      uri: image,
-      name: "waste_detection.jpg",
-      type: "image/jpeg",
-    });
+    // Check image size before sending
+    if (imageBase64.length > 15 * 1024 * 1024) { // ~11MB image
+      Alert.alert(
+        "Image Too Large",
+        "The image is too large to process. Please choose a smaller image.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
 
+    const formData = new FormData();
+    formData.append("image", imageBase64);
     formData.append("timestamp", new Date().toISOString());
     if (manualLocation) {
       formData.append("location", manualLocation);
@@ -232,25 +271,38 @@ const WasteDetection = ({ navigation }) => {
 
     try {
       setLoading(true);
+      setUploadProgress(20);
       setDetectionCompleted(false);
-      setUsingDemoData(false); // Reset demo flag
+      setUsingDemoData(false);
+      setCloudinaryUrl(null);
       dispatch(clearError());
+      
+      console.log(`📤 Sending image to API (size: ${Math.round(imageBase64.length / 1024)}KB)`);
       
       const response = await fetch(API_URL, {
         method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data',
         },
       });
 
+      setUploadProgress(60);
+
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('Image too large for server. Please use a smaller image.');
+        }
         const errorText = await response.text();
-        throw new Error(`Server error: ${response.status}`);
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
 
       const detectionData = await response.json();
+      setUploadProgress(80);
+
+      if (detectionData.error) {
+        throw new Error(detectionData.message || detectionData.error);
+      }
 
       setDetected(detectionData.detected_objects || []);
       setClassification(detectionData.classification || "Unknown");
@@ -258,11 +310,13 @@ const WasteDetection = ({ navigation }) => {
       setWasteComposition(detectionData.waste_composition || {});
       setMaterialBreakdown(detectionData.material_breakdown || {});
       setRecyclingTips(detectionData.recycling_tips || []);
+      setCloudinaryUrl(detectionData.cloudinary_url || null);
       setDetectionCompleted(true);
+      setUploadProgress(100);
 
       Alert.alert(
         "Analysis Complete!",
-        `We've successfully analyzed your waste image!`,
+        `Detected ${detectionData.total_objects_detected || 0} objects.`,
         [
           {
             text: "Save Report",
@@ -277,26 +331,45 @@ const WasteDetection = ({ navigation }) => {
 
     } catch (err) {
       console.error("Detection error:", err);
-      Alert.alert(
-        "Demo Mode",
-        "AI service unavailable. Using demo data for testing.",
-        [
-          {
-            text: "Use Demo Data",
-            onPress: () => loadDemoData()
-          },
-          {
-            text: "Cancel",
-            style: "cancel"
-          }
-        ]
-      );
+      setUploadProgress(0);
+      
+      if (err.message.includes('too large') || err.message.includes('413')) {
+        Alert.alert(
+          "Image Too Large",
+          "The image is too large to process. Please choose a smaller image or use demo mode.",
+          [
+            {
+              text: "Use Demo Mode",
+              onPress: () => loadDemoData()
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Connection Error",
+          "Unable to connect to the analysis server. Would you like to use demo data?",
+          [
+            {
+              text: "Use Demo Data",
+              onPress: () => loadDemoData()
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
+      }
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
-  // NEW FUNCTION: Direct demo button handler
   const handleDemoMode = () => {
     Alert.alert(
       "Demo Mode",
@@ -309,9 +382,7 @@ const WasteDetection = ({ navigation }) => {
         {
           text: "Load Demo Data",
           onPress: () => {
-            // Set a demo image (you can use a local image or a placeholder)
             setImage("https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Demo+Waste+Image");
-            // Load demo data after a short delay to simulate processing
             setTimeout(() => {
               loadDemoData();
             }, 500);
@@ -347,7 +418,7 @@ const WasteDetection = ({ navigation }) => {
     ];
 
     setDetected(mockDetected);
-    setClassification("recyclable");
+    setClassification("Recycling");
     setClassificationConfidence(82.5);
     setWasteComposition({
       recyclable_materials: 75,
@@ -368,11 +439,11 @@ const WasteDetection = ({ navigation }) => {
       "Flatten cardboard boxes to save space"
     ]);
     setDetectionCompleted(true);
-    setUsingDemoData(true); // Set demo flag
+    setUsingDemoData(true);
 
     Alert.alert(
       "Demo Analysis Complete!", 
-      "Using demo data for testing purposes. This shows how the app works with sample waste detection results.",
+      "Using demo data for testing purposes.",
       [{ text: "OK" }]
     );
   };
@@ -401,8 +472,11 @@ const WasteDetection = ({ navigation }) => {
       return;
     }
 
+    // Use Cloudinary URL if available, otherwise use base64
+    const imageToSave = cloudinaryUrl || imageBase64;
+
     const reportData = {
-      image: image,
+      image: imageToSave,
       detected_objects: detected || [],
       classification: classification || "Unknown",
       classification_confidence: classificationConfidence,
@@ -417,43 +491,12 @@ const WasteDetection = ({ navigation }) => {
       scan_date: new Date().toISOString(),
       user_message: userMessage,
       user_email: user.email,
-      is_demo: usingDemoData // Add demo flag to report
+      is_demo: usingDemoData,
+      cloudinary_url: cloudinaryUrl
     };
 
     dispatch(createWasteReport(reportData));
     setReportModalVisible(false);
-  };
-
-  const getClassificationColor = (classification) => {
-    const colors = {
-      "Recycling": "#87CEEB",
-      "Organic": "#87CEEB",
-      "General": "#87CEEB",
-      "Hazardous": "#87CEEB",
-      "Unknown": "#87CEEB",
-      "recyclable": "#87CEEB",
-      "organic": "#87CEEB",
-      "general_waste": "#87CEEB",
-      "hazardous": "#87CEEB"
-    };
-    return colors[classification] || colors["Unknown"];
-  };
-
-  const getMaterialColor = (material) => {
-    const colors = {
-      "plastic": "#87CEEB",
-      "glass": "#87CEEB",
-      "metal": "#87CEEB",
-      "paper": "#87CEEB",
-      "organic": "#87CEEB",
-      "unknown": "#87CEEB",
-    };
-    return colors[material] || colors["unknown"];
-  };
-
-  const formatPercentage = (value) => {
-    const numValue = typeof value === 'number' ? value : parseFloat(value) || 0;
-    return `${Math.round(numValue)}%`;
   };
 
   const formatConfidence = (value) => {
@@ -495,6 +538,25 @@ const WasteDetection = ({ navigation }) => {
         <Text style={styles.title}>AI Waste Analysis</Text>
         <Text style={styles.subtitle}>Smart waste detection and classification</Text>
       </View>
+
+      {/* Upload Progress */}
+      {uploadProgress > 0 && uploadProgress < 100 && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${uploadProgress}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {uploadProgress < 50 ? "Uploading image..." : 
+             uploadProgress < 80 ? "Analyzing..." : 
+             "Processing results..."}
+          </Text>
+        </View>
+      )}
 
       {/* Demo Mode Indicator */}
       {usingDemoData && (
@@ -566,7 +628,7 @@ const WasteDetection = ({ navigation }) => {
             <Text style={styles.buttonText}>Choose Gallery</Text>
           </Pressable>
 
-          {/* NEW: Demo Button */}
+          {/* Demo Button */}
           <Pressable 
             style={({ pressed }) => [
               styles.actionButton, 
@@ -579,6 +641,9 @@ const WasteDetection = ({ navigation }) => {
             <Text style={styles.buttonText}>Try Demo Mode</Text>
           </Pressable>
         </View>
+        <Text style={styles.imageNote}>
+          Note: For best results, use images under 5MB
+        </Text>
       </View>
 
       {/* Report History Button */}
@@ -609,10 +674,6 @@ const WasteDetection = ({ navigation }) => {
                 const { width, height } = event.nativeEvent.source;
                 const scaledHeight = (screenWidth * 0.9 * height) / width;
                 setImageSize({ width: screenWidth * 0.9, height: scaledHeight });
-                console.log('Image loaded - Size:', { width, height, scaledHeight });
-              }}
-              onError={(error) => {
-                console.log('Image loading error:', error.nativeEvent.error);
               }}
             />
             
@@ -625,7 +686,6 @@ const WasteDetection = ({ navigation }) => {
               const top = Math.max(0, y1 * imageSize.height);
               const width = Math.min(imageSize.width - left, (x2 - x1) * imageSize.width);
               const height = Math.min(imageSize.height - top, (y2 - y1) * imageSize.height);
-              const borderColor = getClassificationColor(item.label);
 
               return (
                 <View
@@ -638,12 +698,12 @@ const WasteDetection = ({ navigation }) => {
                       top,
                       width,
                       height,
-                      borderColor,
-                      borderWidth: 3,
+                      borderColor: "#87CEEB",
+                      borderWidth: 2,
                     }
                   ]}
                 >
-                  <View style={[styles.labelBox, { backgroundColor: borderColor }]}>
+                  <View style={[styles.labelBox, { backgroundColor: "#87CEEB" }]}>
                     <Text style={styles.labelText}>
                       {item.label} ({formatConfidence(item.confidence)})
                     </Text>
@@ -715,6 +775,15 @@ const WasteDetection = ({ navigation }) => {
             </View>
           )}
 
+          {/* Cloudinary Indicator */}
+          {cloudinaryUrl && (
+            <View style={styles.cloudinaryNotice}>
+              <Text style={styles.cloudinaryNoticeText}>
+                ☁️ Image uploaded to Cloudinary
+              </Text>
+            </View>
+          )}
+
           {/* Summary Card */}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Detection Summary</Text>
@@ -769,7 +838,7 @@ const WasteDetection = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Recycling Tips</Text>
               {recyclingTips.map((tip, i) => (
                 <View key={i} style={styles.tipItem}>
-                  <Text style={styles.tipText}>{tip}</Text>
+                  <Text style={styles.tipText}>• {tip}</Text>
                 </View>
               ))}
             </View>
@@ -794,6 +863,14 @@ const WasteDetection = ({ navigation }) => {
               <View style={styles.demoModalNotice}>
                 <Text style={styles.demoModalNoticeText}>
                   This is a demo report for testing purposes.
+                </Text>
+              </View>
+            )}
+            
+            {cloudinaryUrl && (
+              <View style={styles.cloudinaryModalNotice}>
+                <Text style={styles.cloudinaryModalNoticeText}>
+                  ☁️ Image stored in Cloudinary
                 </Text>
               </View>
             )}
@@ -824,6 +901,12 @@ const WasteDetection = ({ navigation }) => {
                 <View style={styles.reportDetail}>
                   <Text style={styles.reportDetailLabel}>Data Source:</Text>
                   <Text style={styles.reportDetailValue}>Demo Data</Text>
+                </View>
+              )}
+              {cloudinaryUrl && (
+                <View style={styles.reportDetail}>
+                  <Text style={styles.reportDetailLabel}>Storage:</Text>
+                  <Text style={styles.reportDetailValue}>Cloudinary</Text>
                 </View>
               )}
             </ScrollView>
