@@ -28,7 +28,7 @@ const wasteReportSchema = new mongoose.Schema({
   classification: {
     type: String,
     required: true,
-    enum: ['Recycling', 'organic', 'general_waste', 'hazardous', 'unknown']
+    enum: ['Recyclable', 'Special Waste']
   },
   classificationConfidence: {
     type: Number,

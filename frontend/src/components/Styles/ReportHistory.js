@@ -561,4 +561,243 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+  // Add these styles to your existing ReportHistory styles
+
+// Image Viewer Styles
+imageContainer: {
+  position: 'relative',
+  borderRadius: 8,
+  overflow: 'hidden',
+  marginRight: 12,
+},
+
+imageOverlay: {
+  position: 'absolute',
+  bottom: 0,
+  left: 0,
+  right: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  padding: 4,
+},
+
+overlayText: {
+  color: 'white',
+  fontSize: 10,
+  textAlign: 'center',
+},
+
+imageContainerDetail: {
+  position: 'relative',
+  borderRadius: 8,
+  overflow: 'hidden',
+  marginBottom: 15,
+},
+
+imageOverlayDetail: {
+  position: 'absolute',
+  bottom: 0,
+  left: 0,
+  right: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  padding: 8,
+},
+
+overlayTextDetail: {
+  color: 'white',
+  fontSize: 12,
+  textAlign: 'center',
+  fontWeight: '500',
+},
+
+// Full Screen Image Viewer
+fullImageContainer: {
+  flex: 1,
+  backgroundColor: '#000000',
+},
+
+fullImageWrapper: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#000000',
+},
+
+fullImage: {
+  width: '100%',
+  height: '100%',
+  maxWidth: '100%',
+  maxHeight: '100%',
+},
+
+imageLoadingContainer: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#000000',
+  zIndex: 10,
+},
+
+imageLoadingText: {
+  color: '#0077b6',
+  marginTop: 10,
+  fontSize: 16,
+},
+
+imageViewerHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingTop: 50,
+  paddingHorizontal: 15,
+  paddingBottom: 15,
+  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  borderBottomWidth: 1,
+  borderBottomColor: '#333',
+},
+
+imageViewerTitle: {
+  color: 'white',
+  fontSize: 18,
+  fontWeight: 'bold',
+  flex: 1,
+  textAlign: 'center',
+},
+
+toggleButton: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+toggleButtonText: {
+  fontSize: 20,
+  color: 'white',
+},
+
+fullBoundingBox: {
+  position: 'absolute',
+  borderWidth: 2,
+  borderRadius: 4,
+  zIndex: 5,
+},
+
+fullLabelBox: {
+  position: 'absolute',
+  top: -25,
+  left: 0,
+  paddingHorizontal: 6,
+  paddingVertical: 3,
+  borderRadius: 4,
+  minWidth: 100,
+  maxWidth: 180,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.8,
+  shadowRadius: 3,
+  elevation: 5,
+},
+
+fullLabelText: {
+  color: 'white',
+  fontSize: 10,
+  fontWeight: 'bold',
+  textAlign: 'center',
+},
+
+imageViewerFooter: {
+  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  padding: 15,
+  borderTopWidth: 1,
+  borderTopColor: '#333',
+},
+
+imageViewerInfo: {
+  color: 'white',
+  fontSize: 14,
+  textAlign: 'center',
+  marginBottom: 10,
+},
+
+detectionSummary: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  flexWrap: 'wrap',
+  gap: 15,
+  marginBottom: 15,
+},
+
+categoryCount: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+},
+
+categoryDot: {
+  width: 12,
+  height: 12,
+  borderRadius: 6,
+},
+
+categoryText: {
+  color: 'white',
+  fontSize: 12,
+  fontWeight: '500',
+},
+
+imageViewerActions: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  gap: 15,
+},
+
+detectionsButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 25,
+  gap: 8,
+},
+
+detectionsButtonText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: 'white',
+},
+
+// Update existing modal styles
+modalContent: {
+  backgroundColor: 'white',
+  borderRadius: 16,
+  width: '90%',
+  maxHeight: '85%',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 10,
+},
+
+detailImage: {
+  width: '100%',
+  height: 200,
+  borderRadius: 8,
+},
+
+// Update object item styles for better display
+objectItem: {
+  backgroundColor: '#F8F9FA',
+  padding: 12,
+  borderRadius: 8,
+  marginBottom: 8,
+  borderLeftWidth: 4,
+},
 });

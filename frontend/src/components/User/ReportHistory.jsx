@@ -1,4 +1,3 @@
-// components/User/ReportHistory.js
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -23,7 +22,7 @@ import {
 } from '../../redux/slices/wasteReportSlice';
 import { styles } from "../../components/Styles/ReportHistory";
 
-const { width: screenWidth } = Dimensions.get("window");
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const ReportHistory = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
@@ -33,6 +32,12 @@ const ReportHistory = ({ navigation }) => {
   const [reportToDelete, setReportToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [selectedImageDetections, setSelectedImageDetections] = useState([]);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [showDetections, setShowDetections] = useState(true);
+  const [imageLoading, setImageLoading] = useState(false);
 
   const dispatch = useDispatch();
   const { 
@@ -76,7 +81,7 @@ const ReportHistory = ({ navigation }) => {
     try {
       await dispatch(getUserReports({ page, limit: 10 })).unwrap();
       setCurrentPage(page);
-      setHasMore(pagination.hasNext);
+      setHasMore(pagination?.hasNext || false);
     } catch (error) {
       console.error('Failed to load reports:', error);
     }
@@ -114,6 +119,25 @@ const ReportHistory = ({ navigation }) => {
     }
   };
 
+  const openImageViewer = (imageUri, detections) => {
+    setSelectedImageUri(imageUri);
+    setSelectedImageDetections(detections || []);
+    setImageLoading(true);
+    setImageViewerVisible(true);
+  };
+
+  const closeImageViewer = () => {
+    setImageViewerVisible(false);
+    setSelectedImageUri(null);
+    setSelectedImageDetections([]);
+    setImageSize({ width: 0, height: 0 });
+    setImageLoading(false);
+  };
+
+  const toggleDetections = () => {
+    setShowDetections(!showDetections);
+  };
+
   const getStatusColor = (status) => {
     const colors = {
       'pending': '#FFA500',
@@ -127,17 +151,44 @@ const ReportHistory = ({ navigation }) => {
 
   const getClassificationColor = (classification) => {
     const colors = {
+      "Recyclable": "#2E8B57",
+      "Special Waste": "#8B0000",
       "Recycling": "#2E8B57",
       "Organic": "#FF8C00",
       "General": "#DC143C",
       "Hazardous": "#8B0000",
       "Unknown": "#696969",
       "recyclable": "#2E8B57",
+      "special_waste": "#8B0000",
       "organic": "#FF8C00",
       "general_waste": "#DC143C",
       "hazardous": "#8B0000"
     };
     return colors[classification] || colors["Unknown"];
+  };
+
+  const getCategoryColor = (category) => {
+    switch(category) {
+      case 'Special Waste':
+      case 'Hazardous':
+        return '#FF6B6B';
+      case 'Recyclable':
+        return '#4CAF50';
+      default:
+        return '#87CEEB';
+    }
+  };
+
+  const getCategoryIcon = (category) => {
+    switch(category) {
+      case 'Special Waste':
+      case 'Hazardous':
+        return '⚠️';
+      case 'Recyclable':
+        return '✅';
+      default:
+        return '❓';
+    }
   };
 
   const formatDate = (dateString) => {
@@ -156,6 +207,50 @@ const ReportHistory = ({ navigation }) => {
       return value <= 1 ? `${Math.round(value * 100)}%` : `${Math.round(value)}%`;
     }
     return `${value}`;
+  };
+
+  // Function to render detection boxes for full screen image viewer
+  const renderImageDetections = () => {
+    if (!showDetections || !selectedImageDetections.length || imageSize.width === 0 || imageSize.height === 0) {
+      return null;
+    }
+
+    return selectedImageDetections.map((item, index) => {
+      if (!item.box || !item.box.length) return null;
+      
+      const [x1, y1, x2, y2] = item.box;
+      
+      const left = x1 * imageSize.width;
+      const top = y1 * imageSize.height;
+      const width = (x2 - x1) * imageSize.width;
+      const height = (y2 - y1) * imageSize.height;
+      
+      const categoryColor = getCategoryColor(item.category || item.label);
+
+      return (
+        <View
+          key={index}
+          style={[
+            styles.fullBoundingBox,
+            {
+              position: 'absolute',
+              left,
+              top,
+              width,
+              height,
+              borderColor: categoryColor,
+              borderWidth: 2,
+            }
+          ]}
+        >
+          <View style={[styles.fullLabelBox, { backgroundColor: categoryColor }]}>
+            <Text style={styles.fullLabelText} numberOfLines={1}>
+              {getCategoryIcon(item.category || item.label)} {item.label} ({formatConfidence(item.confidence)})
+            </Text>
+          </View>
+        </View>
+      );
+    });
   };
 
   const renderReportItem = ({ item }) => (
@@ -181,19 +276,28 @@ const ReportHistory = ({ navigation }) => {
       {/* Image and Basic Info */}
       <View style={styles.cardContent}>
         {item.image && (
-          <Image 
-            source={{ uri: item.image }} 
-            style={styles.reportImage}
-            resizeMode="cover"
-          />
+          <TouchableOpacity 
+            style={styles.imageContainer}
+            onPress={() => openImageViewer(item.image, item.detected_objects)}
+            activeOpacity={0.8}
+          >
+            <Image 
+              source={{ uri: item.image }} 
+              style={styles.reportImage}
+              resizeMode="cover"
+            />
+            <View style={styles.imageOverlay}>
+              <Text style={styles.overlayText}>Tap to view with detections</Text>
+            </View>
+          </TouchableOpacity>
         )}
         <View style={styles.reportInfo}>
-          <Text style={styles.dateText}>{formatDate(item.scanDate)}</Text>
+          <Text style={styles.dateText}>{formatDate(item.scan_date || item.scanDate)}</Text>
           <Text style={styles.confidenceText}>
-            Confidence: {formatConfidence(item.classificationConfidence)}
+            Confidence: {formatConfidence(item.classification_confidence || item.classificationConfidence)}
           </Text>
           <Text style={styles.objectsText}>
-            Objects detected: {item.detectedObjects?.length || 0}
+            Objects detected: {(item.detected_objects || item.detectedObjects || []).length}
           </Text>
           {item.location?.address && (
             <Text style={styles.locationText} numberOfLines={1}>
@@ -281,6 +385,131 @@ const ReportHistory = ({ navigation }) => {
         </View>
       )}
 
+      {/* Image Viewer Modal */}
+      <Modal
+        animationType="fade"
+        transparent={false}
+        visible={imageViewerVisible}
+        onRequestClose={closeImageViewer}
+      >
+        <View style={styles.fullImageContainer}>
+          {/* Header with Controls */}
+          <View style={styles.imageViewerHeader}>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={closeImageViewer}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.imageViewerTitle}>
+              Historical Image
+            </Text>
+            
+            {selectedImageDetections.length > 0 && (
+              <TouchableOpacity 
+                style={styles.toggleButton}
+                onPress={toggleDetections}
+              >
+                <Text style={styles.toggleButtonText}>
+                  {showDetections ? "👁️" : "👁️‍🗨️"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Full Screen Image with Detections */}
+          <View style={styles.fullImageWrapper}>
+            {imageLoading && (
+              <View style={styles.imageLoadingContainer}>
+                <ActivityIndicator size="large" color="#0077b6" />
+                <Text style={styles.imageLoadingText}>Loading image...</Text>
+              </View>
+            )}
+            
+            {selectedImageUri && (
+              <Image
+                source={{ uri: selectedImageUri }}
+                style={styles.fullImage}
+                resizeMode="contain"
+                onLoadStart={() => setImageLoading(true)}
+                onLoad={(event) => {
+                  setImageLoading(false);
+                  const { width, height } = event.nativeEvent.source;
+                  
+                  const imageAspectRatio = width / height;
+                  let displayWidth = screenWidth;
+                  let displayHeight = screenWidth / imageAspectRatio;
+                  
+                  if (displayHeight > screenHeight - 150) {
+                    displayHeight = screenHeight - 150;
+                    displayWidth = displayHeight * imageAspectRatio;
+                  }
+                  
+                  setImageSize({
+                    width: displayWidth,
+                    height: displayHeight
+                  });
+                }}
+                onError={(error) => {
+                  console.error('Error loading image:', error);
+                  setImageLoading(false);
+                  Alert.alert(
+                    "Image Error",
+                    "Failed to load image. Please try again.",
+                    [{ text: "OK", onPress: closeImageViewer }]
+                  );
+                }}
+              />
+            )}
+            
+            {/* Detection Overlays */}
+            {!imageLoading && renderImageDetections()}
+          </View>
+          
+          {/* Image Info Footer */}
+          <View style={styles.imageViewerFooter}>
+            <Text style={styles.imageViewerInfo}>
+              Historical Waste Scan
+              {selectedImageDetections.length > 0 && ` • ${selectedImageDetections.length} objects detected`}
+              {selectedImageDetections.length > 0 && ` • ${showDetections ? "Detections ON" : "Detections OFF"}`}
+            </Text>
+            
+            {/* Detection Summary */}
+            {selectedImageDetections.length > 0 && (
+              <View style={styles.detectionSummary}>
+                <View style={styles.categoryCount}>
+                  <View style={[styles.categoryDot, { backgroundColor: '#4CAF50' }]} />
+                  <Text style={styles.categoryText}>
+                    Recyclable: {selectedImageDetections.filter(d => d.category === 'Recyclable' || d.label?.toLowerCase().includes('plastic') || d.label?.toLowerCase().includes('paper')).length}
+                  </Text>
+                </View>
+                <View style={styles.categoryCount}>
+                  <View style={[styles.categoryDot, { backgroundColor: '#FF6B6B' }]} />
+                  <Text style={styles.categoryText}>
+                    Special Waste: {selectedImageDetections.filter(d => d.category === 'Special Waste' || d.label?.toLowerCase().includes('battery') || d.label?.toLowerCase().includes('bulb') || d.label?.toLowerCase().includes('medical')).length}
+                  </Text>
+                </View>
+              </View>
+            )}
+            
+            {/* Action Buttons */}
+            <View style={styles.imageViewerActions}>
+              {selectedImageDetections.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.detectionsButton}
+                  onPress={toggleDetections}
+                >
+                  <Text style={styles.detectionsButtonText}>
+                    {showDetections ? "Hide Detections" : "Show Detections"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Report Detail Modal */}
       <Modal
         animationType="slide"
@@ -303,13 +532,22 @@ const ReportHistory = ({ navigation }) => {
                 </View>
 
                 <ScrollView style={styles.modalBody}>
-                  {/* Image */}
+                  {/* Image with clickable option */}
                   {selectedReport.image && (
-                    <Image 
-                      source={{ uri: selectedReport.image }} 
-                      style={styles.detailImage}
-                      resizeMode="cover"
-                    />
+                    <TouchableOpacity 
+                      style={styles.imageContainerDetail}
+                      onPress={() => openImageViewer(selectedReport.image, selectedReport.detected_objects || selectedReport.detectedObjects)}
+                      activeOpacity={0.8}
+                    >
+                      <Image 
+                        source={{ uri: selectedReport.image }} 
+                        style={styles.detailImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.imageOverlayDetail}>
+                        <Text style={styles.overlayTextDetail}>Tap to view full image with detections</Text>
+                      </View>
+                    </TouchableOpacity>
                   )}
 
                   {/* Classification */}
@@ -323,7 +561,7 @@ const ReportHistory = ({ navigation }) => {
                         {selectedReport.classification}
                       </Text>
                       <Text style={styles.confidenceTextLarge}>
-                        Confidence: {formatConfidence(selectedReport.classificationConfidence)}
+                        Confidence: {formatConfidence(selectedReport.classification_confidence || selectedReport.classificationConfidence)}
                       </Text>
                     </View>
                   </View>
@@ -340,16 +578,22 @@ const ReportHistory = ({ navigation }) => {
                   </View>
 
                   {/* Detected Objects */}
-                  {selectedReport.detectedObjects && selectedReport.detectedObjects.length > 0 && (
+                  {(selectedReport.detected_objects || selectedReport.detectedObjects)?.length > 0 && (
                     <View style={styles.detailSection}>
                       <Text style={styles.detailSectionTitle}>
-                        Detected Objects ({selectedReport.detectedObjects.length})
+                        Detected Objects ({(selectedReport.detected_objects || selectedReport.detectedObjects).length})
                       </Text>
-                      {selectedReport.detectedObjects.map((obj, index) => (
-                        <View key={index} style={styles.objectItem}>
-                          <Text style={styles.objectLabel}>{obj.label}</Text>
+                      {(selectedReport.detected_objects || selectedReport.detectedObjects).map((obj, index) => (
+                        <View key={index} style={[
+                          styles.objectItem,
+                          { borderLeftColor: getCategoryColor(obj.category || obj.label), borderLeftWidth: 4 }
+                        ]}>
+                          <Text style={styles.objectLabel}>
+                            {getCategoryIcon(obj.category || obj.label)} {obj.label}
+                          </Text>
                           <Text style={styles.objectDetails}>
                             Confidence: {formatConfidence(obj.confidence)} • Material: {obj.material || 'Unknown'}
+                            {obj.category && ` • Category: ${obj.category}`}
                           </Text>
                         </View>
                       ))}
@@ -372,10 +616,10 @@ const ReportHistory = ({ navigation }) => {
                   )}
 
                   {/* Recycling Tips */}
-                  {selectedReport.recyclingTips && selectedReport.recyclingTips.length > 0 && (
+                  {selectedReport.recycling_tips?.length > 0 && (
                     <View style={styles.detailSection}>
                       <Text style={styles.detailSectionTitle}>Recycling Tips</Text>
-                      {selectedReport.recyclingTips.map((tip, index) => (
+                      {selectedReport.recycling_tips.map((tip, index) => (
                         <View key={index} style={styles.tipItem}>
                           <Text style={styles.tipText}>• {tip}</Text>
                         </View>
@@ -387,7 +631,7 @@ const ReportHistory = ({ navigation }) => {
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Scan Date</Text>
                     <Text style={styles.dateTextDetail}>
-                      {formatDate(selectedReport.scanDate)}
+                      {formatDate(selectedReport.scan_date || selectedReport.scanDate)}
                     </Text>
                   </View>
 

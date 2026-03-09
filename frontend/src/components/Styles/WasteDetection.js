@@ -616,4 +616,138 @@ export const styles = StyleSheet.create({
   paddingMedium: {
     padding: 12,
   },
+
+   imageContainer: {
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f5',
+    marginBottom: 10,
+  },
+  
+  imageOverlay: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  
+  overlayText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  
+  imageInfoContainer: {
+    backgroundColor: '#E3F2FD',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 5,
+  },
+  
+  imageInfoText: {
+    color: '#1976D2',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  
+  // Full Image Viewer Styles
+  fullImageContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  
+  imageViewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 15,
+    paddingBottom: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  imageViewerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  
+  fullImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  
+  imageViewerFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 20,
+    paddingBottom: 30,
+  },
+  
+  imageViewerInfo: {
+    color: 'white',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  
+  imageViewerActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+  },
+  
+  cloudinaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 25,
+    gap: 8,
+  },
+  
+  cloudinaryButtonText: {
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 25,
+    gap: 8,
+  },
+  
+  shareButtonText: {
+    color: '#87CEEB',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  
+
 });

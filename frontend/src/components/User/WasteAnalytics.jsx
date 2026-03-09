@@ -19,7 +19,7 @@ const WasteAnalytics = ({ navigation }) => {
   const dispatch = useDispatch();
   const { reports, loading } = useSelector((state) => state.wasteReport);
   const [refreshing, setRefreshing] = useState(false);
-  const [timeRange, setTimeRange] = useState('all'); // 'week', 'month', 'year', 'all'
+  const [timeRange, setTimeRange] = useState('all'); 
   const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
