@@ -11,6 +11,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const wasteReportRoutes = require('./routes/wasteReportRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const classifyRoutes = require('./routes/classifyRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +36,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/waste-reports', wasteReportRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admins', adminRoutes);
+app.use('/api/classify', classifyRoutes);
 
 // In-memory online users storage
 const onlineUsers = {}; // { userId: socketId }

@@ -48,7 +48,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-vision-camera"
     ],
     "experiments": {
       "typedRoutes": true

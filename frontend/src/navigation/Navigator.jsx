@@ -18,6 +18,8 @@
   import ChatScreen from '../components/User/ChatScreen';
   import Learning from '../components/User/Learning';
   import WasteAnalytics from '../components/User/WasteAnalytics';
+  import WasteClassifier from '../components/User/WasteClassifier';
+  import LiveWasteDetector from '../components/User/LiveWasteDetector';
 
   const Stack = createStackNavigator();
 
@@ -52,6 +54,8 @@
           <Stack.Screen name="ChatScreen" component={ChatScreen} />
           <Stack.Screen name="Learning" component={Learning} />
           <Stack.Screen name="WasteAnalytics" component={WasteAnalytics} />
+          <Stack.Screen name="WasteClassifier" component={WasteClassifier} />
+          <Stack.Screen name="LiveWasteDetector" component={LiveWasteDetector} />
 
         </Stack.Navigator>
       </Provider>

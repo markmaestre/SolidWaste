@@ -256,7 +256,7 @@ const UserDashboard = () => {
           navigation.navigate('FeedbackSupport');
           break;
         case 'WasteDetection':
-          navigation.navigate('WasteDetection');
+          navigation.navigate('WasteClassifier');
           break;
         case 'ReportHistory':
           navigation.navigate('ReportHistory');
@@ -414,7 +414,7 @@ const UserDashboard = () => {
                   title="Waste Detection"
                   count={`${user?.pendingDetections || '0'} new`}
                   color="#4CAF50"
-                  onPress={() => navigateTo('WasteDetection')}
+                  onPress={() => navigateTo('WasteClassifier')}
                 />
                 <QuickActionCard
                   icon="report"

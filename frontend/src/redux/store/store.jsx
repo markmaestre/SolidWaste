@@ -3,6 +3,7 @@ import authReducer from "../slices/authSlice";
 import wasteReportReducer from "../slices/wasteReportSlice";
 import notificationReducer from "../slices/notificationSlice";
 import messageReducer from "../slices/messageSlice";
+import classifyReducer from "../slices/classifySlice";
 
 
 export default configureStore({
@@ -10,7 +11,8 @@ export default configureStore({
     auth: authReducer,
     wasteReport: wasteReportReducer,
     notification: notificationReducer,
-    message: messageReducer
+    message: messageReducer,
+    classify: classifyReducer,
     
   },
 });

@@ -1,0 +1,11 @@
+Battery
+Bottle
+Bulb
+Can
+Carton
+Cup
+Glass Bottle
+Organic
+Paper
+Plastic
+Plastic Bottle

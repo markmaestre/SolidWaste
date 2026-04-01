@@ -101,7 +101,7 @@ const HomeScreen = ({ navigation }) => {
             {/* Hero Banner */}
             <View style={styles.heroBanner}>
               <View style={styles.heroContent}>
-                <Text style={styles.heroTitle}>Smart Waste Management Solutions</Text>
+                <Text style={styles.heroTitle}>Solid Waste Management Solutions</Text>
                 <Text style={styles.heroSubtitle}>
                   Revolutionizing waste classification with advanced AI technology for a sustainable future
                 </Text>
@@ -124,27 +124,9 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Stats Section */}
+           
             <View style={styles.section}>
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>99%</Text>
-                  <Text style={styles.statLabel}>Classification Accuracy</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>24/7</Text>
-                  <Text style={styles.statLabel}>Technical Support</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>10K+</Text>
-                  <Text style={styles.statLabel}>Active Users</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Features Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Why Choose WasteWise</Text>
+              <Text style={styles.sectionTitle}>Why Choose SolidWaste</Text>
               
               <View style={styles.featureCard}>
                 <Text style={styles.featureTitle}>AI-Powered Classification</Text>
@@ -172,7 +154,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.ctaSection}>
               <Text style={styles.ctaTitle}>Ready to Transform Your Waste Management?</Text>
               <Text style={styles.ctaText}>
-                Join leading organizations using WasteWise for intelligent waste classification and sustainable operations
+                Join leading organizations using SolidWaste for intelligent waste classification and sustainable operations
               </Text>
               <TouchableOpacity
                 style={styles.ctaButton}
@@ -193,12 +175,12 @@ const HomeScreen = ({ navigation }) => {
 
         {activeTab === 'about' && (
           <View style={styles.section}>
-            <Text style={styles.pageTitle}>About WasteWise</Text>
+            <Text style={styles.pageTitle}>About Solid Waste</Text>
             
             <View style={styles.contentBlock}>
               <Text style={styles.contentTitle}>Our Mission</Text>
               <Text style={styles.contentText}>
-                WasteWise is dedicated to revolutionizing waste management through cutting-edge artificial intelligence and data-driven insights. Our mission is to empower organizations and communities with the tools they need to achieve sustainable waste management practices and contribute to a cleaner environment.
+                SolidWaste is dedicated to revolutionizing waste management through cutting-edge artificial intelligence and data-driven insights. Our mission is to empower organizations and communities with the tools they need to achieve sustainable waste management practices and contribute to a cleaner environment.
               </Text>
             </View>
 
@@ -216,16 +198,7 @@ const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
 
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>1M+</Text>
-                <Text style={styles.statLabel}>Items Classified</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>500+</Text>
-                <Text style={styles.statLabel}>Partner Organizations</Text>
-              </View>
-            </View>
+        
 
             <View style={styles.contentBlock}>
               <Text style={styles.contentTitle}>Core Capabilities</Text>
@@ -326,7 +299,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.contentBlock}>
               <Text style={styles.contentTitle}>Get in Touch</Text>
               <Text style={styles.contentText}>
-                Our team is ready to assist you with any questions about our platform, services, or how WasteWise can support your sustainability goals. Reach out through any of the channels below.
+                Our team is ready to assist you with any questions about our platform, services, or how SolidWaste can support your sustainability goals. Reach out through any of the channels below.
               </Text>
             </View>
 
@@ -399,35 +372,7 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.contactGrid}>
-              <View style={styles.contactCard}>
-                <Text style={styles.contactCardTitle}>Corporate Office</Text>
-                <Text style={styles.contactCardText}>WasteWise Philippines Inc.</Text>
-                <Text style={styles.contactCardText}>123 Innovation Drive</Text>
-                <Text style={styles.contactCardText}>Quezon City, Metro Manila</Text>
-                <Text style={styles.contactCardText}>Philippines 1100</Text>
-              </View>
-
-              <View style={styles.contactCard}>
-                <Text style={styles.contactCardTitle}>Contact Information</Text>
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Phone:</Text>
-                  <Text style={styles.contactValue}>+63 2 8123 4567</Text>
-                </View>
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Mobile:</Text>
-                  <Text style={styles.contactValue}>+63 917 123 4567</Text>
-                </View>
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Email:</Text>
-                  <Text style={styles.contactValue}>info@wastewise.ph</Text>
-                </View>
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Support:</Text>
-                  <Text style={styles.contactValue}>support@wastewise.ph</Text>
-                </View>
-              </View>
-            </View>
+     
 
             <View style={styles.contentBlock}>
               <Text style={styles.contentTitle}>Business Hours</Text>
@@ -447,27 +392,8 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
 
-            <View style={styles.contentBlock}>
-              <Text style={styles.contentTitle}>Departments</Text>
-              <View style={styles.departmentList}>
-                <View style={styles.departmentItem}>
-                  <Text style={styles.departmentName}>Technical Support</Text>
-                  <Text style={styles.departmentExt}>Ext. 101</Text>
-                </View>
-                <View style={styles.departmentItem}>
-                  <Text style={styles.departmentName}>Customer Success</Text>
-                  <Text style={styles.departmentExt}>Ext. 102</Text>
-                </View>
-                <View style={styles.departmentItem}>
-                  <Text style={styles.departmentName}>Sales & Partnerships</Text>
-                  <Text style={styles.departmentExt}>Ext. 103</Text>
-                </View>
-                <View style={[styles.departmentItem, styles.departmentItemLast]}>
-                  <Text style={styles.departmentName}>Enterprise Solutions</Text>
-                  <Text style={styles.departmentExt}>Ext. 104</Text>
-                </View>
-              </View>
-            </View>
+          
+              
           </View>
         )}
 
@@ -506,7 +432,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
           <View style={styles.footerBottom}>
-            <Text style={styles.footerCopyright}>© 2025 WasteWise Philippines Inc. All rights reserved.</Text>
+            <Text style={styles.footerCopyright}>© 2025 SolidWaste Philippines Inc. All rights reserved.</Text>
           </View>
         </View>
       </ScrollView>
