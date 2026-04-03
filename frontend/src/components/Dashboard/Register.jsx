@@ -1,329 +1,207 @@
-import React, { useState, useRef } from 'react';
-import { 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  Text, 
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  Modal,
-  Animated,
-  Easing,
-  Image,
-  PanResponder
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View, TextInput, TouchableOpacity, StyleSheet, Alert,
+  Text, Dimensions, KeyboardAvoidingView, Platform,
+  ScrollView, StatusBar, Modal, Animated, Easing,
+  Image, PanResponder,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, checkEmail } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+const C = {
+  ink:      '#071B2E',
+  navy:     '#0A2540',
+  navyMid:  '#103559',
+  teal:     '#00C9A7',
+  tealDark: '#009E84',
+  tealDim:  'rgba(0,201,167,0.13)',
+  tealGlow: 'rgba(0,201,167,0.22)',
+  tealLine: 'rgba(0,201,167,0.35)',
+  white:    '#FFFFFF',
+  borderDk: 'rgba(255,255,255,0.09)',
+  border:   '#D8E4EE',
+  slate:    '#4E6B87',
+  slateL:   '#8BA5BC',
+  ghost:    'rgba(255,255,255,0.55)',
+  green:    '#22C55E',
+  red:      '#EF4444',
+};
+
+// ── Fade-in animation ─────────────────────────────────────────────────────────
+const FadeIn = ({ children, delay = 0 }) => {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 420, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 const Register = () => {
   const [form, setForm] = useState({
-    username: '',
-    email: '',
-    password: '',
-    bod: '',
-    gender: '',
-    address: '',
-    role: 'user'
+    username: '', email: '', password: '',
+    bod: '', gender: '', address: '', role: 'user',
   });
-  
-  const [focusedField, setFocusedField] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [focusedField, setFocusedField]       = useState(null);
+  const [showDatePicker, setShowDatePicker]   = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [emailError, setEmailError] = useState('');
+  const [selectedDate, setSelectedDate]       = useState(new Date());
+  const [emailError, setEmailError]           = useState('');
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [isVerified, setIsVerified]           = useState(false);
+  const [captchaLoading, setCaptchaLoading]   = useState(false);
   const [validationMessage, setValidationMessage] = useState('Slide to verify');
-  const [fieldErrors, setFieldErrors] = useState({
-    username: '',
-    email: '',
-    password: '',
-    bod: '',
-    gender: '',
-    address: ''
+  const [showPassword, setShowPassword]       = useState(false);
+  const [fieldErrors, setFieldErrors]         = useState({
+    username: '', email: '', password: '', bod: '', gender: '', address: '',
   });
-  
-  const dispatch = useDispatch();
+
+  const dispatch   = useDispatch();
   const navigation = useNavigation();
-  const { loading, error } = useSelector(state => state.auth);
+  const { loading, error } = useSelector((s) => s.auth);
 
-  // Animation values
-  const checkmarkScale = useRef(new Animated.Value(0)).current;
-  const sliderWidth = useRef(new Animated.Value(0)).current;
-  const sliderPosition = useRef(new Animated.Value(0)).current;
-  const iconOpacity = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // ── Slider refs ──────────────────────────────────────────────────────────────
+  const checkmarkScale  = useRef(new Animated.Value(0)).current;
+  const sliderWidth     = useRef(new Animated.Value(0)).current;
+  const sliderPosition  = useRef(new Animated.Value(0)).current;
+  const iconOpacity     = useRef(new Animated.Value(1)).current;
 
-  // Slider validation
-  const SLIDER_MIN_VALID_POSITION = width * 0.6;
-  const sliderMaxPosition = width - 120;
+  const SLIDER_MIN_VALID = width * 0.55;
+  const sliderMax        = width - 144;
 
-  React.useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+  const resetSlider = () => {
+    Animated.parallel([
+      Animated.timing(sliderPosition, { toValue: 0, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+      Animated.timing(sliderWidth,    { toValue: 0, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+      Animated.timing(iconOpacity,    { toValue: 1, duration: 300, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleCaptchaSuccess = () => {
+    setCaptchaLoading(true);
+    setValidationMessage('Verifying…');
+    Animated.timing(sliderWidth, {
+      toValue: 1, duration: 500, easing: Easing.out(Easing.ease), useNativeDriver: false,
+    }).start(() => {
+      Animated.spring(checkmarkScale, { toValue: 1, friction: 3, useNativeDriver: true }).start(() => {
+        setCaptchaLoading(false);
+        setIsVerified(true);
+        setValidationMessage('Verification complete!');
+      });
+    });
+  };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (evt, gestureState) => {
-        const newX = Math.max(0, Math.min(gestureState.dx, sliderMaxPosition));
-        
-        sliderPosition.setValue(newX);
-        sliderWidth.setValue(newX / sliderMaxPosition);
-        
-        const progress = (newX / sliderMaxPosition) * 100;
-        if (progress < 30) {
-          setValidationMessage('Slide to verify');
-        } else if (progress < 60) {
-          setValidationMessage('Keep going...');
-        } else if (progress < 80) {
-          setValidationMessage('Almost there...');
-        } else {
-          setValidationMessage('Release to verify');
-        }
-        
-        if (newX > 10) {
-          iconOpacity.setValue(0);
-        }
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderMove: (_, g) => {
+        const x = Math.max(0, Math.min(g.dx, sliderMax));
+        sliderPosition.setValue(x);
+        sliderWidth.setValue(x / sliderMax);
+        const pct = (x / sliderMax) * 100;
+        setValidationMessage(
+          pct < 30 ? 'Slide to verify' :
+          pct < 60 ? 'Keep going…'    :
+          pct < 80 ? 'Almost there…'  : 'Release to verify'
+        );
+        if (x > 10) iconOpacity.setValue(0);
       },
-      onPanResponderRelease: (evt, gestureState) => {
-        const finalX = gestureState.dx;
-        
-        if (finalX >= SLIDER_MIN_VALID_POSITION) {
-          handleCaptchaSuccess();
-        } else {
-          resetSlider();
-          setValidationMessage('Slide further to verify');
-        }
+      onPanResponderRelease: (_, g) => {
+        if (g.dx >= SLIDER_MIN_VALID) handleCaptchaSuccess();
+        else { resetSlider(); setValidationMessage('Slide further to verify'); }
       },
     })
   ).current;
 
-  const resetSlider = () => {
-    Animated.parallel([
-      Animated.timing(sliderPosition, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
-      }),
-      Animated.timing(sliderWidth, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
-      }),
-      Animated.timing(iconOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      })
-    ]).start();
-  };
+  // ── Validation ───────────────────────────────────────────────────────────────
+  const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   const validateField = (field, value) => {
-    let error = '';
-    
+    let err = '';
     switch (field) {
-      case 'username':
-        if (!value.trim()) {
-          error = 'Full name is required';
-        } else if (value.trim().length < 2) {
-          error = 'Full name must be at least 2 characters';
-        }
-        break;
-        
-      case 'email':
-        if (!value.trim()) {
-          error = 'Email is required';
-        } else if (!validateEmail(value)) {
-          error = 'Please enter a valid email address';
-        }
-        break;
-        
-      case 'password':
-        if (!value) {
-          error = 'Password is required';
-        } else if (value.length < 6) {
-          error = 'Password must be at least 6 characters';
-        }
-        break;
-        
-      case 'bod':
-        if (!value) {
-          error = 'Date of birth is required';
-        }
-        break;
-        
-      case 'gender':
-        if (!value) {
-          error = 'Gender is required';
-        }
-        break;
-        
-      case 'address':
-        if (!value.trim()) {
-          error = 'Address is required';
-        } else if (value.trim().length < 10) {
-          error = 'Please enter a complete address';
-        }
-        break;
-        
-      default:
-        break;
+      case 'username': if (!value.trim()) err = 'Full name is required'; else if (value.trim().length < 2) err = 'At least 2 characters'; break;
+      case 'email':    if (!value.trim()) err = 'Email is required'; else if (!validateEmail(value)) err = 'Please enter a valid email'; break;
+      case 'password': if (!value) err = 'Password is required'; else if (value.length < 6) err = 'At least 6 characters'; break;
+      case 'bod':      if (!value) err = 'Date of birth is required'; break;
+      case 'gender':   if (!value) err = 'Gender is required'; break;
+      case 'address':  if (!value.trim()) err = 'Address is required'; else if (value.trim().length < 10) err = 'Please enter a complete address'; break;
     }
-    
-    setFieldErrors(prev => ({
-      ...prev,
-      [field]: error
-    }));
-    
-    return !error;
+    setFieldErrors((p) => ({ ...p, [field]: err }));
+    return !err;
   };
+
+  const validateAll = () =>
+    ['username','email','password','bod','gender','address']
+      .map((f) => validateField(f, form[f])).every(Boolean);
 
   const handleChange = (field, value) => {
-    setForm({ ...form, [field]: value });
-    
-    // Clear error when user starts typing
-    if (fieldErrors[field]) {
-      setFieldErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
-    }
-    
-    if (field === 'email' && emailError) {
-      setEmailError('');
-    }
-  };
-
-  const handleBlur = (field, value) => {
-    setFocusedField(null);
-    validateField(field, value);
-    
-    if (field === 'email' && value) {
-      checkEmailAvailability(value);
-    }
-  };
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    setForm((p) => ({ ...p, [field]: value }));
+    if (fieldErrors[field]) setFieldErrors((p) => ({ ...p, [field]: '' }));
+    if (field === 'email' && emailError) setEmailError('');
   };
 
   const checkEmailAvailability = async (email) => {
-    if (!validateEmail(email)) {
-      setEmailError('Please enter a valid email address');
-      return false;
-    }
-    
+    if (!validateEmail(email)) { setEmailError('Please enter a valid email'); return false; }
     setIsCheckingEmail(true);
     try {
       const result = await dispatch(checkEmail(email));
       if (result?.payload?.exists) {
-        setEmailError('This email is already registered. Please use a different email.');
-        setFieldErrors(prev => ({
-          ...prev,
-          email: 'This email is already registered'
-        }));
+        const msg = 'This email is already registered';
+        setEmailError(msg);
+        setFieldErrors((p) => ({ ...p, email: msg }));
         return false;
       }
       return true;
-    } catch (err) {
-      console.log('Email check error:', err);
-      setEmailError('Error checking email availability. Please try again.');
+    } catch (_) {
+      setEmailError('Error checking email. Please try again.');
       return false;
     } finally {
       setIsCheckingEmail(false);
     }
   };
 
-  const handleDateChange = (event, date) => {
+  const handleBlur = (field, value) => {
+    setFocusedField(null);
+    validateField(field, value);
+    if (field === 'email' && value) checkEmailAvailability(value);
+  };
+
+  // ── Date ─────────────────────────────────────────────────────────────────────
+  const handleDateChange = (_, date) => {
     setShowDatePicker(false);
     if (date) {
       setSelectedDate(date);
-      const formattedDate = date.toISOString().split('T')[0];
-      handleChange('bod', formattedDate);
-      validateField('bod', formattedDate);
+      const formatted = date.toISOString().split('T')[0];
+      handleChange('bod', formatted);
+      validateField('bod', formatted);
     }
   };
 
-  const formatDisplayDate = (dateString) => {
-    if (!dateString) return 'Select Birth Date';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
+  const formatDisplayDate = (d) => {
+    if (!d) return 'Select Birth Date';
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
-  const showGenderModal = () => {
-    setShowGenderPicker(true);
-  };
-
-  const hideGenderModal = () => {
-    setShowGenderPicker(false);
-  };
-
-  const selectGender = (value) => {
-    handleChange('gender', value);
-    validateField('gender', value);
-    setShowGenderPicker(false);
-  };
-
-  const getGenderDisplay = () => {
-    return form.gender || 'Select Gender';
-  };
-
-  const validateAllFields = () => {
-    const fields = ['username', 'email', 'password', 'bod', 'gender', 'address'];
-    let isValid = true;
-    
-    fields.forEach(field => {
-      if (!validateField(field, form[field])) {
-        isValid = false;
-      }
-    });
-    
-    return isValid;
-  };
-
+  // ── Register flow ────────────────────────────────────────────────────────────
   const handleRegisterClick = async () => {
-    // Validate all fields first
-    if (!validateAllFields()) {
-      Alert.alert('Incomplete Information', 'Please fill in all required fields correctly.');
-      return;
-    }
-
-    if (!validateEmail(form.email)) {
-      setEmailError('Please enter a valid email address');
-      return;
-    }
-
-    const isEmailAvailable = await checkEmailAvailability(form.email);
-    if (!isEmailAvailable) {
-      return;
-    }
-
+    if (!validateAll()) { Alert.alert('Incomplete', 'Please fill in all required fields correctly.'); return; }
+    if (!validateEmail(form.email)) { setEmailError('Please enter a valid email'); return; }
+    const ok = await checkEmailAvailability(form.email);
+    if (!ok) return;
     setShowVerificationModal(true);
     resetCaptcha();
   };
@@ -335,370 +213,263 @@ const Register = () => {
     checkmarkScale.setValue(0);
   };
 
-  const handleCaptchaSuccess = () => {
-    setCaptchaLoading(true);
-    setValidationMessage('Verifying...');
-    
-    Animated.timing(sliderWidth, {
-      toValue: 1,
-      duration: 500,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: false,
-    }).start(() => {
-      Animated.spring(checkmarkScale, {
-        toValue: 1,
-        friction: 3,
-        useNativeDriver: true,
-      }).start(() => {
-        setCaptchaLoading(false);
-        setIsVerified(true);
-        setValidationMessage('Verification complete!');
-      });
-    });
-  };
-
   const handleVerificationSubmit = async () => {
-    if (!isVerified) {
-      Alert.alert('Verification Required', 'Please complete the human verification before creating your account.');
-      return;
-    }
-
+    if (!isVerified) { Alert.alert('Verification Required', 'Please complete the human verification.'); return; }
     try {
       const res = await dispatch(registerUser(form));
       if (res?.payload === 'User registered successfully') {
         setShowVerificationModal(false);
         Alert.alert(
-          'Registration Successful', 
-          'Your T.M.F.K. Waste Innovations account has been created successfully. Please login to continue.',
-          [
-            {
-              text: 'Continue to Login',
-              onPress: () => navigation.navigate('Login')
-            }
-          ]
+          'Registration Successful',
+          'Your account has been created. Please login to continue.',
+          [{ text: 'Continue to Login', onPress: () => navigation.navigate('Login') }]
         );
       } else {
         Alert.alert('Registration Failed', 'Please verify your information and try again.');
       }
-    } catch (err) {
-      console.log('Register Error:', err);
-      Alert.alert('Registration Error', 'An error occurred during registration. Please try again.');
+    } catch (_) {
+      Alert.alert('Error', 'An error occurred. Please try again.');
     }
-  };
-
-  const navigateToLogin = () => {
-    navigation.navigate('Login');
   };
 
   const genderOptions = [
-    { label: 'Male', value: 'Male', icon: 'male' },
-    { label: 'Female', value: 'Female', icon: 'female' },
-    { label: 'Other', value: 'Other', icon: 'transgender' },
-    { label: 'Prefer not to say', value: 'Prefer not to say', icon: 'visibility-off' }
+    { label: 'Male',             value: 'Male',             icon: 'male'   },
+    { label: 'Female',           value: 'Female',           icon: 'female' },
+    { label: 'Other',            value: 'Other',            icon: 'transgender' },
+    { label: 'Prefer not to say',value: 'Prefer not to say',icon: 'eye-off-outline' },
   ];
 
-  const getInputStyle = (field) => {
-    const hasError = fieldErrors[field];
-    const isFocused = focusedField === field;
-    
-    if (hasError) {
-      return [styles.input, styles.inputError];
-    }
-    if (isFocused) {
-      return [styles.input, styles.inputFocused];
-    }
-    return styles.input;
-  };
+  const inputStyle = (field) => [
+    s.input,
+    focusedField === field && s.inputFocused,
+    fieldErrors[field]    && s.inputError,
+  ];
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#0284C7" />
-      
-      <LinearGradient
-        colors={['#0284C7', '#38BDF8', '#BAE6FD']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <StatusBar barStyle="light-content" backgroundColor={C.ink} />
+
+      {/* Blobs */}
+      <View style={s.blob1} />
+      <View style={s.blob2} />
+
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Background Elements */}
-        <Animated.View style={[styles.floatingCircle1, { opacity: fadeAnim }]} />
-        <Animated.View style={[styles.floatingCircle2, { opacity: fadeAnim }]} />
-        
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header Section */}
-          <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-            <View style={styles.logoContainer}>
-              <View style={styles.logoBackground}>
-                <Image 
-                  source={require('../assets/T.M.F.K.png')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
-              </View>
+        {/* ── Header ── */}
+        <FadeIn delay={0}>
+          <View style={s.header}>
+            <View style={s.logoRing}>
+              <Image source={require('../assets/T.M.F.K.png')} style={s.logoImg} resizeMode="contain" />
             </View>
-            <Text style={styles.title}>Join T.M.F.K. Waste Innovations</Text>
-            <Text style={styles.subtitle}>Create your account and start your eco-friendly journey</Text>
-          </Animated.View>
+            <Text style={s.brandName}>T.M.F.K</Text>
+            <Text style={s.brandSub}>Waste Innovations</Text>
+          </View>
+        </FadeIn>
 
-          {/* Form Section */}
-          <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
-            <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>Create Account</Text>
-              <Text style={styles.formSubtitle}>Fill in all required fields</Text>
+        <FadeIn delay={60}>
+          <View style={s.badgeWrap}>
+            <View style={s.badge}>
+              <View style={s.badgeDot} />
+              <Text style={s.badgeText}>Create Account</Text>
             </View>
+          </View>
+        </FadeIn>
 
-            {/* Form Fields */}
-            <View style={styles.formFields}>
-              {/* Full Name */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Icon name="person" size={16} color="#475569" />
-                  <Text style={styles.inputLabel}>FULL NAME *</Text>
-                </View>
-                <TextInput
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#94A3B8"
-                  style={getInputStyle('username')}
-                  value={form.username}
-                  onChangeText={(val) => handleChange('username', val)}
-                  onFocus={() => setFocusedField('username')}
-                  onBlur={() => handleBlur('username', form.username)}
-                  autoCapitalize="words"
-                />
-                {fieldErrors.username ? (
-                  <View style={styles.errorContainer}>
-                    <Icon name="error" size={14} color="#DC2626" />
-                    <Text style={styles.errorText}>{fieldErrors.username}</Text>
-                  </View>
-                ) : null}
-              </View>
+        {/* ── Form card ── */}
+        <FadeIn delay={120}>
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Join SolidWaste</Text>
+            <Text style={s.cardSub}>Fill in all required fields to get started</Text>
 
-              {/* Email */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Icon name="email" size={16} color="#475569" />
-                  <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
-                  {isCheckingEmail && (
-                    <View style={styles.checkingContainer}>
-                      <Icon name="autorenew" size={14} color="#0284C7" />
-                      <Text style={styles.checkingText}>Checking...</Text>
-                    </View>
-                  )}
-                </View>
-                <TextInput
-                  placeholder="your@email.com"
-                  placeholderTextColor="#94A3B8"
-                  style={getInputStyle('email')}
-                  value={form.email}
-                  onChangeText={(val) => handleChange('email', val)}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => handleBlur('email', form.email)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                {(fieldErrors.email || emailError) ? (
-                  <View style={styles.errorContainer}>
-                    <Icon name="error" size={14} color="#DC2626" />
-                    <Text style={styles.errorText}>{fieldErrors.email || emailError}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Password */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Icon name="lock" size={16} color="#475569" />
-                  <Text style={styles.inputLabel}>PASSWORD *</Text>
-                </View>
-                <TextInput
-                  placeholder="Create a secure password"
-                  placeholderTextColor="#94A3B8"
-                  style={getInputStyle('password')}
-                  value={form.password}
-                  secureTextEntry
-                  onChangeText={(val) => handleChange('password', val)}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => handleBlur('password', form.password)}
-                  autoCapitalize="none"
-                />
-                {fieldErrors.password ? (
-                  <View style={styles.errorContainer}>
-                    <Icon name="error" size={14} color="#DC2626" />
-                    <Text style={styles.errorText}>{fieldErrors.password}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Date of Birth & Gender Row */}
-              <View style={styles.rowContainer}>
-                <View style={[styles.inputGroup, styles.halfInput]}>
-                  <View style={styles.inputLabelContainer}>
-                    <Icon name="" size={16} color="#475569" />
-                    <Text style={styles.inputLabel}>DATE OF BIRTH *</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.input,
-                      styles.selectInput,
-                      fieldErrors.bod ? styles.inputError : 
-                      focusedField === 'bod' ? styles.inputFocused : null
-                    ]}
-                    onPress={() => setShowDatePicker(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.selectText,
-                      !form.bod && styles.placeholderText
-                    ]}>
-                      {form.bod ? formatDisplayDate(form.bod) : 'Select Date'}
-                    </Text>
-                    <Icon name="calendar-today" size={18} color="#64748B" />
-                  </TouchableOpacity>
-                  {fieldErrors.bod ? (
-                    <View style={styles.errorContainer}>
-                      <Icon name="error" size={14} color="#DC2626" />
-                      <Text style={styles.errorText}>{fieldErrors.bod}</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={[styles.inputGroup, styles.halfInput]}>
-                  <View style={styles.inputLabelContainer}>
-                    <Icon name="" size={16} color="#475569" />
-                    <Text style={styles.inputLabel}>GENDER *</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.input,
-                      styles.selectInput,
-                      fieldErrors.gender ? styles.inputError : 
-                      focusedField === 'gender' ? styles.inputFocused : null
-                    ]}
-                    onPress={showGenderModal}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.selectText,
-                      !form.gender && styles.placeholderText
-                    ]}>
-                      {getGenderDisplay()}
-                    </Text>
-                    <Icon name="arrow-drop-down" size={20} color="#64748B" />
-                  </TouchableOpacity>
-                  {fieldErrors.gender ? (
-                    <View style={styles.errorContainer}>
-                      <Icon name="error" size={14} color="#DC2626" />
-                      <Text style={styles.errorText}>{fieldErrors.gender}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-
-              {/* Address */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Icon name="home" size={16} color="#475569" />
-                  <Text style={styles.inputLabel}>ADDRESS *</Text>
-                </View>
-                <TextInput
-                  placeholder="Enter your complete address"
-                  placeholderTextColor="#94A3B8"
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    fieldErrors.address ? styles.inputError : 
-                    focusedField === 'address' ? styles.inputFocused : null
-                  ]}
-                  value={form.address}
-                  onChangeText={(val) => handleChange('address', val)}
-                  onFocus={() => setFocusedField('address')}
-                  onBlur={() => handleBlur('address', form.address)}
-                  multiline={true}
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-                {fieldErrors.address ? (
-                  <View style={styles.errorContainer}>
-                    <Icon name="error" size={14} color="#DC2626" />
-                    <Text style={styles.errorText}>{fieldErrors.address}</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Required Fields Note */}
-            <View style={styles.requiredNote}>
-              <Text style={styles.requiredText}>* Required fields</Text>
-            </View>
-
-            {/* General Error */}
+            {/* General error */}
             {error && (
-              <View style={styles.generalError}>
-                <Icon name="warning" size={18} color="#DC2626" />
-                <Text style={styles.generalErrorText}>{error}</Text>
+              <View style={s.errorBanner}>
+                <Ionicons name="alert-circle" size={16} color={C.red} />
+                <Text style={[s.errorBannerTxt, { marginLeft: 8 }]}>{error}</Text>
               </View>
             )}
 
-            {/* Register Button */}
+            {/* Full Name */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="person-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Full Name <Text style={s.req}>*</Text></Text>
+              </View>
+              <TextInput
+                style={inputStyle('username')}
+                placeholder="Enter your full name"
+                placeholderTextColor={C.slateL}
+                value={form.username}
+                onChangeText={(v) => handleChange('username', v)}
+                onFocus={() => setFocusedField('username')}
+                onBlur={() => handleBlur('username', form.username)}
+                autoCapitalize="words"
+              />
+              {fieldErrors.username ? <FieldError msg={fieldErrors.username} /> : null}
+            </View>
+
+            {/* Email */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="mail-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Email Address <Text style={s.req}>*</Text></Text>
+                {isCheckingEmail && (
+                  <Text style={s.checkingTxt}>  Checking…</Text>
+                )}
+              </View>
+              <TextInput
+                style={inputStyle('email')}
+                placeholder="your@email.com"
+                placeholderTextColor={C.slateL}
+                value={form.email}
+                onChangeText={(v) => handleChange('email', v)}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => handleBlur('email', form.email)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {(fieldErrors.email || emailError) ? <FieldError msg={fieldErrors.email || emailError} /> : null}
+            </View>
+
+            {/* Password */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="lock-closed-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Password <Text style={s.req}>*</Text></Text>
+              </View>
+              <View>
+                <TextInput
+                  style={inputStyle('password')}
+                  placeholder="Create a secure password"
+                  placeholderTextColor={C.slateL}
+                  value={form.password}
+                  secureTextEntry={!showPassword}
+                  onChangeText={(v) => handleChange('password', v)}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => handleBlur('password', form.password)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPassword((p) => !p)}>
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.slateL} />
+                </TouchableOpacity>
+              </View>
+              {fieldErrors.password ? <FieldError msg={fieldErrors.password} /> : null}
+            </View>
+
+            {/* DOB + Gender row */}
+            <View style={s.row}>
+              <View style={[s.fieldWrap, { flex: 1 }]}>
+                <View style={s.labelRow}>
+                  <Ionicons name="calendar-outline" size={13} color={C.slateL} />
+                  <Text style={s.label}>Date of Birth <Text style={s.req}>*</Text></Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.input, s.selectInput, fieldErrors.bod && s.inputError, focusedField === 'bod' && s.inputFocused]}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.selectTxt, !form.bod && s.placeholderTxt]} numberOfLines={1}>
+                    {form.bod ? formatDisplayDate(form.bod) : 'Select Date'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={C.slateL} />
+                </TouchableOpacity>
+                {fieldErrors.bod ? <FieldError msg={fieldErrors.bod} /> : null}
+              </View>
+
+              <View style={[s.fieldWrap, { flex: 1 }]}>
+                <View style={s.labelRow}>
+                  <Ionicons name="people-outline" size={13} color={C.slateL} />
+                  <Text style={s.label}>Gender <Text style={s.req}>*</Text></Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.input, s.selectInput, fieldErrors.gender && s.inputError, focusedField === 'gender' && s.inputFocused]}
+                  onPress={() => setShowGenderPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.selectTxt, !form.gender && s.placeholderTxt]}>
+                    {form.gender || 'Select'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={C.slateL} />
+                </TouchableOpacity>
+                {fieldErrors.gender ? <FieldError msg={fieldErrors.gender} /> : null}
+              </View>
+            </View>
+
+            {/* Address */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="location-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Address <Text style={s.req}>*</Text></Text>
+              </View>
+              <TextInput
+                style={[inputStyle('address'), s.textArea]}
+                placeholder="Enter your complete address"
+                placeholderTextColor={C.slateL}
+                value={form.address}
+                onChangeText={(v) => handleChange('address', v)}
+                onFocus={() => setFocusedField('address')}
+                onBlur={() => handleBlur('address', form.address)}
+                multiline numberOfLines={3}
+                textAlignVertical="top"
+              />
+              {fieldErrors.address ? <FieldError msg={fieldErrors.address} /> : null}
+            </View>
+
+            <Text style={s.requiredNote}>* Required fields</Text>
+
+            {/* Create Account button */}
             <TouchableOpacity
-              style={[
-                styles.registerButton,
-                (loading || isCheckingEmail) && styles.registerButtonDisabled
-              ]}
+              style={[s.btnPrimary, (loading || isCheckingEmail) && { opacity: 0.6 }]}
               onPress={handleRegisterClick}
               disabled={loading || isCheckingEmail}
-              activeOpacity={0.9}
+              activeOpacity={0.85}
             >
-              <LinearGradient
-                colors={(loading || isCheckingEmail) ? ['#93C5FD', '#93C5FD'] : ['#0284C7', '#0369A1']}
-                style={styles.buttonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                {loading ? (
-                  <View style={styles.loadingContent}>
-                    <Icon name="autorenew" size={20} color="#FFFFFF" style={styles.loadingIcon} />
-                    <Text style={styles.registerButtonText}>CREATING ACCOUNT...</Text>
-                  </View>
-                ) : (
-                  <View style={styles.buttonContent}>
-                    <Icon name="person-add" size={20} color="#FFFFFF" />
-                    <Text style={styles.registerButtonText}>CREATE ACCOUNT</Text>
-                  </View>
-                )}
-              </LinearGradient>
+              {loading ? (
+                <>
+                  <MaterialCommunityIcons name="loading" size={18} color={C.navy} />
+                  <Text style={s.btnPrimaryTxt}>Creating Account…</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.btnPrimaryTxt}>Create Account</Text>
+                  <Ionicons name="arrow-forward-outline" size={16} color={C.navy} style={{ marginLeft: 6 }} />
+                </>
+              )}
             </TouchableOpacity>
 
-            {/* Login Link */}
-            <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account?</Text>
-              <TouchableOpacity 
-                onPress={navigateToLogin}
+            {/* Sign In link */}
+            <View style={s.loginRow}>
+              <Text style={s.loginTxt}>Already have an account?</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login')}
+                style={s.loginBtn}
                 activeOpacity={0.7}
-                style={styles.loginButton}
               >
-                <Text style={styles.loginLink}>Sign In</Text>
-                <Icon name="arrow-forward" size={16} color="#0284C7" />
+                <Text style={s.loginLink}>Sign In</Text>
+                <Ionicons name="arrow-forward" size={14} color={C.teal} />
               </TouchableOpacity>
             </View>
-          </Animated.View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              By creating an account, you agree to our{' '}
-              <Text style={styles.footerLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.footerLink}>Privacy Policy</Text>
-            </Text>
           </View>
-        </ScrollView>
-      </LinearGradient>
+        </FadeIn>
+
+        {/* Footer */}
+        <FadeIn delay={200}>
+          <View style={s.footer}>
+            <Text style={s.footerTxt}>
+              By creating an account, you agree to our{' '}
+              <Text style={{ color: C.teal, fontWeight: '700' }}>Terms of Service</Text>
+              {' '}and{' '}
+              <Text style={{ color: C.teal, fontWeight: '700' }}>Privacy Policy</Text>
+            </Text>
+            <Text style={s.footerCopy}>© 2025 T.M.F.K. Waste Innovations</Text>
+          </View>
+        </FadeIn>
+      </ScrollView>
 
       {/* Date Picker */}
       {showDatePicker && (
@@ -712,158 +483,96 @@ const Register = () => {
         />
       )}
 
-      {/* Gender Picker Modal */}
-      <Modal
-        visible={showGenderPicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={hideGenderModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.genderModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Gender</Text>
-              <TouchableOpacity onPress={hideGenderModal} style={styles.closeButton}>
-                <Icon name="close" size={24} color="#64748B" />
+      {/* ── Gender Modal ── */}
+      <Modal visible={showGenderPicker} transparent animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.genderSheet}>
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Select Gender</Text>
+              <TouchableOpacity style={s.sheetClose} onPress={() => setShowGenderPicker(false)}>
+                <Ionicons name="close" size={20} color={C.slateL} />
               </TouchableOpacity>
             </View>
-            
-            <View style={styles.genderOptions}>
-              {genderOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.genderOption,
-                    form.gender === option.value && styles.genderOptionSelected
-                  ]}
-                  onPress={() => selectGender(option.value)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.genderOptionContent}>
-                    <Icon 
-                      name={option.icon} 
-                      size={20} 
-                      color={form.gender === option.value ? '#0284C7' : '#64748B'} 
-                    />
-                    <Text style={[
-                      styles.genderOptionText,
-                      form.gender === option.value && styles.genderOptionTextSelected
-                    ]}>
-                      {option.label}
-                    </Text>
-                  </View>
-                  {form.gender === option.value && (
-                    <Icon name="check-circle" size={20} color="#0284C7" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            {genderOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[s.genderOpt, form.gender === opt.value && s.genderOptActive]}
+                onPress={() => { handleChange('gender', opt.value); validateField('gender', opt.value); setShowGenderPicker(false); }}
+                activeOpacity={0.75}
+              >
+                <View style={[s.genderOptIcon, form.gender === opt.value && s.genderOptIconActive]}>
+                  <Ionicons name={opt.icon} size={18} color={form.gender === opt.value ? C.teal : C.slateL} />
+                </View>
+                <Text style={[s.genderOptTxt, form.gender === opt.value && s.genderOptTxtActive]}>
+                  {opt.label}
+                </Text>
+                {form.gender === opt.value && (
+                  <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </Modal>
 
-      {/* Verification Modal */}
-      <Modal
-        visible={showVerificationModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowVerificationModal(false)}
-      >
-        <View style={styles.verificationOverlay}>
-          <View style={styles.verificationCard}>
-            <View style={styles.verificationHeader}>
-              <View style={styles.verificationIcon}>
-                <Icon name="security" size={28} color="#0284C7" />
-              </View>
-              <Text style={styles.verificationTitle}>Human Verification</Text>
-              <Text style={styles.verificationSubtitle}>
-                Please verify you're not a robot to continue
-              </Text>
+      {/* ── Verification Modal ── */}
+      <Modal visible={showVerificationModal} transparent animationType="fade" onRequestClose={() => setShowVerificationModal(false)}>
+        <View style={s.verifyOverlay}>
+          <View style={s.verifyCard}>
+            {/* Icon */}
+            <View style={s.verifyIconRing}>
+              <Ionicons name="shield-checkmark-outline" size={28} color={C.teal} />
             </View>
+            <Text style={s.verifyTitle}>Human Verification</Text>
+            <Text style={s.verifySub}>Please verify you're not a robot to continue</Text>
 
-            <View style={styles.captchaContainer}>
+            {/* Slider / verified state */}
+            <View style={s.captchaBox}>
               {!isVerified ? (
-                <>
-                  <View style={styles.sliderContainer}>
-                    <View style={styles.sliderTrack}>
-                      <Animated.View 
-                        style={[
-                          styles.sliderProgress,
-                          { width: sliderWidth.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0%', '100%']
-                          })}
-                        ]}
-                      />
-                    </View>
-                    
-                    <Animated.View 
-                      style={[
-                        styles.sliderHandle,
-                        { transform: [{ translateX: sliderPosition }] }
-                      ]}
-                      {...panResponder.panHandlers}
-                    >
-                      <Animated.View style={{ opacity: iconOpacity }}>
-                        <Icon name="double-arrow" size={20} color="#0284C7" />
-                      </Animated.View>
-                    </Animated.View>
-                    
-                    <Text style={styles.sliderText}>{validationMessage}</Text>
+                <View style={s.sliderWrap}>
+                  <View style={s.sliderTrack}>
+                    <Animated.View style={[s.sliderFill, {
+                      width: sliderWidth.interpolate({ inputRange: [0,1], outputRange: ['0%','100%'] }),
+                    }]} />
                   </View>
-                  
-                  {captchaLoading && (
-                    <View style={styles.loadingState}>
-                      <Icon name="autorenew" size={20} color="#0284C7" style={styles.spinningIcon} />
-                      <Text style={styles.verifyingText}>Verifying...</Text>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <View style={styles.verifiedState}>
-                  <Animated.View 
-                    style={[
-                      styles.verifiedIcon,
-                      { transform: [{ scale: checkmarkScale }] }
-                    ]}
+                  <Animated.View
+                    style={[s.sliderThumb, { transform: [{ translateX: sliderPosition }] }]}
+                    {...panResponder.panHandlers}
                   >
-                    <Icon name="check" size={32} color="#FFFFFF" />
+                    <Animated.View style={{ opacity: iconOpacity }}>
+                      <Ionicons name="chevron-forward-outline" size={20} color={C.teal} />
+                    </Animated.View>
                   </Animated.View>
-                  <Text style={styles.verifiedTitle}>Verified!</Text>
-                  <Text style={styles.verifiedText}>You're all set to continue</Text>
+                  <Text style={s.sliderMsg}>{validationMessage}</Text>
+                </View>
+              ) : (
+                <View style={s.verifiedState}>
+                  <Animated.View style={[s.verifiedCircle, { transform: [{ scale: checkmarkScale }] }]}>
+                    <Ionicons name="checkmark" size={32} color={C.navy} />
+                  </Animated.View>
+                  <Text style={s.verifiedTitle}>Verified!</Text>
+                  <Text style={s.verifiedSub}>You're all set to continue</Text>
                 </View>
               )}
             </View>
 
-            <View style={styles.verificationActions}>
+            {/* Actions */}
+            <View style={s.verifyActions}>
               <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowVerificationModal(false);
-                  resetCaptcha();
-                }}
+                style={s.verifyCancel}
+                onPress={() => { setShowVerificationModal(false); resetCaptcha(); }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={s.verifyCancelTxt}>Cancel</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
-                style={[
-                  styles.confirmButton,
-                  !isVerified && styles.confirmButtonDisabled
-                ]}
+                style={[s.verifyConfirm, !isVerified && { opacity: 0.4 }]}
                 onPress={handleVerificationSubmit}
                 disabled={!isVerified}
-                activeOpacity={0.7}
+                activeOpacity={0.85}
               >
-                <LinearGradient
-                  colors={!isVerified ? ['#CBD5E1', '#94A3B8'] : ['#0284C7', '#0369A1']}
-                  style={styles.confirmButtonGradient}
-                >
-                  <Text style={styles.confirmButtonText}>
-                    Continue
-                  </Text>
-                </LinearGradient>
+                <Text style={s.verifyConfirmTxt}>Continue →</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -873,532 +582,196 @@ const Register = () => {
   );
 };
 
+// ── Small helper ──────────────────────────────────────────────────────────────
+const FieldError = ({ msg }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
+    <Ionicons name="close-circle" size={13} color={C.red} />
+    <Text style={{ fontSize: 12, color: C.red }}>{msg}</Text>
+  </View>
+);
+
 export default Register;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0284C7',
+// ─── Stylesheet ───────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root:  { flex: 1, backgroundColor: C.ink },
+
+  blob1: {
+    position: 'absolute', width: 320, height: 320, borderRadius: 160,
+    backgroundColor: C.tealGlow, top: -100, right: -130,
   },
-  gradient: {
-    flex: 1,
-  },
-  floatingCircle1: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    top: '10%',
-    left: -50,
-  },
-  floatingCircle2: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    bottom: '20%',
-    right: -30,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 20,
-  },
-  logoContainer: {
-    marginBottom: 24,
-  },
-  logoBackground: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logoImage: {
-    width: 60,
-    height: 60,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  formHeader: {
-    marginBottom: 28,
-    alignItems: 'center',
-  },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  formFields: {
-    marginBottom: 8,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  rowContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  inputLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-    letterSpacing: 0.5,
-  },
-  checkingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 'auto',
-  },
-  checkingText: {
-    fontSize: 12,
-    color: '#0284C7',
-    fontStyle: 'italic',
-  },
-  input: {
-    height: 52,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: '#F8FAFC',
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  inputFocused: {
-    borderColor: '#0284C7',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  inputError: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FEF2F2',
-  },
-  selectInput: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  selectText: {
-    fontSize: 16,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  placeholderText: {
-    color: '#94A3B8',
-  },
-  textArea: {
-    height: 80,
-    paddingTop: 14,
-    textAlignVertical: 'top',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#DC2626',
-    lineHeight: 16,
-  },
-  requiredNote: {
-    marginBottom: 16,
-  },
-  requiredText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontStyle: 'italic',
-  },
-  generalError: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
-  },
-  generalErrorText: {
-    fontSize: 14,
-    color: '#DC2626',
-    fontWeight: '500',
-    flex: 1,
-  },
-  registerButton: {
-    marginTop: 8,
-    marginBottom: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  registerButtonDisabled: {
-    opacity: 0.7,
-  },
-  buttonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  loadingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  loadingIcon: {
-    transform: [{ rotate: '0deg' }],
-  },
-  registerButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  loginText: {
-    fontSize: 15,
-    color: '#64748B',
-  },
-  loginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  loginLink: {
-    fontSize: 15,
-    color: '#0284C7',
-    fontWeight: '600',
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  footerText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  footerLink: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  
-  // Gender Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  genderModal: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34,
-    maxHeight: height * 0.5,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0F172A',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genderOptions: {
-    padding: 16,
-  },
-  genderOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    marginBottom: 8,
-  },
-  genderOptionSelected: {
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#0284C7',
-  },
-  genderOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  genderOptionText: {
-    fontSize: 16,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  genderOptionTextSelected: {
-    color: '#0284C7',
-    fontWeight: '600',
+  blob2: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(0,201,167,0.06)', bottom: 200, left: -70,
   },
 
-  // Verification Modal Styles
-  verificationOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 48 },
+
+  header: { alignItems: 'center', paddingTop: 64, marginBottom: 24 },
+  logoRing: {
+    width: 72, height: 72, borderRadius: 20,
+    backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  logoImg:   { width: 46, height: 46 },
+  brandName: { fontSize: 20, fontWeight: '900', color: C.white, letterSpacing: 1.5, marginBottom: 4 },
+  brandSub:  { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 0.8, textTransform: 'uppercase' },
+
+  badgeWrap: { alignItems: 'center', marginBottom: 20 },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.tealDim, borderRadius: 20,
+    paddingVertical: 5, paddingHorizontal: 14,
+  },
+  badgeDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal },
+  badgeText: { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 1, textTransform: 'uppercase' },
+
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: C.borderDk,
+    borderRadius: 22, padding: 28, marginBottom: 8,
+  },
+  cardTitle: { fontSize: 24, fontWeight: '900', color: C.white, letterSpacing: -0.4, marginBottom: 4 },
+  cardSub:   { fontSize: 13, color: C.ghost, marginBottom: 28 },
+
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderLeftWidth: 3, borderLeftColor: C.red,
+    borderRadius: 10, padding: 14, marginBottom: 18,
+  },
+  errorBannerTxt: { fontSize: 13, color: C.red, fontWeight: '600', flex: 1 },
+
+  fieldWrap: { marginBottom: 18 },
+  labelRow:  { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  label:     { fontSize: 11, fontWeight: '700', color: C.slateL, letterSpacing: 0.5, textTransform: 'uppercase' },
+  req:       { color: C.teal },
+  checkingTxt: { fontSize: 11, color: C.teal, fontStyle: 'italic' },
+
+  input: {
+    height: 50, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1.5, borderColor: C.borderDk,
+    borderRadius: 12, paddingHorizontal: 16,
+    fontSize: 15, color: C.white,
+  },
+  inputFocused: { borderColor: C.tealLine, backgroundColor: 'rgba(0,201,167,0.07)' },
+  inputError:   { borderColor: C.red,      backgroundColor: 'rgba(239,68,68,0.08)'  },
+
+  selectInput: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  selectTxt:     { fontSize: 14, color: C.white, flex: 1 },
+  placeholderTxt: { color: C.slateL },
+
+  textArea: { height: 90, paddingTop: 14 },
+
+  row: { flexDirection: 'row', gap: 12 },
+
+  eyeBtn: { position: 'absolute', right: 14, top: 14 },
+
+  requiredNote: { fontSize: 12, color: C.slateL, fontStyle: 'italic', marginBottom: 20 },
+
+  btnPrimary: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.teal, height: 52, borderRadius: 12, marginBottom: 20,
+    shadowColor: C.teal, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+  },
+  btnPrimaryTxt: { color: C.navy, fontSize: 15, fontWeight: '800' },
+
+  loginRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  loginTxt:  { fontSize: 13, color: C.ghost },
+  loginBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  loginLink: { fontSize: 13, color: C.teal, fontWeight: '700' },
+
+  footer:    { alignItems: 'center', paddingVertical: 28 },
+  footerTxt: { fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center', lineHeight: 18, marginBottom: 6 },
+  footerCopy:{ fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center' },
+
+  // ── Gender sheet ────────────────────────────────────────────────────────────
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  genderSheet: {
+    backgroundColor: C.navy, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 24, paddingBottom: 36, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: C.borderDk,
+  },
+  sheetHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: C.borderDk, alignSelf: 'center', marginBottom: 20,
+  },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sheetTitle:  { fontSize: 18, fontWeight: '800', color: C.white },
+  sheetClose: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  genderOpt: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: C.borderDk,
+    borderRadius: 14, padding: 16, marginBottom: 10,
+  },
+  genderOptActive: { borderColor: C.tealLine, backgroundColor: C.tealDim },
+  genderOptIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  genderOptIconActive: { backgroundColor: C.tealDim },
+  genderOptTxt:       { fontSize: 15, color: C.ghost, fontWeight: '500' },
+  genderOptTxtActive: { color: C.teal, fontWeight: '700' },
+
+  // ── Verification modal ──────────────────────────────────────────────────────
+  verifyOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  verifyCard: {
+    backgroundColor: C.navy, borderRadius: 22, padding: 28,
+    width: '100%', maxWidth: 400,
+    borderWidth: 1, borderColor: C.borderDk,
     alignItems: 'center',
-    padding: 24,
   },
-  verificationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 15,
+  verifyIconRing: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  verificationHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
+  verifyTitle: { fontSize: 20, fontWeight: '900', color: C.white, marginBottom: 6 },
+  verifySub:   { fontSize: 13, color: C.ghost, textAlign: 'center', marginBottom: 28 },
+
+  captchaBox: { width: '100%', marginBottom: 28 },
+
+  sliderWrap:  { position: 'relative', height: 64, justifyContent: 'center' },
+  sliderTrack: { height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' },
+  sliderFill:  { height: '100%', backgroundColor: C.teal, borderRadius: 4 },
+  sliderThumb: {
+    position: 'absolute', width: 48, height: 48, borderRadius: 24,
+    backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', left: 0,
   },
-  verificationIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#F0F9FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+  sliderMsg: { textAlign: 'center', marginTop: 10, fontSize: 13, color: C.ghost },
+
+  verifiedState:  { alignItems: 'center', paddingVertical: 16 },
+  verifiedCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: C.teal, alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  verificationTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    marginBottom: 8,
-    textAlign: 'center',
+  verifiedTitle: { fontSize: 20, fontWeight: '900', color: C.teal, marginBottom: 4 },
+  verifiedSub:   { fontSize: 13, color: C.ghost },
+
+  verifyActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  verifyCancel: {
+    flex: 1, height: 48, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center',
   },
-  verificationSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
+  verifyCancelTxt: { color: C.ghost, fontSize: 14, fontWeight: '600' },
+  verifyConfirm: {
+    flex: 2, height: 48, borderRadius: 12,
+    backgroundColor: C.teal, alignItems: 'center', justifyContent: 'center',
   },
-  captchaContainer: {
-    marginBottom: 24,
-  },
-  sliderContainer: {
-    position: 'relative',
-    height: 60,
-    justifyContent: 'center',
-  },
-  sliderTrack: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  sliderProgress: {
-    height: '100%',
-    backgroundColor: '#0284C7',
-    borderRadius: 4,
-  },
-  sliderHandle: {
-    position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-    left: 0,
-  },
-  sliderText: {
-    textAlign: 'center',
-    marginTop: 8,
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  loadingState: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-  },
-  spinningIcon: {
-    transform: [{ rotate: '0deg' }],
-  },
-  verifyingText: {
-    fontSize: 14,
-    color: '#0284C7',
-    fontStyle: 'italic',
-  },
-  verifiedState: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  verifiedIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  verifiedTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#10B981',
-    marginBottom: 4,
-  },
-  verifiedText: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  verificationActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  confirmButton: {
-    flex: 2,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  confirmButtonDisabled: {
-    opacity: 0.6,
-  },
-  confirmButtonGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  verifyConfirmTxt: { color: C.navy, fontSize: 14, fontWeight: '800' },
 });

@@ -1,1009 +1,569 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Dimensions,
-  StatusBar,
-  Modal,
-  Animated,
-  SafeAreaView,
-  Platform,
-  Image,
-  BackHandler,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Alert, Dimensions, StatusBar, Modal, Animated,
+  SafeAreaView, Platform, Image, BackHandler,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../../redux/slices/authSlice';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { styles } from '../../components/Styles/UserDashboard';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+const C = {
+  ink:      '#071B2E',
+  navy:     '#0A2540',
+  navyMid:  '#103559',
+  teal:     '#00C9A7',
+  tealDark: '#009E84',
+  tealDim:  'rgba(0,201,167,0.13)',
+  tealGlow: 'rgba(0,201,167,0.22)',
+  tealLine: 'rgba(0,201,167,0.35)',
+  white:    '#FFFFFF',
+  offWhite: '#F7FAFB',
+  borderDk: 'rgba(255,255,255,0.09)',
+  border:   '#D8E4EE',
+  slate:    '#4E6B87',
+  slateL:   '#8BA5BC',
+  ghost:    'rgba(255,255,255,0.55)',
+  green:    '#22C55E',
+  red:      '#EF4444',
+  amber:    '#F59E0B',
+};
+
+// ── Fade-in animation ─────────────────────────────────────────────────────────
+const FadeIn = ({ children, delay = 0 }) => {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 420, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// ── Small badge ───────────────────────────────────────────────────────────────
+const Badge = ({ label }) => (
+  <View style={s.badge}>
+    <View style={s.badgeDot} />
+    <Text style={s.badgeText}>{label}</Text>
+  </View>
+);
 
 const UserDashboard = () => {
-  const dispatch = useDispatch();
+  const dispatch   = useDispatch();
   const navigation = useNavigation();
-  const route = useRoute();
-  const { user } = useSelector((state) => state.auth);
-  const { unreadCount } = useSelector((state) => state.notification);
-  const { conversations } = useSelector((state) => state.message); // IDINAGDAG - message state
-  const [activeTab, setActiveTab] = useState('Home');
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const route      = useRoute();
+  const { user }   = useSelector((st) => st.auth);
+  const { unreadCount }    = useSelector((st) => st.notification);
+  const { conversations }  = useSelector((st) => st.message);
+
+  const [activeTab,          setActiveTab]          = useState('Home');
+  const [sidebarVisible,     setSidebarVisible]     = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
-  
-  // Fixed animation references with useRef
-  const sidebarAnimation = useRef(new Animated.Value(-width * 0.75)).current;
-  const overlayAnimation = useRef(new Animated.Value(0)).current;
-  const scaleAnimation = useRef(new Animated.Value(1)).current;
-  const fadeAnimation = useRef(new Animated.Value(1)).current;
-  const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const [navigationStack,    setNavigationStack]    = useState(['UserDashboard']);
 
-  // Calculate unread messages count - IDINAGDAG
-  const unreadMessagesCount = conversations?.filter(conv => conv.unread).length || 0;
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.78)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim   = useRef(new Animated.Value(1)).current;
+  const fadeAnim    = useRef(new Animated.Value(1)).current;
 
-  // Track previous screens
-  const [navigationStack, setNavigationStack] = useState(['UserDashboard']);
+  const unreadMessages = conversations?.filter((c) => c.unread).length || 0;
 
-  // Sync activeTab with current screen when component focuses
+  // ── Focus sync ───────────────────────────────────────────────────────────────
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 UserDashboard focused - current user profile:', user?.profile);
-      
-      // Get current route name and map it to activeTab
-      const currentRoute = route.name;
-      const routeToTabMap = {
-        'UserDashboard': 'Home',
-        'EditProfile': 'EditProfile',
-        'FeedbackSupport': 'FeedbackSupport',
-        'WasteDetection': 'WasteDetection',
-        'ReportWaste': 'ReportWaste',
-        'ReportStatus': 'ReportStatus',
-        'DetectionHistory': 'DetectionHistory',
-        'DisposalGuidance': 'DisposalGuidance',
-        'EducationalSection': 'EducationalSection',
-        'Notifications': 'Notifications',
-        'Maps': 'Maps',
-        'MessageList': 'Messages', 
-        'ChatScreen': 'Messages', 
+      const map = {
+        UserDashboard: 'Home', EditProfile: 'EditProfile',
+        FeedbackSupport: 'FeedbackSupport', WasteDetection: 'WasteDetection',
+        ReportWaste: 'ReportWaste', ReportStatus: 'ReportStatus',
+        DetectionHistory: 'DetectionHistory', DisposalGuidance: 'DisposalGuidance',
+        EducationalSection: 'Learning', Notifications: 'Notifications',
+        Maps: 'Maps', MessageList: 'Messages', ChatScreen: 'Messages',
       };
-      
-      if (routeToTabMap[currentRoute]) {
-        setActiveTab(routeToTabMap[currentRoute]);
-      }
-      
-      // Update navigation stack
-      setNavigationStack(prev => {
-        const newStack = [...prev];
-        if (newStack[newStack.length - 1] !== currentRoute) {
-          newStack.push(currentRoute);
-          // Keep only last 5 screens to prevent memory issues
-          if (newStack.length > 5) {
-            newStack.shift();
-          }
+      if (map[route.name]) setActiveTab(map[route.name]);
+      setNavigationStack((prev) => {
+        const next = [...prev];
+        if (next[next.length - 1] !== route.name) {
+          next.push(route.name);
+          if (next.length > 5) next.shift();
         }
-        return newStack;
+        return next;
       });
-      
-      return () => {
-        // Cleanup if needed
-      };
     }, [route.name, user])
   );
 
-  // Handle back button press - UPDATED
+  // ── Back handler ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (sidebarVisible) {
-        toggleSidebar();
-        return true; // Prevent default behavior
-      }
-      
-      if (logoutModalVisible) {
-        setLogoutModalVisible(false);
-        return true; // Prevent default behavior
-      }
-      
-      // REMOVED exit confirmation - now navigates back in history
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sidebarVisible)     { toggleSidebar(); return true; }
+      if (logoutModalVisible) { setLogoutModalVisible(false); return true; }
       if (navigationStack.length > 1) {
-        // Go back to previous screen
-        const previousScreen = navigationStack[navigationStack.length - 2];
-        navigation.navigate(previousScreen);
-        
-        // Update navigation stack
-        setNavigationStack(prev => prev.slice(0, -1));
-        
-        return true; // Prevent default behavior
+        navigation.navigate(navigationStack[navigationStack.length - 2]);
+        setNavigationStack((p) => p.slice(0, -1));
+        return true;
       }
-      
-      // If we're at the root (UserDashboard), use default back behavior
       return false;
     });
+    return () => sub.remove();
+  }, [sidebarVisible, logoutModalVisible, navigationStack]);
 
-    return () => backHandler.remove();
-  }, [sidebarVisible, logoutModalVisible, navigationStack, navigation]);
-
-  // Cleanup function to prevent memory leaks
-  useEffect(() => {
-    let pulseLoop;
-    
-    // Pulse animation for stats cards
-    pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnimation, {
-          toValue: 1.05,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnimation, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulseLoop.start();
-
-    return () => {
-      if (pulseLoop) {
-        pulseLoop.stop();
-      }
-    };
-  }, [pulseAnimation]);
-
+  // ── Sidebar ──────────────────────────────────────────────────────────────────
   const toggleSidebar = () => {
     if (sidebarVisible) {
-      // Close sidebar
       Animated.parallel([
-        Animated.timing(sidebarAnimation, {
-          toValue: -width * 0.75,
-          duration: 300,
-          useNativeDriver: true
-        }),
-        Animated.timing(overlayAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
-        }),
-        Animated.timing(scaleAnimation, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true
-        })
+        Animated.timing(sidebarAnim, { toValue: -width * 0.78, duration: 300, useNativeDriver: true }),
+        Animated.timing(overlayAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(scaleAnim,   { toValue: 1, duration: 300, useNativeDriver: true }),
       ]).start(() => setSidebarVisible(false));
     } else {
-      // Open sidebar
       setSidebarVisible(true);
       Animated.parallel([
-        Animated.timing(sidebarAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
-        }),
-        Animated.timing(overlayAnimation, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true
-        }),
-        Animated.timing(scaleAnimation, {
-          toValue: 0.95,
-          duration: 300,
-          useNativeDriver: true
-        })
+        Animated.timing(sidebarAnim, { toValue: 0,    duration: 300, useNativeDriver: true }),
+        Animated.timing(overlayAnim, { toValue: 1,    duration: 300, useNativeDriver: true }),
+        Animated.timing(scaleAnim,   { toValue: 0.95, duration: 300, useNativeDriver: true }),
       ]).start();
     }
   };
 
+  const showLogoutConfirmation = () => {
+    if (sidebarVisible) {
+      Animated.parallel([
+        Animated.timing(sidebarAnim, { toValue: -width * 0.78, duration: 300, useNativeDriver: true }),
+        Animated.timing(overlayAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => { setSidebarVisible(false); setLogoutModalVisible(true); });
+    } else {
+      setLogoutModalVisible(true);
+    }
+  };
+
   const handleLogout = () => {
-    Animated.timing(fadeAnimation, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true
-    }).start(() => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
       setLogoutModalVisible(false);
       dispatch(logoutUser());
       navigation.navigate('Login');
     });
   };
 
-  const showLogoutConfirmation = () => {
-    if (sidebarVisible) {
-      Animated.parallel([
-        Animated.timing(sidebarAnimation, {
-          toValue: -width * 0.75,
-          duration: 300,
-          useNativeDriver: true
-        }),
-        Animated.timing(overlayAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
-        })
-      ]).start(() => {
-        setSidebarVisible(false);
-        setLogoutModalVisible(true);
-      });
-    } else {
-      setLogoutModalVisible(true);
-    }
-  };
-
-  // REMOVED showExitConfirmation function
-
+  // ── Navigation ───────────────────────────────────────────────────────────────
   const navigateTo = (screen) => {
     setActiveTab(screen);
-    // Add haptic feedback simulation
-    Animated.sequence([
-      Animated.timing(scaleAnimation, { toValue: 0.98, duration: 100, useNativeDriver: true }),
-      Animated.timing(scaleAnimation, { toValue: 1, duration: 100, useNativeDriver: true })
-    ]).start();
-    
-    // Close sidebar first
-    if (sidebarVisible) {
-      toggleSidebar();
-    }
-
-    // Handle navigation based on screen
+    if (sidebarVisible) toggleSidebar();
     setTimeout(() => {
-      switch (screen) {
-        case 'EditProfile':
-          navigation.navigate('EditProfile');
-          break;
-        case 'FeedbackSupport':
-          navigation.navigate('FeedbackSupport');
-          break;
-        case 'WasteDetection':
-          navigation.navigate('WasteClassifier');
-          break;
-        case 'ReportHistory':
-          navigation.navigate('ReportHistory');
-          break;
-      
-        case 'DisposalGuidance':
-          navigation.navigate('DisposalGuidance');
-          break;
-        case 'EducationalSection':
-          navigation.navigate('EducationalSection');
-          break;
-        case 'Notifications':
-          navigation.navigate('NotificationsScreen');
-          break;
-        case 'Maps':
-          navigation.navigate('Maps');
-          break;
-        case 'Messages': // IDINAGDAG
-          navigation.navigate('MessageList');
-          break;
-        case 'Settings':
-          // Settings is handled in renderContent - stay on dashboard but show settings
-          break;
-        case 'Home':
-          // If already on home, no navigation needed
-          if (route.name !== 'UserDashboard') {
-            navigation.navigate('UserDashboard');
-          }
-          break;
-        default:
-          // For any undefined screens, navigate directly
-          if (screen !== 'Home' && screen !== 'Settings') {
-            navigation.navigate(screen);
-          }
-      }
+      const map = {
+        EditProfile:       'EditProfile',
+        FeedbackSupport:   'FeedbackSupport',
+        WasteDetection:    'WasteClassifier',
+        ReportHistory:     'ReportHistory',
+        DisposalGuidance:  'DisposalGuidance',
+        EducationalSection:'Learning',
+        Notifications:     'NotificationsScreen',
+        Maps:              'Maps',
+        Messages:          'MessageList',
+        WasteAnalytics:    'WasteAnalytics',
+        Learning:          'Learning',
+      };
+      if (map[screen]) { navigation.navigate(map[screen]); return; }
+      if (screen === 'Home' && route.name !== 'UserDashboard') navigation.navigate('UserDashboard');
     }, 300);
   };
 
-  // Get user's profile picture or use default - UPDATED to handle both string and object formats
+  // ── Helpers ──────────────────────────────────────────────────────────────────
   const getProfilePicture = () => {
-    console.log('📸 Current user profile data:', user?.profile);
-    
-    if (user?.profile) {
-      // Handle both string URL and object format
-      if (typeof user.profile === 'string') {
-        return { uri: user.profile };
-      } else if (user.profile.url) {
-        return { uri: user.profile.url };
-      } else if (user.profile.uri) {
-        return { uri: user.profile.uri };
-      }
-    }
-    
-    // Return null if no profile picture
+    if (!user?.profile) return null;
+    if (typeof user.profile === 'string') return { uri: user.profile };
+    if (user.profile.url)  return { uri: user.profile.url };
+    if (user.profile.uri)  return { uri: user.profile.uri };
     return null;
   };
+  const getDisplayName = () => user?.username || user?.name || 'T.M.F.K User';
+  const getDisplayRole = () => user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
 
-  // Get user's display name
-  const getDisplayName = () => {
-    return user?.username || user?.name || 'T.M.F.K User';
-  };
+  // ── About features data ───────────────────────────────────────────────────────
+  const FEATURES = [
+    { icon: 'scan-outline',         title: 'AI Waste Classification',  desc: 'Snap a photo and our ML model instantly identifies and categorises your waste with industry-leading accuracy.' },
+    { icon: 'bar-chart-outline',    title: 'Live Analytics',           desc: 'Real-time dashboards that turn your waste data into actionable sustainability insights and progress tracking.' },
+    { icon: 'map-outline',          title: 'Recycling Map',            desc: 'Find certified recycling centres and drop-off points near you with our integrated facility locator.' },
+    { icon: 'document-text-outline',title: 'Waste Reporting',          desc: 'Report illegal dumping or waste issues in your community with photo evidence and GPS tagging.' },
+    { icon: 'school-outline',       title: 'Educational Resources',    desc: 'Learn proper disposal techniques, eco-friendly habits, and earn eco points as you grow your knowledge.' },
+    { icon: 'chatbubbles-outline',  title: 'Community & Support',      desc: 'Connect with environmental advocates, share feedback, and get real-time support from our team.' },
+  ];
 
-  // Get user's role with proper capitalization
-  const getDisplayRole = () => {
-    return user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
-  };
+  const STATS = [
+    { value: '85%',  label: 'Classification\nAccuracy' },
+    { value: '50', label: 'Waste Items\nClassified' },
+    { value: '3', label: 'Recycling\nPartners' },
+    { value: '50',  label: 'Active\nUsers' },
+  ];
 
-  const QuickActionCard = ({ icon, title, count, countColor, color, onPress }) => (
-    <TouchableOpacity 
-      style={[styles.quickActionCard, { borderColor: color }]} 
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={[color + '20', color + '10']}
-        style={styles.quickActionGradient}
-      >
-        <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
-          <Icon name={icon} size={24} color="#FFFFFF" />
-        </View>
-        <Text style={[styles.quickActionCount, countColor && { color: countColor }]}>{count}</Text>
-        <Text style={styles.quickActionTitle}>{title}</Text>
-      </LinearGradient>
-    </TouchableOpacity>
+  // ── Render home (about) ───────────────────────────────────────────────────────
+  const renderHome = () => (
+    <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+      {/* Hero */}
+      <View style={s.heroWrap}>
+        <View style={s.heroBlob1} />
+        <View style={s.heroBlob2} />
+
+        {/* Profile strip */}
+        <FadeIn delay={0}>
+          <View style={s.profileStrip}>
+            <View style={s.profileAvatar}>
+              {getProfilePicture() ? (
+                <Image source={getProfilePicture()} style={s.profileAvatarImg} />
+              ) : (
+                <Text style={s.profileAvatarLetter}>{getDisplayName().charAt(0).toUpperCase()}</Text>
+              )}
+              <View style={s.onlineDot} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.profileHello}>Welcome back,</Text>
+              <Text style={s.profileName}>{getDisplayName()}</Text>
+            </View>
+            <View style={s.rolePill}>
+              <Text style={s.rolePillTxt}>{getDisplayRole()}</Text>
+            </View>
+          </View>
+        </FadeIn>
+
+        {/* Stats row */}
+        <FadeIn delay={80}>
+          <View style={s.statsRow}>
+            <View style={s.statBox}>
+              <Text style={s.statNum}>{user?.detectionsCount || '0'}</Text>
+              <Text style={s.statLbl}>Detections</Text>
+            </View>
+            <View style={s.statDivider} />
+            <View style={s.statBox}>
+              <Text style={s.statNum}>{user?.reportsCount || '0'}</Text>
+              <Text style={s.statLbl}>Reports</Text>
+            </View>
+            <View style={s.statDivider} />
+            <View style={s.statBox}>
+              <Text style={s.statNum}>{user?.ecoPoints || '0'}</Text>
+              <Text style={s.statLbl}>Eco Points</Text>
+            </View>
+          </View>
+        </FadeIn>
+      </View>
+
+      {/* ── About section ── */}
+      <View style={s.aboutSection}>
+
+        {/* Mission */}
+        <FadeIn delay={0}>
+          <Badge label="Our Mission" />
+          <Text style={s.aboutTitle}>Building Cleaner{'\n'}Communities Together</Text>
+          <Text style={s.aboutBody}>
+            SolidWaste is T.M.F.K. Waste Innovations' flagship platform — leveraging
+            cutting-edge artificial intelligence to transform how individuals and
+            organisations manage, classify, and report waste across the Philippines.
+          </Text>
+        </FadeIn>
+
+        {/* Impact numbers */}
+        <FadeIn delay={80}>
+          <View style={s.impactGrid}>
+            {STATS.map((st) => (
+              <View key={st.label} style={s.impactCard}>
+                <Text style={s.impactNum}>{st.value}</Text>
+                <Text style={s.impactLbl}>{st.label}</Text>
+              </View>
+            ))}
+          </View>
+        </FadeIn>
+
+        {/* Vision */}
+        <FadeIn delay={120}>
+          <View style={s.visionCard}>
+            <View style={s.visionIconWrap}>
+              <Ionicons name="eye-outline" size={22} color={C.teal} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.visionTitle}>Our Vision</Text>
+              <Text style={s.visionBody}>
+                To become the national standard for intelligent waste management — where
+                every piece of waste is properly classified, tracked, and recycled,
+                driving a circular economy for a sustainable Philippines.
+              </Text>
+            </View>
+          </View>
+        </FadeIn>
+
+        {/* Divider label */}
+        <FadeIn delay={140}>
+          <View style={s.scrollHint}>
+            <View style={s.scrollHintLine} />
+            <Text style={s.scrollHintTxt}>Platform Features</Text>
+            <View style={s.scrollHintLine} />
+          </View>
+        </FadeIn>
+
+        {/* Feature cards */}
+        {FEATURES.map((f, i) => (
+          <FadeIn key={f.title} delay={i * 60}>
+            <View style={s.featureCard}>
+              <View style={s.featureIconRing}>
+                <Ionicons name={f.icon} size={22} color={C.teal} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.featureTitle}>{f.title}</Text>
+                <Text style={s.featureDesc}>{f.desc}</Text>
+              </View>
+            </View>
+          </FadeIn>
+        ))}
+
+        {/* CTA */}
+        <FadeIn delay={400}>
+          <View style={s.ctaCard}>
+            <View style={s.ctaBlob} />
+            <Text style={s.ctaEyebrow}>Get started</Text>
+            <Text style={s.ctaTitle}>Use the menu to explore all features →</Text>
+            <Text style={s.ctaSub}>
+              Tap the ☰ icon at the top left to open navigation and access
+              Waste Detection, Reports, Maps, and more.
+            </Text>
+          </View>
+        </FadeIn>
+
+        <View style={{ height: 32 }} />
+      </View>
+    </ScrollView>
   );
 
-  // COMPLETELY REMOVED the placeholder default case
+  // ── Render settings ───────────────────────────────────────────────────────────
+  const renderSettings = () => (
+    <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.aboutSection}>
+        <FadeIn>
+          <Badge label="Account" />
+          <Text style={s.aboutTitle}>Settings</Text>
+        </FadeIn>
+
+        <FadeIn delay={60}>
+          <View style={s.settingsGroup}>
+            {[
+              { icon: 'person-outline',      label: 'Edit Profile',    sub: 'Update your personal information', screen: 'EditProfile',    color: C.teal },
+              { icon: 'chatbubbles-outline',  label: 'Messages',        sub: unreadMessages > 0 ? `${unreadMessages} unread message${unreadMessages > 1 ? 's' : ''}` : 'Manage your conversations', screen: 'Messages', color: '#A855F7', badge: unreadMessages },
+              { icon: 'notifications-outline',label: 'Notifications',   sub: unreadCount > 0 ? `${unreadCount} unread` : 'Manage notification preferences', screen: 'Notifications', color: C.amber, badge: unreadCount },
+            ].map((item, i, arr) => (
+              <TouchableOpacity
+                key={item.label}
+                style={[s.settingsItem, i === arr.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => navigateTo(item.screen)}
+                activeOpacity={0.75}
+              >
+                <View style={[s.settingsIconBox, { backgroundColor: item.color + '22' }]}>
+                  <Ionicons name={item.icon} size={20} color={item.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.settingsLabel}>{item.label}</Text>
+                  <Text style={s.settingsSub}>{item.sub}</Text>
+                </View>
+                {item.badge > 0 && (
+                  <View style={s.settingsBadge}>
+                    <Text style={s.settingsBadgeTxt}>{item.badge > 99 ? '99+' : item.badge}</Text>
+                  </View>
+                )}
+                <Ionicons name="chevron-forward" size={16} color={C.slateL} style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </FadeIn>
+
+        <FadeIn delay={120}>
+          <View style={[s.settingsGroup, { marginTop: 20 }]}>
+            <Text style={s.settingsGroupTitle}>Account Information</Text>
+            {[
+              { label: 'Email',        value: user?.email || 'Not set' },
+              { label: 'Member Since', value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A' },
+              { label: 'Last Login',   value: user?.lastLogin  ? new Date(user.lastLogin).toLocaleDateString()  : 'N/A' },
+            ].map((row) => (
+              <View key={row.label} style={s.infoRow}>
+                <Text style={s.infoLabel}>{row.label}</Text>
+                <Text style={s.infoValue}>{row.value}</Text>
+              </View>
+            ))}
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>Status</Text>
+              <View style={[s.statusPill, { backgroundColor: user?.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)' }]}>
+                <Text style={[s.statusPillTxt, { color: user?.status === 'active' ? C.green : C.red }]}>
+                  {user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : 'Active'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </FadeIn>
+        <View style={{ height: 32 }} />
+      </View>
+    </ScrollView>
+  );
+
   const renderContent = () => {
-    switch (activeTab) {
-      case 'Home':
-        return (
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeText}>Welcome back, {getDisplayName()}!</Text>
-              <Text style={styles.welcomeSubtext}>Ready to make a difference today?</Text>
-              
-              {/* User Status Card */}
-              <View style={styles.statusCard}>
-                <LinearGradient
-                  colors={['#1976D2', '#42A5F5']}
-                  style={styles.statusGradient}
-                >
-                  <View style={styles.statusHeader}>
-                    <View style={styles.profileImageContainer}>
-                      {getProfilePicture() ? (
-                        <Image 
-                          source={getProfilePicture()} 
-                          style={styles.profileImageSmall}
-                          onError={(error) => console.log('❌ Image loading error:', error.nativeEvent.error)}
-                        />
-                      ) : (
-                        <View style={styles.profilePlaceholderSmall}>
-                          <Icon name="person" size={20} color="#FFFFFF" />
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.statusInfo}>
-                      <Text style={styles.statusName}>{getDisplayName()}</Text>
-                      <Text style={styles.statusRole}>{getDisplayRole()}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.statsContainer}>
-                    <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>
-                        {user?.detectionsCount || '0'}
-                      </Text>
-                      <Text style={styles.statLabel}>Detections</Text>
-                    </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>
-                        {user?.reportsCount || '0'}
-                      </Text>
-                      <Text style={styles.statLabel}>Reports</Text>
-                    </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>
-                        {user?.ecoPoints || '0'}
-                      </Text>
-                      <Text style={styles.statLabel}>Points</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </View>
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <View style={styles.quickActionsGrid}>
-                <QuickActionCard
-                  icon="camera-alt"
-                  title="Waste Detection"
-                  count={`${user?.pendingDetections || '0'} new`}
-                  color="#4CAF50"
-                  onPress={() => navigateTo('WasteClassifier')}
-                />
-                <QuickActionCard
-                  icon="report"
-                  title="Report Waste"
-                  count="Submit Now"
-                  color="#2196F3"
-                  onPress={() => navigateTo('ReportWaste')}
-                />
-                <QuickActionCard
-                  icon="history"
-                  title="Detection History"
-                  count={`${user?.totalDetections || '0'} items`}
-                  color="#FF9800"
-                  onPress={() => navigateTo('DetectionHistory')}
-                />
-                {/* IDINAGDAG - Messages Quick Action */}
-                <QuickActionCard
-                  icon="chat"
-                  title="Messages"
-                  count={`${unreadMessagesCount || '0'} unread`}
-                  countColor={unreadMessagesCount > 0 ? "#FF5252" : "#666"}
-                  color="#9C27B0"
-                  onPress={() => navigateTo('Messages')}
-                />
-                <QuickActionCard
-                  icon="notifications"
-                  title="Notifications"
-                  count={`${unreadCount || '0'} unread`}
-                  color="#FF9800"
-                  onPress={() => navigateTo('Notifications')}
-                />
-                <QuickActionCard
-                  icon="map"
-                  title="Recycling Map"
-                  count="Find Centers"
-                  color="#009688"
-                  onPress={() => navigateTo('Maps')}
-                />
-                <QuickActionCard
-                  icon="feedback"
-                  title="Feedback"
-                  count="Share Ideas"
-                  color="#FF5722"
-                  onPress={() => navigateTo('FeedbackSupport')}
-                />
-                {/* Additional Action Card for Educational Resources */}
-                <QuickActionCard
-                  icon="school"
-                  title="Learn & Earn"
-                  count="Eco Tips"
-                  color="#607D8B"
-                  onPress={() => navigateTo('EducationalSection')}
-                />
-              </View>
-            </View>
-
-        
-          </ScrollView>
-        );
-        
-      case 'Settings':
-        return (
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionTitle}>Account Settings</Text>
-            <View style={styles.settingsGroup}>
-              <TouchableOpacity 
-                style={styles.settingsItem} 
-                activeOpacity={0.7}
-                onPress={() => navigateTo('EditProfile')}
-              >
-                <View style={styles.settingsIconContainer}>
-                  <Icon name="person" size={24} color="#1976D2" />
-                </View>
-                <View style={styles.settingsTextContainer}>
-                  <Text style={styles.settingsText}>Edit Profile</Text>
-                  <Text style={styles.settingsSubtext}>Update your personal information and photo</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color="#999" />
-              </TouchableOpacity>
-
-              {/* IDINAGDAG - Messages Settings Item */}
-              <TouchableOpacity 
-                style={styles.settingsItem} 
-                activeOpacity={0.7}
-                onPress={() => navigateTo('Messages')}
-              >
-                <View style={styles.settingsIconContainer}>
-                  <Icon name="chat" size={24} color="#9C27B0" />
-                </View>
-                <View style={styles.settingsTextContainer}>
-                  <Text style={styles.settingsText}>Messages</Text>
-                  <Text style={styles.settingsSubtext}>
-                    {unreadMessagesCount > 0 
-                      ? `${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`
-                      : 'Manage your conversations'
-                    }
-                  </Text>
-                </View>
-                {unreadMessagesCount > 0 && (
-                  <View style={styles.settingsBadge}>
-                    <Text style={styles.settingsBadgeText}>{unreadMessagesCount}</Text>
-                  </View>
-                )}
-                <Icon name="chevron-right" size={20} color="#999" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.settingsItem} 
-                activeOpacity={0.7}
-                onPress={() => navigateTo('Notifications')}
-              >
-                <View style={styles.settingsIconContainer}>
-                  <Icon name="notifications" size={24} color="#FF9800" />
-                </View>
-                <View style={styles.settingsTextContainer}>
-                  <Text style={styles.settingsText}>Notifications</Text>
-                  <Text style={styles.settingsSubtext}>
-                    {unreadCount > 0 
-                      ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
-                      : 'Manage your notification preferences'
-                    }
-                  </Text>
-                </View>
-                {unreadCount > 0 && (
-                  <View style={styles.settingsBadge}>
-                    <Text style={styles.settingsBadgeText}>{unreadCount}</Text>
-                  </View>
-                )}
-                <Icon name="chevron-right" size={20} color="#999" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.settingsGroup}>
-              <Text style={styles.settingsGroupTitle}>Account Information</Text>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{user?.email || 'Not set'}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Member Since</Text>
-                <Text style={styles.infoValue}>
-                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Last Login</Text>
-                <Text style={styles.infoValue}>
-                  {user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Status</Text>
-                <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: user?.status === 'active' ? '#4CAF50' : '#F44336' }
-                ]}>
-                  <Text style={styles.statusText}>
-                    {user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : 'Active'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        );
-        
-      // REMOVED the default case completely - now it will fall through to Home
-      default:
-        // If we somehow get an unknown tab, default to Home
-        return renderContentForHome();
-    }
+    if (activeTab === 'Settings') return renderSettings();
+    return renderHome();
   };
 
-  // Helper function to render home content (to avoid duplication)
-  const renderContentForHome = () => {
-    return (
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Welcome back, {getDisplayName()}!</Text>
-          <Text style={styles.welcomeSubtext}>Ready to make a difference today?</Text>
-          
-          {/* User Status Card */}
-          <View style={styles.statusCard}>
-            <LinearGradient
-              colors={['#1976D2', '#42A5F5']}
-              style={styles.statusGradient}
-            >
-              <View style={styles.statusHeader}>
-                <View style={styles.profileImageContainer}>
-                  {getProfilePicture() ? (
-                    <Image 
-                      source={getProfilePicture()} 
-                      style={styles.profileImageSmall}
-                      onError={(error) => console.log('❌ Image loading error:', error.nativeEvent.error)}
-                    />
-                  ) : (
-                    <View style={styles.profilePlaceholderSmall}>
-                      <Icon name="person" size={20} color="#FFFFFF" />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.statusInfo}>
-                  <Text style={styles.statusName}>{getDisplayName()}</Text>
-                  <Text style={styles.statusRole}>{getDisplayRole()}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>
-                    {user?.detectionsCount || '0'}
-                  </Text>
-                  <Text style={styles.statLabel}>Detections</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>
-                    {user?.reportsCount || '0'}
-                  </Text>
-                  <Text style={styles.statLabel}>Reports</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>
-                    {user?.ecoPoints || '0'}
-                  </Text>
-                  <Text style={styles.statLabel}>Points</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <QuickActionCard
-              icon="camera-alt"
-              title="Waste Detection"
-              count={`${user?.pendingDetections || '0'} new`}
-              color="#4CAF50"
-              onPress={() => navigateTo('WasteDetection')}
-            />
-            <QuickActionCard
-              icon="report"
-              title="Report Waste"
-              count="Submit Now"
-              color="#2196F3"
-              onPress={() => navigateTo('ReportWaste')}
-            />
-            <QuickActionCard
-              icon="history"
-              title="Detection History"
-              count={`${user?.totalDetections || '0'} items`}
-              color="#FF9800"
-              onPress={() => navigateTo('DetectionHistory')}
-            />
-            {/* IDINAGDAG - Messages Quick Action */}
-            <QuickActionCard
-              icon="chat"
-              title="Messages"
-              count={`${unreadMessagesCount || '0'} unread`}
-              countColor={unreadMessagesCount > 0 ? "#FF5252" : "#666"}
-              color="#9C27B0"
-              onPress={() => navigateTo('Messages')}
-            />
-            <QuickActionCard
-              icon="notifications"
-              title="Notifications"
-              count={`${unreadCount || '0'} unread`}
-              color="#FF9800"
-              onPress={() => navigateTo('Notifications')}
-            />
-            <QuickActionCard
-              icon="map"
-              title="Recycling Map"
-              count="Find Centers"
-              color="#009688"
-              onPress={() => navigateTo('Maps')}
-            />
-            <QuickActionCard
-              icon="feedback"
-              title="Feedback"
-              count="Share Ideas"
-              color="#FF5722"
-              onPress={() => navigateTo('FeedbackSupport')}
-            />
-          </View>
-        </View>    
-      </ScrollView>
-    );
-  };
+  // ── Sidebar menu items ────────────────────────────────────────────────────────
+  const SIDEBAR_SECTIONS = [
+    {
+      title: null,
+      items: [{ icon: 'home-outline', label: 'Home Dashboard', screen: 'Home' }],
+    },
+    {
+      title: 'Waste Management',
+      items: [
+        { icon: 'scan-outline',        label: 'Waste Detection',  screen: 'WasteDetection'  },
+        { icon: 'list-outline',        label: 'Report History',   screen: 'ReportHistory'   },
+        { icon: 'bar-chart-outline',   label: 'Waste Analytics',  screen: 'WasteAnalytics'  },
+      ],
+    },
+    {
+      title: 'Communication',
+      items: [
+        { icon: 'chatbubbles-outline',  label: 'Messages',          screen: 'Messages',      badge: unreadMessages },
+        { icon: 'notifications-outline',label: 'Notifications',     screen: 'Notifications', badge: unreadCount    },
+        { icon: 'megaphone-outline',    label: 'Feedback & Support',screen: 'FeedbackSupport' },
+      ],
+    },
+    {
+      title: 'Facilities & Guidance',
+      items: [
+        { icon: 'map-outline',    label: 'Recycling Map',         screen: 'Maps'              },
+        { icon: 'school-outline', label: 'Educational Resources', screen: 'Learning' },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { icon: 'person-outline',  label: 'Edit Profile', screen: 'EditProfile' },
+        { icon: 'settings-outline',label: 'Settings',     screen: 'Settings'    },
+      ],
+    },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1976D2" />
-      
-      {/* Enhanced Header */}
-      <LinearGradient
-        colors={['#1976D2', '#1E88E5', '#42A5F5']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <TouchableOpacity onPress={toggleSidebar} style={styles.menuButton} activeOpacity={0.7}>
-          <Icon name="menu" size={28} color="#FFFFFF" />
+    <SafeAreaView style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.ink} />
+
+      {/* ── Header ── */}
+      <View style={s.header}>
+        <View style={s.headerBlob} />
+        <TouchableOpacity style={s.menuBtn} onPress={toggleSidebar} activeOpacity={0.7}>
+          <Ionicons name="menu-outline" size={26} color={C.white} />
         </TouchableOpacity>
-        
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>T.M.F.K. WASTE</Text>
-          <Text style={styles.headerSubtitle}>{activeTab}</Text>
+
+        <View style={s.headerCenter}>
+          <Text style={s.headerBrand}>T.M.F.K</Text>
+          <Text style={s.headerSub}>{activeTab === 'Home' ? 'Waste Innovations' : activeTab}</Text>
         </View>
 
-        {/* IDINAGDAG - Messages Button sa Header */}
-        <View style={styles.headerButtons}>
-         
+        <TouchableOpacity style={s.headerIconBtn} onPress={() => navigateTo('Notifications')} activeOpacity={0.7}>
+          <Ionicons name="notifications-outline" size={22} color={C.white} />
+          {unreadCount > 0 && (
+            <View style={s.headerBadge}>
+              <Text style={s.headerBadgeTxt}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity 
-            style={styles.headerIconButton}
-            onPress={() => navigateTo('Notifications')}
-            activeOpacity={0.7}
-          >
-            <Icon name="notifications" size={24} color="#FFFFFF" />
-            {unreadCount > 0 && (
-              <View style={styles.notificationBadgeHeader}>
-                <Text style={styles.notificationBadgeTextHeader}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      {/* Main Content with Scale Animation */}
-      <Animated.View style={[styles.mainContentWrapper, { transform: [{ scale: scaleAnimation }] }]}>
+      {/* ── Main content ── */}
+      <Animated.View style={[{ flex: 1 }, { transform: [{ scale: scaleAnim }] }]}>
         {renderContent()}
       </Animated.View>
 
-      {/* Enhanced Sidebar */}
+      {/* ── Sidebar ── */}
       {sidebarVisible && (
         <>
-          <Animated.View 
-            style={[
-              styles.overlay, 
-              { opacity: overlayAnimation }
-            ]}
-          >
-            <TouchableOpacity 
-              style={StyleSheet.absoluteFillObject}
-              onPress={toggleSidebar}
-              activeOpacity={1}
-            />
+          <Animated.View style={[s.overlay, { opacity: overlayAnim }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={toggleSidebar} activeOpacity={1} />
           </Animated.View>
 
-          <Animated.View style={[
-            styles.sidebar, 
-            { transform: [{ translateX: sidebarAnimation }] }
-          ]}>
-            <LinearGradient
-              colors={['#1976D2', '#1565C0', '#0D47A1']}
-              style={styles.sidebarBackground}
-            >
-              <View style={styles.userInfoSidebar}>
-                <View style={styles.avatarContainer}>
-                  {getProfilePicture() ? (
-                    <Image 
-                      source={getProfilePicture()} 
-                      style={styles.sidebarProfileImage}
-                      onError={(error) => console.log('❌ Sidebar image loading error:', error.nativeEvent.error)}
-                    />
-                  ) : (
-                    <View style={styles.sidebarAvatar}>
-                      <Text style={styles.sidebarAvatarText}>
-                        {getDisplayName().charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.onlineIndicator} />
-                </View>
-                <Text style={styles.userName}>{getDisplayName()}</Text>
-                <Text style={styles.userEmail}>{user?.email || ''}</Text>
-                <View style={styles.userRoleBadge}>
-                  <Text style={styles.userRoleText}>{getDisplayRole()}</Text>
-                </View>
+          <Animated.View style={[s.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+            {/* Sidebar blobs */}
+            <View style={s.sidebarBlob1} />
+            <View style={s.sidebarBlob2} />
+
+            {/* User info */}
+            <View style={s.sidebarUser}>
+              <View style={s.sidebarAvatar}>
+                {getProfilePicture() ? (
+                  <Image source={getProfilePicture()} style={s.sidebarAvatarImg} />
+                ) : (
+                  <Text style={s.sidebarAvatarLetter}>{getDisplayName().charAt(0).toUpperCase()}</Text>
+                )}
+                <View style={s.sidebarOnlineDot} />
               </View>
+              <Text style={s.sidebarName}>{getDisplayName()}</Text>
+              <Text style={s.sidebarEmail}>{user?.email || ''}</Text>
+              <View style={s.sidebarRolePill}>
+                <Text style={s.sidebarRoleTxt}>{getDisplayRole()}</Text>
+              </View>
+            </View>
 
-              <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
-                {/* Main Navigation */}
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Home' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Home')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="home" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Home Dashboard</Text>
-                  {activeTab === 'Home' && <View style={styles.activeIndicator} />}
-                </TouchableOpacity>
+            <ScrollView style={s.sidebarMenu} showsVerticalScrollIndicator={false}>
+              {SIDEBAR_SECTIONS.map((sec) => (
+                <View key={sec.title || 'main'}>
+                  {sec.title && <Text style={s.sidebarSection}>{sec.title}</Text>}
+                  {sec.items.map((item) => {
+                    const active = activeTab === item.screen || activeTab === item.label;
+                    return (
+                      <TouchableOpacity
+                        key={item.label}
+                        style={[s.sidebarItem, active && s.sidebarItemActive]}
+                        onPress={() => navigateTo(item.screen)}
+                        activeOpacity={0.75}
+                      >
+                        <View style={[s.sidebarItemIcon, active && s.sidebarItemIconActive]}>
+                          <Ionicons name={item.icon} size={20} color={active ? C.teal : C.ghost} />
+                        </View>
+                        <Text style={[s.sidebarItemTxt, active && s.sidebarItemTxtActive]}>{item.label}</Text>
+                        {item.badge > 0 && (
+                          <View style={s.sidebarBadge}>
+                            <Text style={s.sidebarBadgeTxt}>{item.badge > 99 ? '99+' : item.badge}</Text>
+                          </View>
+                        )}
+                        {active && <View style={s.sidebarActiveBar} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
 
-                {/* Waste Management Section */}
-                <Text style={styles.menuSectionTitle}>Waste Management</Text>
-                
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'WasteDetection' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('WasteDetection')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="camera-alt" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Waste Detection</Text>
-                </TouchableOpacity>
-
-              
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'ReportHistory' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('ReportHistory')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="list-alt" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Report History</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'WasteAnalytics' && styles.activeMenuItem]}
-                   onPress={() => navigateTo('WasteAnalytics')}
-                  activeOpacity={0.7}
-                                                >
-                  <View style={styles.menuIconContainer}>
-                   <Icon name="analytics" size={24} color="#FFFFFF" />
-                  </View>
-                 <Text style={styles.menuText}>Waste Analytics</Text>
-                </TouchableOpacity>
-              
-
-                {/* Communication Section - IDINAGDAG */}
-                <Text style={styles.menuSectionTitle}>Communication</Text>
-
-                {/* IDINAGDAG - Messages Menu Item */}
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Messages' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Messages')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="chat" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Messages</Text>
-                  {unreadMessagesCount > 0 && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>
-                        {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Notifications' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Notifications')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="notifications" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Notifications</Text>
-                  {unreadCount > 0 && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'FeedbackSupport' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('FeedbackSupport')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="feedback" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Feedback & Support</Text>
-                </TouchableOpacity>
-
-                {/* Maps Section */}
-                <Text style={styles.menuSectionTitle}>Facilities & Guidance</Text>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Maps' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Maps')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="map" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Recycling Map</Text>
-                 
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'EducationalSection' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Learning')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="school" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Educational Resources</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.menuSectionTitle}>Account</Text>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'EditProfile' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('EditProfile')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="person" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Edit Profile</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.menuItem, activeTab === 'Settings' && styles.activeMenuItem]}
-                  onPress={() => navigateTo('Settings')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="settings" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Settings</Text>
-                  {activeTab === 'Settings' && <View style={styles.activeIndicator} />}
-                </TouchableOpacity>
-
-                {/* Logout */}
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={showLogoutConfirmation}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuIconContainer}>
-                    <Icon name="logout" size={24} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.menuText}>Logout</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </LinearGradient>
+              {/* Logout */}
+              <TouchableOpacity style={s.sidebarLogout} onPress={showLogoutConfirmation} activeOpacity={0.75}>
+                <Ionicons name="log-out-outline" size={20} color={C.red} />
+                <Text style={s.sidebarLogoutTxt}>Logout</Text>
+              </TouchableOpacity>
+              <View style={{ height: 40 }} />
+            </ScrollView>
           </Animated.View>
         </>
       )}
 
-      {/* Logout Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={logoutModalVisible}
-        onRequestClose={() => setLogoutModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <Animated.View style={[styles.modalContent, { opacity: fadeAnimation }]}>
-            <View style={styles.modalIcon}>
-              <Icon name="logout" size={48} color="#1976D2" />
+      {/* ── Logout modal ── */}
+      <Modal animationType="fade" transparent visible={logoutModalVisible} onRequestClose={() => setLogoutModalVisible(false)}>
+        <View style={s.modalOverlay}>
+          <Animated.View style={[s.modalCard, { opacity: fadeAnim }]}>
+            <View style={s.modalIconRing}>
+              <Ionicons name="log-out-outline" size={28} color={C.teal} />
             </View>
-            <Text style={styles.modalTitle}>Confirm Logout</Text>
-            <Text style={styles.modalMessage}>
-              Are you sure you want to logout? Your progress will be saved.
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setLogoutModalVisible(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={s.modalTitle}>Confirm Logout</Text>
+            <Text style={s.modalMsg}>Are you sure you want to logout? Your progress will be saved.</Text>
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => setLogoutModalVisible(false)} activeOpacity={0.8}>
+                <Text style={s.modalCancelTxt}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.logoutButtonModal]}
-                onPress={handleLogout}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.logoutButtonText}>Logout</Text>
+              <TouchableOpacity style={s.modalLogout} onPress={handleLogout} activeOpacity={0.8}>
+                <Text style={s.modalLogoutTxt}>Logout</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -1014,3 +574,313 @@ const UserDashboard = () => {
 };
 
 export default UserDashboard;
+
+// ─── Stylesheet ───────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root:    { flex: 1, backgroundColor: C.offWhite },
+  content: { flex: 1, backgroundColor: C.offWhite },
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  header: {
+    backgroundColor: C.ink,
+    flexDirection: 'row', alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 0 : 14,
+    paddingBottom: 14, paddingHorizontal: 20,
+    borderBottomWidth: 1, borderBottomColor: C.borderDk,
+    overflow: 'hidden',
+  },
+  headerBlob: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: C.tealGlow, top: -80, right: -60,
+  },
+  menuBtn: { padding: 4, marginRight: 12 },
+  headerCenter: { flex: 1 },
+  headerBrand: { fontSize: 16, fontWeight: '900', color: C.white, letterSpacing: 1.5 },
+  headerSub:   { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  headerIconBtn: { padding: 6, position: 'relative' },
+  headerBadge: {
+    position: 'absolute', top: 2, right: 2,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: C.red, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  headerBadgeTxt: { fontSize: 9, color: C.white, fontWeight: '800' },
+
+  // ── Hero wrap ────────────────────────────────────────────────────────────────
+  heroWrap: {
+    backgroundColor: C.ink, paddingHorizontal: 20,
+    paddingTop: 24, paddingBottom: 32, overflow: 'hidden', position: 'relative',
+  },
+  heroBlob1: {
+    position: 'absolute', width: 260, height: 260, borderRadius: 130,
+    backgroundColor: C.tealGlow, top: -100, right: -100,
+  },
+  heroBlob2: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(0,201,167,0.06)', bottom: -60, left: -40,
+  },
+
+  profileStrip: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22 },
+  profileAvatar: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
+  },
+  profileAvatarImg:    { width: 52, height: 52, borderRadius: 16 },
+  profileAvatarLetter: { fontSize: 22, fontWeight: '900', color: C.teal },
+  onlineDot: {
+    position: 'absolute', bottom: 2, right: 2,
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: C.green, borderWidth: 2, borderColor: C.ink,
+  },
+  profileHello: { fontSize: 11, color: C.ghost, fontWeight: '500' },
+  profileName:  { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
+  rolePill: {
+    backgroundColor: C.tealDim, borderRadius: 20,
+    paddingVertical: 4, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: C.tealLine,
+  },
+  rolePillTxt: { fontSize: 11, color: C.teal, fontWeight: '700' },
+
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: C.borderDk,
+    borderRadius: 16, padding: 16,
+  },
+  statBox:    { flex: 1, alignItems: 'center' },
+  statNum:    { fontSize: 22, fontWeight: '900', color: C.white, letterSpacing: -0.5 },
+  statLbl:    { fontSize: 10, color: C.slateL, fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statDivider:{ width: 1, height: 36, backgroundColor: C.borderDk },
+
+  // ── About section ────────────────────────────────────────────────────────────
+  aboutSection: { paddingHorizontal: 20, paddingTop: 28 },
+
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.tealDim, borderRadius: 20,
+    paddingVertical: 5, paddingHorizontal: 12,
+    alignSelf: 'flex-start', marginBottom: 14,
+  },
+  badgeDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal },
+  badgeText: { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 1, textTransform: 'uppercase' },
+
+  aboutTitle: {
+    fontSize: 28, fontWeight: '900', color: C.navy,
+    letterSpacing: -0.6, lineHeight: 36, marginBottom: 14,
+  },
+  aboutBody: { fontSize: 14, color: C.slate, lineHeight: 22, marginBottom: 28 },
+
+  impactGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24,
+  },
+  impactCard: {
+    flex: 1, minWidth: '44%',
+    backgroundColor: C.navy, borderRadius: 16, padding: 18,
+    borderWidth: 1, borderColor: 'rgba(10,37,64,0.12)', alignItems: 'center',
+  },
+  impactNum: { fontSize: 26, fontWeight: '900', color: C.teal, letterSpacing: -0.5 },
+  impactLbl: { fontSize: 11, color: C.slateL, textAlign: 'center', marginTop: 4, lineHeight: 16 },
+
+  visionCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
+    backgroundColor: C.white, borderRadius: 18, padding: 20, marginBottom: 28,
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: 'rgba(7,27,46,0.08)', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1, shadowRadius: 12, elevation: 2,
+  },
+  visionIconWrap: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  visionTitle: { fontSize: 15, fontWeight: '700', color: C.navy, marginBottom: 6 },
+  visionBody:  { fontSize: 13, color: C.slate, lineHeight: 20 },
+
+  scrollHint: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 12, marginBottom: 24,
+  },
+  scrollHintLine: { flex: 1, height: 1, backgroundColor: C.border },
+  scrollHintTxt:  { fontSize: 11, color: C.slateL, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
+
+  featureCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
+    backgroundColor: C.white, borderRadius: 16, padding: 18, marginBottom: 12,
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: 'rgba(7,27,46,0.06)', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 1,
+  },
+  featureIconRing: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  featureTitle: { fontSize: 15, fontWeight: '700', color: C.navy, marginBottom: 4 },
+  featureDesc:  { fontSize: 13, color: C.slate, lineHeight: 19 },
+
+  ctaCard: {
+    backgroundColor: C.navy, borderRadius: 20, padding: 26,
+    marginTop: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.navyMid,
+  },
+  ctaBlob: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: C.tealGlow, top: -60, right: -60,
+  },
+  ctaEyebrow: { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
+  ctaTitle:   { fontSize: 18, fontWeight: '900', color: C.white, lineHeight: 26, marginBottom: 10 },
+  ctaSub:     { fontSize: 13, color: C.ghost, lineHeight: 20 },
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+  settingsGroup: {
+    backgroundColor: C.white, borderRadius: 18, marginBottom: 8,
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: 'rgba(7,27,46,0.06)', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 1, overflow: 'hidden',
+  },
+  settingsGroupTitle: {
+    fontSize: 11, fontWeight: '700', color: C.slateL,
+    letterSpacing: 0.8, textTransform: 'uppercase',
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8,
+  },
+  settingsItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 18, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  settingsIconBox: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  settingsLabel: { fontSize: 15, fontWeight: '600', color: C.navy, marginBottom: 2 },
+  settingsSub:   { fontSize: 12, color: C.slate },
+  settingsBadge: {
+    backgroundColor: C.red, borderRadius: 10,
+    paddingVertical: 2, paddingHorizontal: 7, marginRight: 4,
+  },
+  settingsBadgeTxt: { fontSize: 11, color: C.white, fontWeight: '800' },
+
+  infoRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  infoLabel: { fontSize: 13, color: C.slate },
+  infoValue: { fontSize: 13, color: C.navy, fontWeight: '600' },
+  statusPill: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 10 },
+  statusPillTxt: { fontSize: 12, fontWeight: '700' },
+
+  // ── Sidebar ──────────────────────────────────────────────────────────────────
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 10,
+  },
+  sidebar: {
+    position: 'absolute', top: 0, left: 0, bottom: 0,
+    width: width * 0.78, backgroundColor: C.ink,
+    zIndex: 20, overflow: 'hidden',
+    borderRightWidth: 1, borderRightColor: C.borderDk,
+  },
+  sidebarBlob1: {
+    position: 'absolute', width: 220, height: 220, borderRadius: 110,
+    backgroundColor: C.tealGlow, top: -80, right: -80,
+  },
+  sidebarBlob2: {
+    position: 'absolute', width: 150, height: 150, borderRadius: 75,
+    backgroundColor: 'rgba(0,201,167,0.05)', bottom: 100, left: -60,
+  },
+  sidebarUser: {
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    paddingHorizontal: 24, paddingBottom: 24,
+    borderBottomWidth: 1, borderBottomColor: C.borderDk,
+  },
+  sidebarAvatar: {
+    width: 64, height: 64, borderRadius: 18,
+    backgroundColor: C.navyMid, borderWidth: 1.5, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12, position: 'relative',
+  },
+  sidebarAvatarImg:    { width: 64, height: 64, borderRadius: 18 },
+  sidebarAvatarLetter: { fontSize: 26, fontWeight: '900', color: C.teal },
+  sidebarOnlineDot: {
+    position: 'absolute', bottom: 2, right: 2,
+    width: 12, height: 12, borderRadius: 6,
+    backgroundColor: C.green, borderWidth: 2, borderColor: C.ink,
+  },
+  sidebarName:  { fontSize: 17, fontWeight: '900', color: C.white, marginBottom: 3 },
+  sidebarEmail: { fontSize: 12, color: C.ghost, marginBottom: 10 },
+  sidebarRolePill: {
+    alignSelf: 'flex-start', backgroundColor: C.tealDim,
+    borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: C.tealLine,
+  },
+  sidebarRoleTxt: { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6 },
+
+  sidebarMenu:    { flex: 1, paddingTop: 8 },
+  sidebarSection: {
+    fontSize: 9, fontWeight: '800', color: C.slateL,
+    letterSpacing: 1.2, textTransform: 'uppercase',
+    paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8,
+  },
+  sidebarItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 24, paddingVertical: 13, position: 'relative',
+  },
+  sidebarItemActive: { backgroundColor: C.tealDim },
+  sidebarItemIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sidebarItemIconActive: { backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine },
+  sidebarItemTxt:       { flex: 1, fontSize: 14, color: C.ghost, fontWeight: '500' },
+  sidebarItemTxtActive: { color: C.teal, fontWeight: '700' },
+  sidebarBadge: {
+    backgroundColor: C.red, borderRadius: 10,
+    paddingVertical: 2, paddingHorizontal: 7,
+  },
+  sidebarBadgeTxt:  { fontSize: 10, color: C.white, fontWeight: '800' },
+  sidebarActiveBar: {
+    position: 'absolute', right: 0, top: 8, bottom: 8,
+    width: 3, borderRadius: 2, backgroundColor: C.teal,
+  },
+  sidebarLogout: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 24, paddingVertical: 16, marginTop: 8,
+    borderTopWidth: 1, borderTopColor: C.borderDk,
+  },
+  sidebarLogoutTxt: { fontSize: 14, color: C.red, fontWeight: '600' },
+
+  // ── Logout modal ─────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalCard: {
+    backgroundColor: C.navy, borderRadius: 22, padding: 28,
+    width: '100%', maxWidth: 360,
+    borderWidth: 1, borderColor: C.borderDk, alignItems: 'center',
+  },
+  modalIconRing: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+  },
+  modalTitle:  { fontSize: 20, fontWeight: '900', color: C.white, marginBottom: 8 },
+  modalMsg:    { fontSize: 13, color: C.ghost, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+  modalBtns:   { flexDirection: 'row', gap: 12, width: '100%' },
+  modalCancel: {
+    flex: 1, height: 48, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalCancelTxt: { color: C.ghost, fontSize: 14, fontWeight: '600' },
+  modalLogout: {
+    flex: 1, height: 48, borderRadius: 12,
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalLogoutTxt: { color: C.red, fontSize: 14, fontWeight: '800' },
+});

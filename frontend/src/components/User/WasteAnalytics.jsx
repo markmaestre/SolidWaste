@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,1133 +7,723 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
-  Dimensions
+  Dimensions,
+  Animated,
+  Platform,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
 import { getUserReports } from '../../redux/slices/wasteReportSlice';
 
 const { width } = Dimensions.get('window');
 
-// CO₂ emission factors (kg CO₂ equivalent per kg of waste)
-// Source: EPA, IPCC, and environmental research data
+// ── Design tokens (same palette as EditProfile & ReportHistory) ───────────────
+const C = {
+  ink:      '#071B2E',
+  navy:     '#0A2540',
+  navyMid:  '#103559',
+  teal:     '#00C9A7',
+  tealDark: '#009E84',
+  tealDim:  'rgba(0,201,167,0.13)',
+  tealGlow: 'rgba(0,201,167,0.22)',
+  tealLine: 'rgba(0,201,167,0.35)',
+  white:    '#FFFFFF',
+  offWhite: '#F7FAFB',
+  border:   '#D8E4EE',
+  borderDk: 'rgba(255,255,255,0.09)',
+  slate:    '#4E6B87',
+  slateL:   '#8BA5BC',
+  ghost:    'rgba(255,255,255,0.55)',
+  red:      '#EF4444',
+  redDim:   'rgba(239,68,68,0.1)',
+  green:    '#22C55E',
+  greenDim: 'rgba(34,197,94,0.13)',
+  greenLine:'rgba(34,197,94,0.35)',
+  amber:    '#F59E0B',
+  amberDim: 'rgba(245,158,11,0.13)',
+  amberLine:'rgba(245,158,11,0.35)',
+  blue:     '#60A5FA',
+  blueDim:  'rgba(96,165,250,0.13)',
+  blueLine: 'rgba(96,165,250,0.35)',
+  purple:   '#A78BFA',
+  purpleDim:'rgba(167,139,250,0.13)',
+};
+
+// ── CO₂ emission factors ──────────────────────────────────────────────────────
 const CO2_EMISSION_FACTORS = {
-  // Recycling saves CO₂ compared to virgin production
-  recycling: {
-    plastic: 1.5, // kg CO₂ saved per kg recycled plastic
-    paper: 0.9,   // kg CO₂ saved per kg recycled paper
-    glass: 0.6,   // kg CO₂ saved per kg recycled glass
-    metal: 3.0,   // kg CO₂ saved per kg recycled metal
-    aluminum: 8.0, // kg CO₂ saved per kg recycled aluminum
-    organic: 0.1,  // kg CO₂ saved per kg composted organic
-    electronic: 2.5, // kg CO₂ saved per kg recycled e-waste
-    textile: 2.0,  // kg CO₂ saved per kg recycled textile
-    cardboard: 1.1, // kg CO₂ saved per kg recycled cardboard
-    default: 1.0   // Default saving factor
-  },
-  // Landfill emissions (if not recycled)
-  landfill: {
-    plastic: 0.1,   // Minimal degradation in landfill
-    paper: 0.5,     // Produces methane when decomposing
-    glass: 0.02,    // Inert material, minimal emissions
-    metal: 0.05,    // Minimal emissions
-    aluminum: 0.05,
-    organic: 1.5,   // Produces methane in landfill
-    electronic: 0.8, // Heavy metals and chemicals
-    textile: 0.7,    // Produces methane
-    cardboard: 0.5,
-    default: 0.3
-  },
-  // Incineration emissions
-  incineration: {
-    plastic: 2.5,   // High emissions when burned
-    paper: 0.8,
-    glass: 0.1,     // Doesn't burn well
-    metal: 0.1,
-    aluminum: 0.1,
-    organic: 0.3,
-    electronic: 1.2,
-    textile: 1.5,
-    cardboard: 0.9,
-    default: 1.0
-  }
+  recycling: { plastic:1.5,paper:0.9,glass:0.6,metal:3.0,aluminum:8.0,organic:0.1,electronic:2.5,textile:2.0,cardboard:1.1,default:1.0 },
+  landfill:  { plastic:0.1,paper:0.5,glass:0.02,metal:0.05,aluminum:0.05,organic:1.5,electronic:0.8,textile:0.7,cardboard:0.5,default:0.3 },
+  incineration:{ plastic:2.5,paper:0.8,glass:0.1,metal:0.1,aluminum:0.1,organic:0.3,electronic:1.2,textile:1.5,cardboard:0.9,default:1.0 },
 };
-
-// Average weight per waste item (kg)
-// Based on typical household waste items
 const AVG_ITEM_WEIGHT = {
-  plastic: {
-    bottle: 0.05,    // 50g plastic bottle
-    bag: 0.01,       // 10g plastic bag
-    container: 0.03, // 30g container
-    default: 0.03
-  },
-  paper: {
-    newspaper: 0.1,  // 100g newspaper
-    magazine: 0.15,
-    office: 0.05,
-    default: 0.08
-  },
-  glass: {
-    bottle: 0.3,     // 300g glass bottle
-    jar: 0.2,
-    default: 0.25
-  },
-  metal: {
-    can: 0.015,      // 15g aluminum can
-    default: 0.02
-  },
-  organic: {
-    food: 0.2,
-    yard: 0.5,
-    default: 0.3
-  },
-  electronic: {
-    small: 0.5,      // Small electronics
-    medium: 2.0,
-    default: 1.0
-  },
-  default: 0.1        // Default weight if unknown
+  plastic:{bottle:0.05,bag:0.01,container:0.03,default:0.03},
+  paper:{newspaper:0.1,magazine:0.15,office:0.05,default:0.08},
+  glass:{bottle:0.3,jar:0.2,default:0.25},
+  metal:{can:0.015,default:0.02},
+  organic:{food:0.2,yard:0.5,default:0.3},
+  electronic:{small:0.5,medium:2.0,default:1.0},
+  default:0.1,
 };
 
-const WasteAnalytics = ({ navigation }) => {
-  const dispatch = useDispatch();
-  const { reports, loading } = useSelector((state) => state.wasteReport);
-  const [refreshing, setRefreshing] = useState(false);
-  const [timeRange, setTimeRange] = useState('all'); 
-  const [analytics, setAnalytics] = useState(null);
-
+// ── Fade-in animation (mirrors EditProfile) ───────────────────────────────────
+const FadeIn = ({ children, delay = 0 }) => {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
   useEffect(() => {
-    loadReports();
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 420, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
+    ]).start();
   }, []);
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+};
 
-  useEffect(() => {
-    if (reports.length > 0) {
-      calculateAnalytics();
-    }
-  }, [reports, timeRange]);
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const WASTE_TYPE_COLORS = {
+  plastic:'#60A5FA', paper:'#34D399', glass:'#A78BFA',
+  metal:'#F59E0B',   organic:'#22C55E', electronic:'#F97316',
+  hazardous:'#EF4444', mixed:'#8BA5BC', unknown:'#8BA5BC',
+};
+const getWasteColor = (t) => WASTE_TYPE_COLORS[(t||'').toLowerCase()] || C.slateL;
+
+const STATUS_META = {
+  recycled:  { color: C.green,  dim: C.greenDim, line: C.greenLine, icon: 'refresh-circle-outline' },
+  processed: { color: C.blue,   dim: C.blueDim,  line: C.blueLine,  icon: 'checkmark-circle-outline' },
+  pending:   { color: C.amber,  dim: C.amberDim, line: C.amberLine, icon: 'time-outline' },
+  disposed:  { color: C.red,    dim: C.redDim,   line:'rgba(239,68,68,0.35)', icon: 'trash-outline' },
+};
+const getStatusMeta = (s) => STATUS_META[s] || { color: C.slateL, dim:'rgba(139,165,188,0.13)', line:'rgba(139,165,188,0.35)', icon:'help-circle-outline' };
+
+const formatCO2 = (v) => {
+  const n = parseFloat(v) || 0;
+  return n >= 1000 ? `${(n/1000).toFixed(2)}t` : `${Math.abs(n).toFixed(2)}kg`;
+};
+const formatConfidence = (v) =>
+  typeof v === 'number' ? (v <= 1 ? `${Math.round(v*100)}%` : `${Math.round(v)}%`) : `${v}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+const WasteAnalytics = ({ navigation }) => {
+  const dispatch   = useDispatch();
+  const { reports, loading } = useSelector((s) => s.wasteReport);
+  const [refreshing, setRefreshing] = useState(false);
+  const [timeRange,  setTimeRange]  = useState('all');
+  const [analytics,  setAnalytics]  = useState(null);
+
+  useEffect(() => { loadReports(); }, []);
+  useEffect(() => { if (reports.length > 0) calculateAnalytics(); }, [reports, timeRange]);
 
   const loadReports = async () => {
-    try {
-      await dispatch(getUserReports({ limit: 1000 })).unwrap();
-    } catch (error) {
-      console.error('Failed to load reports:', error);
-    }
+    try { await dispatch(getUserReports({ limit: 1000 })).unwrap(); }
+    catch (e) { console.error('Failed to load reports:', e); }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadReports();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await loadReports(); setRefreshing(false); };
 
-  const filterReportsByTimeRange = (reports) => {
+  const filterByTime = (reps) => {
+    if (timeRange === 'all') return reps;
     const now = new Date();
-    let startDate;
-
-    switch (timeRange) {
-      case 'week':
-        startDate = new Date(now.setDate(now.getDate() - 7));
-        break;
-      case 'month':
-        startDate = new Date(now.setMonth(now.getMonth() - 1));
-        break;
-      case 'year':
-        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
-        break;
-      default:
-        return reports; // 'all'
-    }
-
-    return reports.filter(report => 
-      new Date(report.scanDate || report.createdAt) >= startDate
-    );
+    const start = {
+      week:  new Date(new Date().setDate(now.getDate() - 7)),
+      month: new Date(new Date().setMonth(now.getMonth() - 1)),
+      year:  new Date(new Date().setFullYear(now.getFullYear() - 1)),
+    }[timeRange];
+    return reps.filter(r => new Date(r.scanDate || r.createdAt) >= start);
   };
 
-  const calculateWasteWeight = (report) => {
-    // If report has actual weight data, use it
-    if (report.weight) {
-      return report.weight;
-    }
-    
-    // Otherwise estimate based on waste type
-    const wasteType = (report.classification || 'default').toLowerCase();
-    const itemType = report.itemType || 'default';
-    
-    // Get weight factor for the waste type
-    const typeWeights = AVG_ITEM_WEIGHT[wasteType] || AVG_ITEM_WEIGHT.default;
-    const weight = typeof typeWeights === 'object' 
-      ? (typeWeights[itemType] || typeWeights.default || AVG_ITEM_WEIGHT.default)
-      : AVG_ITEM_WEIGHT.default;
-    
-    // Multiply by quantity if available
-    return weight * (report.quantity || 1);
+  const calcWeight = (r) => {
+    if (r.weight) return r.weight;
+    const wt = (r.classification || 'default').toLowerCase();
+    const tw = AVG_ITEM_WEIGHT[wt] || AVG_ITEM_WEIGHT.default;
+    const w  = typeof tw === 'object' ? (tw[r.itemType || 'default'] || tw.default || AVG_ITEM_WEIGHT.default) : AVG_ITEM_WEIGHT.default;
+    return w * (r.quantity || 1);
   };
 
-  const calculateCO2Impact = (report, wasteType, weight) => {
-    const type = (wasteType || 'default').toLowerCase();
-    const status = report.status || 'pending';
-    
-    let co2Impact = 0;
-    
-    switch (status) {
-      case 'recycled':
-        // CO₂ saved through recycling (negative = reduction)
-        co2Impact = -(weight * (CO2_EMISSION_FACTORS.recycling[type] || CO2_EMISSION_FACTORS.recycling.default));
-        break;
-        
-      case 'processed':
-        // Processed typically means composted or treated - calculate savings based on treatment
-        if (type === 'organic') {
-          // Composting saves methane emissions from landfill
-          co2Impact = -(weight * 0.5); // Composting saves ~0.5 kg CO₂e per kg
-        } else {
-          // Other processing methods
-          co2Impact = -(weight * 0.3);
-        }
-        break;
-        
-      case 'disposed':
-        // Landfill emissions
-        co2Impact = weight * (CO2_EMISSION_FACTORS.landfill[type] || CO2_EMISSION_FACTORS.landfill.default);
-        break;
-        
-      default:
-        // Pending - assume worst case (landfill) for conservative estimate
-        co2Impact = weight * (CO2_EMISSION_FACTORS.landfill[type] || CO2_EMISSION_FACTORS.landfill.default);
+  const calcCO2 = (r, wasteType, weight) => {
+    const t = (wasteType || 'default').toLowerCase();
+    switch (r.status || 'pending') {
+      case 'recycled':  return -(weight * (CO2_EMISSION_FACTORS.recycling[t] || CO2_EMISSION_FACTORS.recycling.default));
+      case 'processed': return -(weight * (t === 'organic' ? 0.5 : 0.3));
+      case 'disposed':  return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
+      default:          return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
     }
-    
-    return co2Impact;
   };
 
   const calculateAnalytics = () => {
-    const filteredReports = filterReportsByTimeRange(reports);
-    
-    if (filteredReports.length === 0) {
-      setAnalytics(null);
-      return;
-    }
+    const filtered = filterByTime(reports);
+    if (!filtered.length) { setAnalytics(null); return; }
 
-    // Initialize tracking objects
-    const wasteDistribution = {};
-    const materialBreakdown = {};
-    const statusDistribution = {};
-    let totalConfidence = 0;
-    let totalRecyclingTips = 0;
-    let totalWeight = 0;
-    let totalCO2Impact = 0;
-    
-    // Track CO₂ by status and type
+    const wasteDistribution = {}, statusDistribution = {}, co2ByWasteType = {};
     const co2ByStatus = {
-      recycled: { total: 0, count: 0, weight: 0 },
-      processed: { total: 0, count: 0, weight: 0 },
-      disposed: { total: 0, count: 0, weight: 0 },
-      pending: { total: 0, count: 0, weight: 0 }
+      recycled:{ total:0, count:0, weight:0 }, processed:{ total:0, count:0, weight:0 },
+      disposed:{ total:0, count:0, weight:0 }, pending:  { total:0, count:0, weight:0 },
     };
-    
-    const co2ByWasteType = {};
+    let totalConf=0, totalTips=0, totalWeight=0, totalCO2=0;
 
-    filteredReports.forEach(report => {
-      // Get waste type
-      const wasteType = report.classification || 'Unknown';
-      const wasteTypeLower = wasteType.toLowerCase();
-      
-      // Calculate weight
-      const weight = calculateWasteWeight(report);
-      totalWeight += weight;
-      
-      // Calculate CO₂ impact
-      const co2Impact = calculateCO2Impact(report, wasteType, weight);
-      totalCO2Impact += co2Impact;
-      
-      // Track by waste type
-      wasteDistribution[wasteType] = (wasteDistribution[wasteType] || 0) + 1;
-      
-      // Track CO₂ by waste type
-      if (!co2ByWasteType[wasteType]) {
-        co2ByWasteType[wasteType] = {
-          count: 0,
-          weight: 0,
-          co2Impact: 0,
-          co2PerKg: 0
-        };
-      }
-      co2ByWasteType[wasteType].count += 1;
-      co2ByWasteType[wasteType].weight += weight;
-      co2ByWasteType[wasteType].co2Impact += co2Impact;
-
-      // Count materials from breakdown
-      if (report.materialBreakdown) {
-        Object.keys(report.materialBreakdown).forEach(material => {
-          materialBreakdown[material] = (materialBreakdown[material] || 0) + 1;
-        });
-      }
-
-      // Count status
-      const status = report.status || 'pending';
-      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
-      
-      // Track CO₂ by status
-      if (co2ByStatus[status]) {
-        co2ByStatus[status].count += 1;
-        co2ByStatus[status].weight += weight;
-        co2ByStatus[status].total += co2Impact;
-      }
-
-      // Sum confidence
-      totalConfidence += report.classificationConfidence || 0;
-
-      // Count recycling tips
-      totalRecyclingTips += report.recyclingTips?.length || 0;
+    filtered.forEach(r => {
+      const wt     = r.classification || 'Unknown';
+      const weight = calcWeight(r);
+      const co2    = calcCO2(r, wt, weight);
+      totalWeight += weight; totalCO2 += co2;
+      wasteDistribution[wt] = (wasteDistribution[wt] || 0) + 1;
+      if (!co2ByWasteType[wt]) co2ByWasteType[wt] = { count:0, weight:0, co2Impact:0 };
+      co2ByWasteType[wt].count++;
+      co2ByWasteType[wt].weight  += weight;
+      co2ByWasteType[wt].co2Impact += co2;
+      const st = r.status || 'pending';
+      statusDistribution[st] = (statusDistribution[st] || 0) + 1;
+      if (co2ByStatus[st]) { co2ByStatus[st].count++; co2ByStatus[st].weight += weight; co2ByStatus[st].total += co2; }
+      totalConf += r.classificationConfidence || 0;
+      totalTips += r.recyclingTips?.length || 0;
     });
 
-    // Calculate CO₂ per kg for each waste type
-    Object.keys(co2ByWasteType).forEach(type => {
-      const data = co2ByWasteType[type];
-      data.co2PerKg = data.weight > 0 ? (data.co2Impact / data.weight).toFixed(2) : 0;
-    });
-
-    // Calculate percentages and stats
-    const totalReports = filteredReports.length;
-    const avgConfidence = totalConfidence / totalReports;
-    
-    // Most common waste type
-    const mostCommonWaste = Object.entries(wasteDistribution)
-      .sort(([,a], [,b]) => b - a)[0];
-
-    // Most common material
-    const mostCommonMaterial = Object.entries(materialBreakdown)
-      .sort(([,a], [,b]) => b - a)[0];
-
-    // Calculate weighted sustainability score
-    const recycledWeight = co2ByStatus.recycled.weight || 0;
-    const processedWeight = co2ByStatus.processed.weight || 0;
-    const disposedWeight = co2ByStatus.disposed.weight || 0;
-    
-    // Sustainability score based on CO₂ reduction percentage
-    const maxPossibleCO2 = totalWeight * 2.5; // Assuming worst-case scenario (all incinerated)
-    const actualCO2 = Math.max(0, totalCO2Impact); // CO₂ emitted (positive)
-    const co2ReductionPercent = Math.min(100, Math.max(0, 
-      ((maxPossibleCO2 - actualCO2) / maxPossibleCO2) * 100
-    ));
-    
-    const sustainabilityScore = Math.round(co2ReductionPercent);
-
-    // Calculate environmental equivalents with safe defaults
-    const co2Savings = Math.max(0, -Math.min(0, totalCO2Impact)); // Negative = savings, make positive
-    const co2Emissions = Math.max(0, totalCO2Impact); // Positive = emissions
-    
-    // Equivalents (based on EPA data) with safe calculations
-    const treesEquivalent = co2Savings > 0 ? Math.max(1, Math.round(co2Savings / 21)) : 0;
-    const carsEquivalent = co2Emissions > 0 ? (co2Emissions / 4600).toFixed(2) : "0";
-    const homesEquivalent = co2Emissions > 0 ? (co2Emissions / 11000).toFixed(2) : "0";
-    const gasolineLiters = co2Emissions > 0 ? Math.round(co2Emissions * 0.43) : 0;
-    const smartphonesCharged = co2Savings > 0 ? Math.round(co2Savings * 120) : 0;
+    const total = filtered.length;
+    const mostCommonWaste = Object.entries(wasteDistribution).sort(([,a],[,b]) => b-a)[0];
+    const co2Savings   = Math.max(0, -Math.min(0, totalCO2));
+    const co2Emissions = Math.max(0, totalCO2);
+    const sustainScore = Math.round(Math.min(100, Math.max(0, ((totalWeight*2.5 - co2Emissions)/(totalWeight*2.5))*100))) || 0;
 
     setAnalytics({
-      totalReports,
-      totalWeight: totalWeight.toFixed(2),
-      wasteDistribution,
-      materialBreakdown,
-      statusDistribution,
-      avgConfidence: Math.round(avgConfidence * 100) || 0,
-      totalRecyclingTips,
+      totalReports: total,
+      totalWeight:  totalWeight.toFixed(2),
+      wasteDistribution, statusDistribution, co2ByWasteType, co2ByStatus,
+      avgConfidence: Math.round((totalConf/total)*100) || 0,
+      totalRecyclingTips: totalTips,
       mostCommonWaste: mostCommonWaste ? {
         type: mostCommonWaste[0],
         count: mostCommonWaste[1],
-        percentage: Math.round((mostCommonWaste[1] / totalReports) * 100) || 0
+        percentage: Math.round((mostCommonWaste[1]/total)*100) || 0,
       } : null,
-      mostCommonMaterial: mostCommonMaterial ? {
-        type: mostCommonMaterial[0],
-        count: mostCommonMaterial[1]
-      } : null,
-      sustainabilityScore: sustainabilityScore || 0,
-      recycledCount: co2ByStatus.recycled.count || 0,
-      processedCount: co2ByStatus.processed.count || 0,
-      disposedCount: co2ByStatus.disposed.count || 0,
-      totalCO2Impact: totalCO2Impact.toFixed(2),
-      co2Savings: co2Savings.toFixed(2),
-      co2Emissions: co2Emissions.toFixed(2),
-      co2ByStatus,
-      co2ByWasteType,
+      sustainabilityScore: sustainScore,
+      recycledCount:  co2ByStatus.recycled.count,
+      processedCount: co2ByStatus.processed.count,
+      disposedCount:  co2ByStatus.disposed.count,
+      totalCO2Impact: totalCO2.toFixed(2),
+      co2Savings:     co2Savings.toFixed(2),
+      co2Emissions:   co2Emissions.toFixed(2),
       environmentalEquivalents: {
-        treesEquivalent: treesEquivalent || 0,
-        carsEquivalent: carsEquivalent || "0",
-        homesEquivalent: homesEquivalent || "0",
-        gasolineLiters: gasolineLiters || 0,
-        smartphonesCharged: smartphonesCharged || 0
-      }
+        treesEquivalent:    co2Savings  > 0 ? Math.max(1, Math.round(co2Savings/21))    : 0,
+        carsEquivalent:     co2Emissions > 0 ? (co2Emissions/4600).toFixed(2)           : '0',
+        gasolineLiters:     co2Emissions > 0 ? Math.round(co2Emissions*0.43)            : 0,
+        smartphonesCharged: co2Savings  > 0 ? Math.round(co2Savings*120)               : 0,
+      },
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'recycled': return '#87CEEB';
-      case 'processed': return '#4682B4';
-      case 'pending': return '#FFA500';
-      case 'disposed': return '#B0C4DE';
-      default: return '#9E9E9E';
-    }
-  };
+  // ── Sub-components ─────────────────────────────────────────────────────────
 
-  const getWasteTypeColor = (type) => {
-    const colors = {
-      'plastic': '#87CEEB',
-      'paper': '#B0E0E6',
-      'glass': '#4682B4',
-      'metal': '#5F9EA0',
-      'organic': '#8FBC8F',
-      'electronic': '#6A5ACD',
-      'hazardous': '#B0C4DE',
-      'mixed': '#87CEFA',
-      'unknown': '#C0C0C0'
-    };
-    return colors[type?.toLowerCase()] || '#C0C0C0';
-  };
-
-  const formatCO2 = (value) => {
-    const numValue = parseFloat(value) || 0;
-    if (numValue >= 1000) {
-      return `${(numValue / 1000).toFixed(2)}t`;
-    }
-    return `${numValue}kg`;
-  };
-
-  const StatCard = ({ title, value, subtitle, color = '#87CEEB', icon, unit }) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <View style={styles.statHeader}>
-        <View style={[styles.iconContainer, { backgroundColor: color }]}>
-          <Icon name={icon} size={20} color="#fff" />
-        </View>
-        <Text style={styles.statValue}>{value}</Text>
+  const SectionHeader = ({ icon, title }) => (
+    <View style={s.sectionHeader}>
+      <View style={s.sectionIconWrap}>
+        <Ionicons name={icon} size={15} color={C.teal} />
       </View>
-      <Text style={styles.statTitle}>{title}</Text>
-      {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
-      {unit && <Text style={styles.statUnit}>{unit}</Text>}
+      <Text style={s.sectionTitle}>{title}</Text>
     </View>
   );
 
-  const ProgressBar = ({ percentage, color, label, value, unit }) => {
-    const safePercentage = Math.min(100, Math.max(0, percentage || 0));
+  const MetricCard = ({ title, value, sub, accentColor, icon }) => (
+    <View style={[s.metricCard, { borderTopColor: accentColor }]}>
+      <View style={[s.metricIconWrap, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}44` }]}>
+        <Ionicons name={icon} size={18} color={accentColor} />
+      </View>
+      <Text style={s.metricValue}>{value}</Text>
+      <Text style={s.metricTitle}>{title}</Text>
+      {sub ? <Text style={s.metricSub}>{sub}</Text> : null}
+    </View>
+  );
+
+  const ProgressRow = ({ label, percentage, color, valueLabel }) => {
+    const pct = Math.min(100, Math.max(0, percentage || 0));
     return (
-      <View style={styles.progressContainer}>
-        <View style={styles.progressHeader}>
-          <Icon name="trending-up" size={16} color={color} />
-          <Text style={styles.progressLabel}>{label}</Text>
-          {value && <Text style={styles.progressValue}>{value} {unit}</Text>}
+      <View style={s.progressRow}>
+        <View style={s.progressMeta}>
+          <Text style={s.progressLabel}>{label}</Text>
+          <Text style={[s.progressValueTxt, { color }]}>{valueLabel}</Text>
         </View>
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${safePercentage}%`, backgroundColor: color }
-            ]} 
-          />
+        <View style={s.progressTrack}>
+          <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: color }]} />
         </View>
-        <Text style={styles.progressPercentage}>{safePercentage}%</Text>
+        <Text style={s.progressPct}>{pct.toFixed(1)}%</Text>
       </View>
     );
   };
 
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading && !refreshing && !analytics) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#87CEEB" />
-        <Text style={styles.loadingText}>Loading analytics...</Text>
+      <View style={s.root}>
+        <View style={s.header}>
+          <View style={s.headerBlob} />
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={22} color={C.white} />
+          </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Waste Analytics</Text>
+            <Text style={s.headerSub}>Carbon footprint tracker</Text>
+          </View>
+          <View style={{ width: 38 }} />
+        </View>
+        <View style={s.loadingWrap}>
+          <ActivityIndicator size="large" color={C.teal} />
+          <Text style={s.loadingTxt}>Loading analytics…</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
-          onRefresh={onRefresh}
-          colors={['#87CEEB']}
-        />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <Icon name="analytics" size={28} color="#87CEEB" />
+    <View style={s.root}>
+
+      {/* ── Header (mirrors EditProfile) ── */}
+      <View style={s.header}>
+        <View style={s.headerBlob} />
+        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={22} color={C.white} />
+        </TouchableOpacity>
+        <View style={s.headerCenter}>
+          <Text style={s.headerTitle}>Waste Analytics</Text>
+          <Text style={s.headerSub}>Carbon footprint tracker</Text>
         </View>
-        <View>
-          <Text style={styles.headerTitle}>Waste Analytics</Text>
-          <Text style={styles.headerSubtitle}>
-            Track your carbon footprint impact
-          </Text>
-        </View>
+        <View style={{ width: 38 }} />
       </View>
 
-      {/* Time Range Filter */}
-      <View style={styles.timeFilter}>
-        {['week', 'month', 'year', 'all'].map((range) => (
-          <TouchableOpacity
-            key={range}
-            style={[
-              styles.timeButton,
-              timeRange === range && styles.timeButtonActive
-            ]}
-            onPress={() => setTimeRange(range)}
-          >
-            <Icon 
-              name={
-                range === 'week' ? 'date-range' :
-                range === 'month' ? 'calendar-today' :
-                range === 'year' ? 'event-note' : 'all-inclusive'
-              } 
-              size={16} 
-              color={timeRange === range ? '#fff' : '#87CEEB'} 
-            />
-            <Text style={[
-              styles.timeButtonText,
-              timeRange === range && styles.timeButtonTextActive
-            ]}>
-              {range.charAt(0).toUpperCase() + range.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {!analytics ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="analytics" size={64} color="#B0C4DE" />
-          <Text style={styles.emptyTitle}>No Data Available</Text>
-          <Text style={styles.emptyText}>
-            {reports.length === 0 
-              ? "Start by creating your first waste report to see analytics."
-              : `No reports found for the selected time range (${timeRange}).`
-            }
-          </Text>
-        </View>
-      ) : (
-        <>
-          {/* Key Metrics */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="insights" size={24} color="#333" />
-              <Text style={styles.sectionTitle}>Carbon Impact Overview</Text>
-            </View>
-            <View style={styles.statsGrid}>
-              <StatCard
-                title="Total Waste"
-                value={`${analytics.totalWeight || 0}kg`}
-                subtitle={`${analytics.totalReports || 0} items`}
-                color="#87CEEB"
-                icon="delete-sweep"
-              />
-              <StatCard
-                title="CO₂ Savings"
-                value={formatCO2(analytics.co2Savings || 0)}
-                subtitle="Through recycling"
-                color="#4682B4"
-                icon="cloud-queue"
-              />
-              <StatCard
-                title="CO₂ Emissions"
-                value={formatCO2(analytics.co2Emissions || 0)}
-                subtitle="From disposed waste"
-                color="#B0C4DE"
-                icon="cloud"
-              />
-              <StatCard
-                title="Net Impact"
-                value={formatCO2(analytics.totalCO2Impact || 0)}
-                subtitle={parseFloat(analytics.totalCO2Impact || 0) < 0 ? 'Carbon negative' : 'Carbon positive'}
-                color={parseFloat(analytics.totalCO2Impact || 0) < 0 ? '#87CEEB' : '#B0C4DE'}
-                icon={parseFloat(analytics.totalCO2Impact || 0) < 0 ? 'eco' : 'warning'}
-              />
-            </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 48 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
+        }
+      >
+        {/* ── Time filter ── */}
+        <FadeIn delay={0}>
+          <View style={s.timeFilterWrap}>
+            {['week','month','year','all'].map((range) => {
+              const active = timeRange === range;
+              const icons  = { week:'calendar-outline', month:'today-outline', year:'calendar-clear-outline', all:'infinite-outline' };
+              return (
+                <TouchableOpacity
+                  key={range}
+                  style={[s.timeBtn, active && s.timeBtnActive]}
+                  onPress={() => setTimeRange(range)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={icons[range]} size={14} color={active ? C.navy : C.teal} />
+                  <Text style={[s.timeBtnTxt, active && s.timeBtnTxtActive]}>
+                    {range.charAt(0).toUpperCase() + range.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        </FadeIn>
 
-          {/* Environmental Equivalents */}
-          {analytics.environmentalEquivalents && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Icon name="public" size={24} color="#333" />
-                <Text style={styles.sectionTitle}>Environmental Impact</Text>
+        {/* ── Empty ── */}
+        {!analytics ? (
+          <FadeIn delay={60}>
+            <View style={s.emptyWrap}>
+              <View style={s.emptyIconWrap}>
+                <Ionicons name="analytics-outline" size={38} color={C.teal} />
               </View>
-              <View style={styles.equivalentsCard}>
-                <View style={styles.equivalentsGrid}>
-                  <View style={styles.equivalentItem}>
-                    <Icon name="park" size={24} color="#87CEEB" />
-                    <Text style={styles.equivalentValue}>
-                      {analytics.environmentalEquivalents.treesEquivalent || 0}
-                    </Text>
-                    <Text style={styles.equivalentLabel}>Trees needed to absorb CO₂ emissions</Text>
-                  </View>
-                  <View style={styles.equivalentItem}>
-                    <Icon name="directions-car" size={24} color="#4682B4" />
-                    <Text style={styles.equivalentValue}>
-                      {analytics.environmentalEquivalents.carsEquivalent || "0"}
-                    </Text>
-                    <Text style={styles.equivalentLabel}>Cars off the road for a year</Text>
-                  </View>
-                  <View style={styles.equivalentItem}>
-                    <Icon name="local-gas-station" size={24} color="#5F9EA0" />
-                    <Text style={styles.equivalentValue}>
-                      {analytics.environmentalEquivalents.gasolineLiters || 0}L
-                    </Text>
-                    <Text style={styles.equivalentLabel}>Gasoline saved</Text>
-                  </View>
-                  <View style={styles.equivalentItem}>
-                    <Icon name="phone-android" size={24} color="#6A5ACD" />
-                    <Text style={styles.equivalentValue}>
-                      {analytics.environmentalEquivalents.smartphonesCharged || 0}
-                    </Text>
-                    <Text style={styles.equivalentLabel}>Smartphones charged</Text>
-                  </View>
+              <Text style={s.emptyTitle}>No Data Available</Text>
+              <Text style={s.emptyText}>
+                {reports.length === 0
+                  ? 'Start by creating your first waste report to see analytics.'
+                  : `No reports found for the selected time range (${timeRange}).`}
+              </Text>
+            </View>
+          </FadeIn>
+        ) : (
+          <>
+            {/* ── Carbon impact overview ── */}
+            <FadeIn delay={60}>
+              <View style={s.section}>
+                <SectionHeader icon="leaf-outline" title="Carbon Impact Overview" />
+                <View style={s.metricsGrid}>
+                  <MetricCard
+                    title="Total Waste"
+                    value={`${analytics.totalWeight}kg`}
+                    sub={`${analytics.totalReports} items scanned`}
+                    accentColor={C.teal}
+                    icon="layers-outline"
+                  />
+                  <MetricCard
+                    title="CO₂ Saved"
+                    value={formatCO2(analytics.co2Savings)}
+                    sub="Through recycling"
+                    accentColor={C.green}
+                    icon="cloud-outline"
+                  />
+                  <MetricCard
+                    title="CO₂ Emitted"
+                    value={formatCO2(analytics.co2Emissions)}
+                    sub="From disposed waste"
+                    accentColor={C.red}
+                    icon="cloud"
+                  />
+                  <MetricCard
+                    title="Net Impact"
+                    value={formatCO2(analytics.totalCO2Impact)}
+                    sub={parseFloat(analytics.totalCO2Impact) < 0 ? 'Carbon negative 🎉' : 'Carbon positive'}
+                    accentColor={parseFloat(analytics.totalCO2Impact) < 0 ? C.green : C.amber}
+                    icon={parseFloat(analytics.totalCO2Impact) < 0 ? 'trending-down-outline' : 'trending-up-outline'}
+                  />
                 </View>
               </View>
-            </View>
-          )}
+            </FadeIn>
 
-          {/* Sustainability Score */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="eco" size={24} color="#333" />
-              <Text style={styles.sectionTitle}>Sustainability Score</Text>
-            </View>
-            <View style={styles.scoreCard}>
-              <View style={styles.scoreCircle}>
-                <Text style={styles.scoreValue}>{analytics.sustainabilityScore || 0}</Text>
-                <Text style={styles.scoreLabel}>out of 100</Text>
+            {/* ── Sustainability score ── */}
+            <FadeIn delay={100}>
+              <View style={s.section}>
+                <SectionHeader icon="star-outline" title="Sustainability Score" />
+                <View style={s.scoreCard}>
+                  {/* Score ring */}
+                  <View style={s.scoreRing}>
+                    <View style={s.scoreInner}>
+                      <Text style={s.scoreNum}>{analytics.sustainabilityScore}</Text>
+                      <Text style={s.scoreOf}>/ 100</Text>
+                    </View>
+                  </View>
+                  {/* Score breakdown */}
+                  <View style={s.scoreBreakdown}>
+                    {[
+                      { label:'Recycled',  count: analytics.recycledCount,  color: C.green },
+                      { label:'Processed', count: analytics.processedCount, color: C.blue  },
+                      { label:'Pending',   count: analytics.totalReports - analytics.recycledCount - analytics.processedCount - analytics.disposedCount, color: C.amber },
+                      { label:'Disposed',  count: analytics.disposedCount,  color: C.red   },
+                    ].map(({ label, count, color }) => (
+                      <View key={label} style={s.scoreRow}>
+                        <View style={[s.scoreDot, { backgroundColor: color }]} />
+                        <Text style={s.scoreRowLabel}>{label}</Text>
+                        <Text style={[s.scoreRowCount, { color }]}>{count} items</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
               </View>
-              <View style={styles.scoreDetails}>
-                <View style={styles.scoreDetail}>
-                  <View style={[styles.scoreDot, { backgroundColor: '#87CEEB' }]} />
-                  <Text style={styles.scoreDetailText}>Recycled: {analytics.recycledCount || 0} items</Text>
-                </View>
-                <View style={styles.scoreDetail}>
-                  <View style={[styles.scoreDot, { backgroundColor: '#4682B4' }]} />
-                  <Text style={styles.scoreDetailText}>Processed: {analytics.processedCount || 0} items</Text>
-                </View>
-                <View style={styles.scoreDetail}>
-                  <View style={[styles.scoreDot, { backgroundColor: '#B0C4DE' }]} />
-                  <Text style={styles.scoreDetailText}>Disposed: {analytics.disposedCount || 0} items</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+            </FadeIn>
 
-          {/* CO₂ by Waste Type */}
-          {analytics.co2ByWasteType && Object.keys(analytics.co2ByWasteType).length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Icon name="pie-chart" size={24} color="#333" />
-                <Text style={styles.sectionTitle}>CO₂ Impact by Waste Type</Text>
-              </View>
-              <View style={styles.distributionCard}>
-                {Object.entries(analytics.co2ByWasteType)
-                  .sort(([,a], [,b]) => Math.abs(b.co2Impact || 0) - Math.abs(a.co2Impact || 0))
-                  .map(([type, data]) => {
-                    const totalImpact = Math.abs(analytics.totalCO2Impact || 1);
-                    const percentage = totalImpact > 0 
-                      ? (Math.abs(data.co2Impact || 0) / totalImpact * 100).toFixed(1)
-                      : "0";
-                    const isPositive = (data.co2Impact || 0) > 0;
+            {/* ── Environmental equivalents ── */}
+            {analytics.environmentalEquivalents && (
+              <FadeIn delay={140}>
+                <View style={s.section}>
+                  <SectionHeader icon="globe-outline" title="Environmental Impact" />
+                  <View style={s.card}>
+                    <View style={s.equivGrid}>
+                      {[
+                        { icon:'leaf-outline',     color: C.green,  value: analytics.environmentalEquivalents.treesEquivalent,    label:'Trees to absorb emissions' },
+                        { icon:'car-outline',       color: C.blue,   value: analytics.environmentalEquivalents.carsEquivalent,     label:'Cars off road for a year' },
+                        { icon:'flame-outline',     color: C.amber,  value: `${analytics.environmentalEquivalents.gasolineLiters}L`, label:'Gasoline saved' },
+                        { icon:'phone-portrait-outline', color: C.purple, value: analytics.environmentalEquivalents.smartphonesCharged, label:'Smartphones charged' },
+                      ].map(({ icon, color, value, label }) => (
+                        <View key={label} style={s.equivItem}>
+                          <View style={[s.equivIconWrap, { backgroundColor: `${color}22`, borderColor: `${color}44` }]}>
+                            <Ionicons name={icon} size={22} color={color} />
+                          </View>
+                          <Text style={s.equivValue}>{value}</Text>
+                          <Text style={s.equivLabel}>{label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              </FadeIn>
+            )}
+
+            {/* ── CO₂ by waste type ── */}
+            {Object.keys(analytics.co2ByWasteType).length > 0 && (
+              <FadeIn delay={180}>
+                <View style={s.section}>
+                  <SectionHeader icon="pie-chart-outline" title="CO₂ Impact by Waste Type" />
+                  <View style={s.card}>
+                    {Object.entries(analytics.co2ByWasteType)
+                      .sort(([,a],[,b]) => Math.abs(b.co2Impact) - Math.abs(a.co2Impact))
+                      .map(([type, data]) => {
+                        const totalAbs  = Math.abs(parseFloat(analytics.totalCO2Impact)) || 1;
+                        const pct       = ((Math.abs(data.co2Impact) / totalAbs) * 100).toFixed(1);
+                        const isSaving  = data.co2Impact < 0;
+                        const color     = isSaving ? C.green : C.red;
+                        return (
+                          <ProgressRow
+                            key={type}
+                            label={`${type} · ${data.count} item${data.count !== 1 ? 's' : ''}`}
+                            percentage={pct}
+                            color={color}
+                            valueLabel={`${isSaving ? '−' : '+'}${formatCO2(data.co2Impact)} ${isSaving ? 'saved' : 'emitted'}`}
+                          />
+                        );
+                      })
+                    }
+                  </View>
+                </View>
+              </FadeIn>
+            )}
+
+            {/* ── CO₂ by status ── */}
+            <FadeIn delay={220}>
+              <View style={s.section}>
+                <SectionHeader icon="stats-chart-outline" title="CO₂ by Processing Status" />
+                <View style={s.statusGrid}>
+                  {Object.entries(analytics.co2ByStatus).map(([status, data]) => {
+                    if (!data.count) return null;
+                    const meta = getStatusMeta(status);
                     return (
-                      <ProgressBar
-                        key={type}
-                        percentage={percentage}
-                        color={isPositive ? '#B0C4DE' : '#87CEEB'}
-                        label={`${type} (${data.count || 0} items)`}
-                        value={formatCO2(data.co2Impact || 0)}
-                        unit={isPositive ? 'emitted' : 'saved'}
-                      />
-                    );
-                  })
-                }
-              </View>
-            </View>
-          )}
-
-          {/* CO₂ by Status */}
-          {analytics.co2ByStatus && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Icon name="donut-large" size={24} color="#333" />
-                <Text style={styles.sectionTitle}>CO₂ by Processing Status</Text>
-              </View>
-              <View style={styles.statsGrid}>
-                {Object.entries(analytics.co2ByStatus).map(([status, data]) => {
-                  if ((data.count || 0) === 0) return null;
-                  return (
-                    <View key={status} style={styles.statusItem}>
-                      <View style={styles.statusHeader}>
-                        <View style={[
-                          styles.statusDot,
-                          { backgroundColor: getStatusColor(status) }
-                        ]} />
-                        <Icon 
-                          name={
-                            status === 'recycled' ? 'check-circle' :
-                            status === 'processed' ? 'build' :
-                            status === 'pending' ? 'schedule' : 'delete'
-                          } 
-                          size={16} 
-                          color={getStatusColor(status)} 
-                        />
-                        <Text style={styles.statusText}>
+                      <View key={status} style={[s.statusCard, { borderTopColor: meta.color }]}>
+                        <View style={[s.statusIconWrap, { backgroundColor: meta.dim, borderColor: meta.line }]}>
+                          <Ionicons name={meta.icon} size={16} color={meta.color} />
+                        </View>
+                        <Text style={[s.statusLabel, { color: meta.color }]}>
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </Text>
+                        <Text style={s.statusCount}>{data.count} items</Text>
+                        <Text style={s.statusWeight}>{data.weight.toFixed(2)}kg total</Text>
+                        <View style={s.statusCO2Row}>
+                          <Ionicons
+                            name={data.total < 0 ? 'arrow-down-outline' : 'arrow-up-outline'}
+                            size={11}
+                            color={data.total < 0 ? C.green : C.red}
+                          />
+                          <Text style={[s.statusCO2, { color: data.total < 0 ? C.green : C.red }]}>
+                            {formatCO2(Math.abs(data.total))} {data.total < 0 ? 'saved' : 'emitted'}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={styles.statusCount}>{data.count || 0} items</Text>
-                      <Text style={styles.statusWeight}>{(data.weight || 0).toFixed(2)}kg</Text>
-                      <Text style={[
-                        styles.statusCO2,
-                        { color: (data.total || 0) < 0 ? '#87CEEB' : '#B0C4DE' }
-                      ]}>
-                        {(data.total || 0) < 0 ? 'Saved: ' : 'Emitted: '}
-                        {formatCO2(Math.abs(data.total || 0))}
+                    );
+                  })}
+                </View>
+              </View>
+            </FadeIn>
+
+            {/* ── Insights ── */}
+            <FadeIn delay={260}>
+              <View style={s.section}>
+                <SectionHeader icon="bulb-outline" title="Insights & Recommendations" />
+                <View style={s.card}>
+                  {[
+                    { icon:'pulse-outline',   label:'Avg Classification Confidence', value: `${analytics.avgConfidence}%` },
+                    { icon:'receipt-outline', label:'Recycling Tips Received',        value: `${analytics.totalRecyclingTips}` },
+                    ...(analytics.mostCommonWaste ? [{
+                      icon:'podium-outline',
+                      label:'Most Common Waste Type',
+                      value: `${analytics.mostCommonWaste.type} (${analytics.mostCommonWaste.percentage}%)`,
+                    }] : []),
+                  ].map(({ icon, label, value }) => (
+                    <View key={label} style={s.insightRow}>
+                      <View style={s.insightLeft}>
+                        <Ionicons name={icon} size={16} color={C.teal} />
+                        <Text style={s.insightLabel}>{label}</Text>
+                      </View>
+                      <Text style={s.insightValue}>{value}</Text>
+                    </View>
+                  ))}
+
+                  {parseFloat(analytics.co2Emissions) > 0 && (
+                    <View style={s.tipBox}>
+                      <View style={[s.tipIconWrap, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
+                        <Ionicons name="warning-outline" size={16} color={C.amber} />
+                      </View>
+                      <Text style={s.tipTxt}>
+                        To cut your CO₂ emissions by 50%, focus on recycling more{' '}
+                        {Object.entries(analytics.co2ByWasteType)
+                          .filter(([,d]) => d.co2Impact > 0)
+                          .sort(([,a],[,b]) => b.co2Impact - a.co2Impact)
+                          .slice(0,2).map(([t]) => t).join(' and ') || 'waste'}.
                       </Text>
                     </View>
-                  );
-                })}
+                  )}
+                </View>
               </View>
-            </View>
-          )}
-
-          {/* Additional Insights */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="lightbulb" size={24} color="#333" />
-              <Text style={styles.sectionTitle}>Insights & Recommendations</Text>
-            </View>
-            <View style={styles.insightsCard}>
-              <View style={styles.insightItem}>
-                <View style={styles.insightHeader}>
-                  <Icon name="psychology" size={18} color="#87CEEB" />
-                  <Text style={styles.insightLabel}>Average Confidence</Text>
-                </View>
-                <Text style={styles.insightValue}>{analytics.avgConfidence || 0}%</Text>
-              </View>
-              <View style={styles.insightItem}>
-                <View style={styles.insightHeader}>
-                  <Icon name="tips-and-updates" size={18} color="#87CEEB" />
-                  <Text style={styles.insightLabel}>Recycling Tips Received</Text>
-                </View>
-                <Text style={styles.insightValue}>{analytics.totalRecyclingTips || 0}</Text>
-              </View>
-              {analytics.mostCommonWaste && (
-                <View style={styles.insightItem}>
-                  <View style={styles.insightHeader}>
-                    <Icon name="category" size={18} color="#87CEEB" />
-                    <Text style={styles.insightLabel}>Most Common Waste</Text>
-                  </View>
-                  <Text style={styles.insightValue}>
-                    {analytics.mostCommonWaste.type} ({analytics.mostCommonWaste.percentage || 0}%)
-                  </Text>
-                </View>
-              )}
-              {parseFloat(analytics.co2Emissions || 0) > 0 && (
-                <View style={styles.recommendationBox}>
-                  <Icon name="warning" size={20} color="#FFA500" />
-                  <Text style={styles.recommendationText}>
-                    To reduce your CO₂ emissions by 50%, focus on recycling more {
-                      Object.entries(analytics.co2ByWasteType || {})
-                        .filter(([,data]) => (data.co2Impact || 0) > 0)
-                        .sort(([,a], [,b]) => (b.co2Impact || 0) - (a.co2Impact || 0))
-                        .map(([type]) => type)
-                        .slice(0, 2)
-                        .join(' and ') || 'waste'
-                    }.
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </>
-      )}
-    </ScrollView>
+            </FadeIn>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
+export default WasteAnalytics;
+
+// ─── Stylesheet ───────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.offWhite },
+
+  // ── Header (identical to EditProfile) ────────────────────────────────────────
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8E8E8',
+    backgroundColor: C.ink,
+    flexDirection: 'row', alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 52 : 24,
+    paddingBottom: 18, paddingHorizontal: 20,
+    borderBottomWidth: 1, borderBottomColor: C.borderDk,
+    overflow: 'hidden',
   },
-  headerIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#f0f8ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  headerBlob: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: C.tealGlow, top: -80, right: -70,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+  backBtn: {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  timeFilter: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: 'white',
-    marginBottom: 8,
-  },
-  timeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    borderRadius: 8,
-    marginHorizontal: 2,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  timeButtonActive: {
-    backgroundColor: '#87CEEB',
-  },
-  timeButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#87CEEB',
-  },
-  timeButtonTextActive: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  section: {
+  headerCenter:  { flex: 1, alignItems: 'center' },
+  headerTitle:   { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
+  headerSub:     { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2 },
+
+  // ── Time filter ──────────────────────────────────────────────────────────────
+  timeFilterWrap: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 16,
+    backgroundColor: C.ink,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
     marginBottom: 20,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    gap: 8,
+  timeBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 9, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: C.borderDk,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: (width - 40) / 2,
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 8,
-  },
-  statHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
-    marginBottom: 2,
-  },
-  statSubtitle: {
-    fontSize: 12,
-    color: '#999',
-  },
-  statUnit: {
-    fontSize: 10,
-    color: '#999',
-    marginTop: 2,
-  },
-  equivalentsCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  equivalentsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  equivalentItem: {
-    flex: 1,
-    minWidth: (width - 80) / 2,
-    alignItems: 'center',
-  },
-  equivalentValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  equivalentLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  scoreCard: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    alignItems: 'center',
-  },
-  scoreCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f0f8ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 20,
-    borderWidth: 3,
-    borderColor: '#87CEEB',
-  },
-  scoreValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  scoreLabel: {
-    fontSize: 12,
-    color: '#666',
-  },
-  scoreDetails: {
-    flex: 1,
-  },
-  scoreDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  scoreDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  scoreDetailText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  distributionCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
-  },
-  progressLabel: {
-    flex: 1,
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  progressValue: {
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '500',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E8E8E8',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressPercentage: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'right',
-  },
-  statusItem: {
-    flex: 1,
-    minWidth: (width - 40) / 2,
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#666',
-    flex: 1,
-  },
-  statusCount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 2,
-  },
-  statusWeight: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  statusCO2: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  insightsCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  insightItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  insightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  insightLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  insightValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  recommendationBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8,
-  },
-  recommendationText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 40,
-    marginTop: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
+  timeBtnActive: { backgroundColor: C.teal, borderColor: C.teal },
+  timeBtnTxt:    { fontSize: 11, fontWeight: '700', color: C.teal },
+  timeBtnTxtActive:{ color: C.navy },
 
-export default WasteAnalytics;
+  // ── Section ──────────────────────────────────────────────────────────────────
+  section: { marginBottom: 24, paddingHorizontal: 20 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sectionIconWrap: {
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: C.navy },
+
+  // ── Generic card ─────────────────────────────────────────────────────────────
+  card: {
+    backgroundColor: C.white, borderRadius: 18, padding: 18,
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: 'rgba(7,27,46,0.07)',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3,
+  },
+
+  // ── Metrics grid ─────────────────────────────────────────────────────────────
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  metricCard: {
+    flex: 1, minWidth: (width - 58) / 2,
+    backgroundColor: C.white, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+    borderTopWidth: 3,
+    shadowColor: 'rgba(7,27,46,0.07)',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+  },
+  metricIconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+  },
+  metricValue: { fontSize: 20, fontWeight: '900', color: C.navy, marginBottom: 2 },
+  metricTitle: { fontSize: 11, fontWeight: '700', color: C.slateL, textTransform: 'uppercase', letterSpacing: 0.4 },
+  metricSub:   { fontSize: 11, color: C.slateL, marginTop: 3 },
+
+  // ── Score card ───────────────────────────────────────────────────────────────
+  scoreCard: {
+    backgroundColor: C.white, borderRadius: 18, padding: 20,
+    borderWidth: 1, borderColor: C.border,
+    flexDirection: 'row', alignItems: 'center', gap: 20,
+    shadowColor: 'rgba(7,27,46,0.07)',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3,
+  },
+  scoreRing: {
+    width: 100, height: 100, borderRadius: 50,
+    borderWidth: 4, borderColor: C.teal,
+    backgroundColor: C.tealDim,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  scoreInner: { alignItems: 'center' },
+  scoreNum:   { fontSize: 32, fontWeight: '900', color: C.navy },
+  scoreOf:    { fontSize: 11, color: C.slateL, fontWeight: '700' },
+  scoreBreakdown: { flex: 1, gap: 8 },
+  scoreRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  scoreDot:    { width: 8, height: 8, borderRadius: 4 },
+  scoreRowLabel:{ flex: 1, fontSize: 13, color: C.slate },
+  scoreRowCount:{ fontSize: 12, fontWeight: '700' },
+
+  // ── Environmental equivalents ─────────────────────────────────────────────────
+  equivGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  equivItem: {
+    width: (width - 80) / 2, alignItems: 'center',
+  },
+  equivIconWrap: {
+    width: 52, height: 52, borderRadius: 14,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  equivValue: { fontSize: 18, fontWeight: '900', color: C.navy, marginBottom: 4 },
+  equivLabel: { fontSize: 11, color: C.slateL, textAlign: 'center', lineHeight: 16 },
+
+  // ── Progress row ─────────────────────────────────────────────────────────────
+  progressRow: { marginBottom: 16 },
+  progressMeta:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  progressLabel:{ fontSize: 12, color: C.slate, fontWeight: '600', flex: 1 },
+  progressValueTxt:{ fontSize: 11, fontWeight: '700' },
+  progressTrack:{ height: 8, backgroundColor: C.border, borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+  progressFill: { height: '100%', borderRadius: 4 },
+  progressPct:  { fontSize: 10, color: C.slateL, textAlign: 'right' },
+
+  // ── Status grid ──────────────────────────────────────────────────────────────
+  statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statusCard: {
+    flex: 1, minWidth: (width - 58) / 2,
+    backgroundColor: C.white, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+    borderTopWidth: 3,
+    shadowColor: 'rgba(7,27,46,0.07)',
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+  },
+  statusIconWrap: {
+    width: 34, height: 34, borderRadius: 9, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  statusLabel:  { fontSize: 12, fontWeight: '800', marginBottom: 6 },
+  statusCount:  { fontSize: 18, fontWeight: '900', color: C.navy, marginBottom: 2 },
+  statusWeight: { fontSize: 11, color: C.slateL, marginBottom: 6 },
+  statusCO2Row: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  statusCO2:    { fontSize: 11, fontWeight: '700' },
+
+  // ── Insights ─────────────────────────────────────────────────────────────────
+  insightRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  insightLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  insightLabel: { fontSize: 13, color: C.slate, flex: 1 },
+  insightValue: { fontSize: 13, fontWeight: '800', color: C.navy },
+
+  tipBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    marginTop: 14, padding: 14, borderRadius: 12,
+    backgroundColor: C.amberDim,
+    borderWidth: 1, borderColor: C.amberLine,
+  },
+  tipIconWrap: {
+    width: 30, height: 30, borderRadius: 8,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  tipTxt: { flex: 1, fontSize: 12, color: C.slate, lineHeight: 18 },
+
+  // ── Empty ────────────────────────────────────────────────────────────────────
+  emptyWrap: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+  emptyIconWrap: {
+    width: 80, height: 80, borderRadius: 22,
+    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '900', color: C.navy, marginBottom: 8 },
+  emptyText:  { fontSize: 14, color: C.slate, textAlign: 'center', lineHeight: 21 },
+
+  // ── Loading ──────────────────────────────────────────────────────────────────
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingTxt:  { marginTop: 14, fontSize: 14, color: C.slate, fontWeight: '600' },
+});
