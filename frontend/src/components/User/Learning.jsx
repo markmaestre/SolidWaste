@@ -605,7 +605,7 @@ const Learning = ({ navigation }) => {
                 <Ionicons name="close" size={18} color={C.slate} />
               </TouchableOpacity>
             </View>
-
+Active
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <Text style={s.aiResponseTxt}>{aiResponse}</Text>
             </ScrollView>
