@@ -11,13 +11,14 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getUserReports } from '../../redux/slices/wasteReportSlice';
 
 const { width } = Dimensions.get('window');
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   ink:       '#071B2E',
   navy:      '#0A2540',
@@ -369,232 +370,238 @@ const WasteAnalytics = ({ navigation }) => {
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading && !refreshing && !analytics) {
     return (
-      <View style={s.root}>
-        <View style={s.header}>
-          <View style={s.headerBlob1} />
-          <View style={s.headerBlob2} />
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color={C.white} />
-          </TouchableOpacity>
-          <View style={s.headerCenter}>
-            <Text style={s.headerLabel}>Carbon Tracker</Text>
-            <Text style={s.headerTitle}>Waste Analytics</Text>
+      <SafeAreaView style={s.rootSafe} edges={['top']}>
+        <StatusBar style="light" backgroundColor={C.ink} />
+        <View style={s.root}>
+          <View style={s.header}>
+            <View style={s.headerBlob1} />
+            <View style={s.headerBlob2} />
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={22} color={C.white} />
+            </TouchableOpacity>
+            <View style={s.headerCenter}>
+              <Text style={s.headerLabel}>Carbon Tracker</Text>
+              <Text style={s.headerTitle}>Waste Analytics</Text>
+            </View>
+            <View style={{ width: 38 }} />
           </View>
-          <View style={{ width: 38 }} />
+          <View style={s.loadingWrap}>
+            <ActivityIndicator size="large" color={C.teal} />
+            <Text style={s.loadingTxt}>Crunching your data…</Text>
+          </View>
         </View>
-        <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color={C.teal} />
-          <Text style={s.loadingTxt}>Crunching your data…</Text>
-        </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.rootSafe} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      <View style={s.root}>
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerBlob1} />
-        <View style={s.headerBlob2} />
-        <View style={s.headerGrid} />
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.headerBlob1} />
+          <View style={s.headerBlob2} />
+          <View style={s.headerGrid} />
 
-        <View style={s.headerRow}>
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color={C.white} />
-          </TouchableOpacity>
-          <View style={s.headerCenter}>
-            <Text style={s.headerLabel}>Carbon Tracker</Text>
-            <Text style={s.headerTitle}>Waste Analytics</Text>
-          </View>
-          <View style={s.headerBadge}>
-            <Ionicons name="leaf-outline" size={13} color={C.teal} />
-            <Text style={s.headerBadgeTxt}>Live</Text>
-          </View>
-        </View>
-
-        {/* Time range tabs sit inside the header */}
-        <View style={s.timeFilterRow}>
-          {['week','month','year','all'].map((r) => (
-            <TimeBtn key={r} range={r} active={timeRange === r} onPress={setTimeRange} />
-          ))}
-        </View>
-      </View>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 52 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
-        }
-      >
-
-        {/* ── Empty state ── */}
-        {!analytics ? (
-          <FadeIn delay={60}>
-            <View style={s.emptyWrap}>
-              <View style={s.emptyIconWrap}>
-                <Ionicons name="analytics-outline" size={40} color={C.teal} />
-              </View>
-              <Text style={s.emptyTitle}>No Data Yet</Text>
-              <Text style={s.emptyText}>
-                {reports.length === 0
-                  ? 'Create your first waste report to see carbon analytics here.'
-                  : `No reports found for "${timeRange}". Try a wider time range.`}
-              </Text>
+          <View style={s.headerRow}>
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={22} color={C.white} />
+            </TouchableOpacity>
+            <View style={s.headerCenter}>
+              <Text style={s.headerLabel}>Carbon Tracker</Text>
+              <Text style={s.headerTitle}>Waste Analytics</Text>
             </View>
-          </FadeIn>
-        ) : (
-          <>
-            {/* ══ 1. Carbon impact overview ══ */}
-            <FadeIn delay={40}>
-              <View style={s.section}>
-                <SectionHeader icon="leaf-outline" title="Carbon Impact" sub="Overall waste carbon footprint" />
-                <View style={s.metricsGrid}>
-                  <MetricCard title="Total Waste"  value={`${analytics.totalWeight}kg`} sub={`${analytics.totalReports} items`} accentColor={C.teal}  icon="layers-outline" />
-                  <MetricCard title="CO₂ Saved"    value={formatCO2(analytics.co2Savings)}   sub="Via recycling"     accentColor={C.green} icon="cloud-outline" />
-                  <MetricCard title="CO₂ Emitted"  value={formatCO2(analytics.co2Emissions)} sub="From disposal"     accentColor={C.red}   icon="cloud" />
-                  <MetricCard
-                    title="Net Impact"
-                    value={formatCO2(analytics.totalCO2Impact)}
-                    sub={parseFloat(analytics.totalCO2Impact) < 0 ? 'Carbon negative 🎉' : 'Carbon positive'}
-                    accentColor={parseFloat(analytics.totalCO2Impact) < 0 ? C.green : C.amber}
-                    icon={parseFloat(analytics.totalCO2Impact) < 0 ? 'trending-down-outline' : 'trending-up-outline'}
-                  />
+            <View style={s.headerBadge}>
+              <Ionicons name="leaf-outline" size={13} color={C.teal} />
+              <Text style={s.headerBadgeTxt}>Live</Text>
+            </View>
+          </View>
+
+          {/* Time range tabs sit inside the header */}
+          <View style={s.timeFilterRow}>
+            {['week','month','year','all'].map((r) => (
+              <TimeBtn key={r} range={r} active={timeRange === r} onPress={setTimeRange} />
+            ))}
+          </View>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 52 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
+          }
+        >
+
+          {/* ── Empty state ── */}
+          {!analytics ? (
+            <FadeIn delay={60}>
+              <View style={s.emptyWrap}>
+                <View style={s.emptyIconWrap}>
+                  <Ionicons name="analytics-outline" size={40} color={C.teal} />
                 </View>
+                <Text style={s.emptyTitle}>No Data Yet</Text>
+                <Text style={s.emptyText}>
+                  {reports.length === 0
+                    ? 'Create your first waste report to see carbon analytics here.'
+                    : `No reports found for "${timeRange}". Try a wider time range.`}
+                </Text>
               </View>
             </FadeIn>
+          ) : (
+            <>
+              {/* ══ 1. Carbon impact overview ══ */}
+              <FadeIn delay={40}>
+                <View style={s.section}>
+                  <SectionHeader icon="leaf-outline" title="Carbon Impact" sub="Overall waste carbon footprint" />
+                  <View style={s.metricsGrid}>
+                    <MetricCard title="Total Waste"  value={`${analytics.totalWeight}kg`} sub={`${analytics.totalReports} items`} accentColor={C.teal}  icon="layers-outline" />
+                    <MetricCard title="CO₂ Saved"    value={formatCO2(analytics.co2Savings)}   sub="Via recycling"     accentColor={C.green} icon="cloud-outline" />
+                    <MetricCard title="CO₂ Emitted"  value={formatCO2(analytics.co2Emissions)} sub="From disposal"     accentColor={C.red}   icon="cloud" />
+                    <MetricCard
+                      title="Net Impact"
+                      value={formatCO2(analytics.totalCO2Impact)}
+                      sub={parseFloat(analytics.totalCO2Impact) < 0 ? 'Carbon negative 🎉' : 'Carbon positive'}
+                      accentColor={parseFloat(analytics.totalCO2Impact) < 0 ? C.green : C.amber}
+                      icon={parseFloat(analytics.totalCO2Impact) < 0 ? 'trending-down-outline' : 'trending-up-outline'}
+                    />
+                  </View>
+                </View>
+              </FadeIn>
 
-            {/* ══ 2. Sustainability score ══ */}
-            <FadeIn delay={100}>
-              <View style={s.section}>
-                <SectionHeader icon="star-outline" title="Sustainability Score" sub="Based on recycling behaviour" />
-                <View style={s.scoreCard}>
-                  <ScoreRing score={analytics.sustainabilityScore} />
-                  <View style={s.scoreRight}>
-                    {[
-                      { label:'Recycled',  count: analytics.recycledCount,  color: C.green },
-                      { label:'Processed', count: analytics.processedCount, color: C.blue  },
-                      { label:'Pending',   count: analytics.totalReports - analytics.recycledCount - analytics.processedCount - analytics.disposedCount, color: C.amber },
-                      { label:'Disposed',  count: analytics.disposedCount,  color: C.red   },
-                    ].map(({ label, count, color }) => (
-                      <View key={label} style={s.scoreRow}>
-                        <View style={[s.scoreDot, { backgroundColor: color }]} />
-                        <Text style={s.scoreRowLabel}>{label}</Text>
-                        <Text style={[s.scoreRowCount, { color }]}>{count}</Text>
+              {/* ══ 2. Sustainability score ══ */}
+              <FadeIn delay={100}>
+                <View style={s.section}>
+                  <SectionHeader icon="star-outline" title="Sustainability Score" sub="Based on recycling behaviour" />
+                  <View style={s.scoreCard}>
+                    <ScoreRing score={analytics.sustainabilityScore} />
+                    <View style={s.scoreRight}>
+                      {[
+                        { label:'Recycled',  count: analytics.recycledCount,  color: C.green },
+                        { label:'Processed', count: analytics.processedCount, color: C.blue  },
+                        { label:'Pending',   count: analytics.totalReports - analytics.recycledCount - analytics.processedCount - analytics.disposedCount, color: C.amber },
+                        { label:'Disposed',  count: analytics.disposedCount,  color: C.red   },
+                      ].map(({ label, count, color }) => (
+                        <View key={label} style={s.scoreRow}>
+                          <View style={[s.scoreDot, { backgroundColor: color }]} />
+                          <Text style={s.scoreRowLabel}>{label}</Text>
+                          <Text style={[s.scoreRowCount, { color }]}>{count}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              </FadeIn>
+
+              {/* ══ 3. Environmental equivalents ══ */}
+              {analytics.environmentalEquivalents && (
+                <FadeIn delay={160}>
+                  <View style={s.section}>
+                    <SectionHeader icon="globe-outline" title="Environmental Equivalents" sub="Your impact in real-world terms" />
+                    <View style={s.card}>
+                      <View style={s.equivGrid}>
+                        <EquivTile icon="leaf-outline"          color={C.green}  value={analytics.environmentalEquivalents.treesEquivalent}           label="Trees to absorb emissions" />
+                        <EquivTile icon="car-outline"           color={C.blue}   value={analytics.environmentalEquivalents.carsEquivalent}            label="Cars off road / yr" />
+                        <EquivTile icon="flame-outline"         color={C.amber}  value={`${analytics.environmentalEquivalents.gasolineLiters}L`}      label="Gasoline equivalent" />
+                        <EquivTile icon="phone-portrait-outline" color={C.purple} value={analytics.environmentalEquivalents.smartphonesCharged}       label="Smartphones charged" />
                       </View>
+                    </View>
+                  </View>
+                </FadeIn>
+              )}
+
+              {/* ══ 4. CO₂ by waste type ══ */}
+              {Object.keys(analytics.co2ByWasteType).length > 0 && (
+                <FadeIn delay={200}>
+                  <View style={s.section}>
+                    <SectionHeader icon="pie-chart-outline" title="CO₂ by Waste Type" sub="Which materials drive your footprint" />
+                    <View style={s.card}>
+                      {Object.entries(analytics.co2ByWasteType)
+                        .sort(([,a],[,b]) => Math.abs(b.co2Impact) - Math.abs(a.co2Impact))
+                        .map(([type, data], i) => {
+                          const totalAbs = Math.abs(parseFloat(analytics.totalCO2Impact)) || 1;
+                          const pct      = (Math.abs(data.co2Impact) / totalAbs) * 100;
+                          const isSaving = data.co2Impact < 0;
+                          const color    = isSaving ? C.green : C.red;
+                          return (
+                            <ProgressRow
+                              key={type}
+                              label={type}
+                              sublabel={`${data.count} item${data.count !== 1 ? 's' : ''} · ${data.weight.toFixed(2)}kg`}
+                              pct={pct}
+                              color={color}
+                              valueLabel={`${isSaving ? '−' : '+'}${formatCO2(data.co2Impact)}`}
+                              delay={i * 60}
+                            />
+                          );
+                        })}
+                    </View>
+                  </View>
+                </FadeIn>
+              )}
+
+              {/* ══ 5. CO₂ by processing status ══ */}
+              <FadeIn delay={240}>
+                <View style={s.section}>
+                  <SectionHeader icon="stats-chart-outline" title="By Processing Status" sub="CO₂ breakdown per disposal method" />
+                  <View style={s.statusGrid}>
+                    {Object.entries(analytics.co2ByStatus).map(([status, data]) => (
+                      <StatusCard key={status} status={status} data={data} />
                     ))}
                   </View>
                 </View>
-              </View>
-            </FadeIn>
-
-            {/* ══ 3. Environmental equivalents ══ */}
-            {analytics.environmentalEquivalents && (
-              <FadeIn delay={160}>
-                <View style={s.section}>
-                  <SectionHeader icon="globe-outline" title="Environmental Equivalents" sub="Your impact in real-world terms" />
-                  <View style={s.card}>
-                    <View style={s.equivGrid}>
-                      <EquivTile icon="leaf-outline"          color={C.green}  value={analytics.environmentalEquivalents.treesEquivalent}           label="Trees to absorb emissions" />
-                      <EquivTile icon="car-outline"           color={C.blue}   value={analytics.environmentalEquivalents.carsEquivalent}            label="Cars off road / yr" />
-                      <EquivTile icon="flame-outline"         color={C.amber}  value={`${analytics.environmentalEquivalents.gasolineLiters}L`}      label="Gasoline equivalent" />
-                      <EquivTile icon="phone-portrait-outline" color={C.purple} value={analytics.environmentalEquivalents.smartphonesCharged}       label="Smartphones charged" />
-                    </View>
-                  </View>
-                </View>
               </FadeIn>
-            )}
 
-            {/* ══ 4. CO₂ by waste type ══ */}
-            {Object.keys(analytics.co2ByWasteType).length > 0 && (
-              <FadeIn delay={200}>
+              {/* ══ 6. Insights ══ */}
+              <FadeIn delay={280}>
                 <View style={s.section}>
-                  <SectionHeader icon="pie-chart-outline" title="CO₂ by Waste Type" sub="Which materials drive your footprint" />
+                  <SectionHeader icon="bulb-outline" title="Insights" sub="AI-generated observations" />
                   <View style={s.card}>
-                    {Object.entries(analytics.co2ByWasteType)
-                      .sort(([,a],[,b]) => Math.abs(b.co2Impact) - Math.abs(a.co2Impact))
-                      .map(([type, data], i) => {
-                        const totalAbs = Math.abs(parseFloat(analytics.totalCO2Impact)) || 1;
-                        const pct      = (Math.abs(data.co2Impact) / totalAbs) * 100;
-                        const isSaving = data.co2Impact < 0;
-                        const color    = isSaving ? C.green : C.red;
-                        return (
-                          <ProgressRow
-                            key={type}
-                            label={type}
-                            sublabel={`${data.count} item${data.count !== 1 ? 's' : ''} · ${data.weight.toFixed(2)}kg`}
-                            pct={pct}
-                            color={color}
-                            valueLabel={`${isSaving ? '−' : '+'}${formatCO2(data.co2Impact)}`}
-                            delay={i * 60}
-                          />
-                        );
-                      })}
-                  </View>
-                </View>
-              </FadeIn>
-            )}
+                    <InsightRow icon="pulse-outline"   label="Avg Classification Confidence" value={`${analytics.avgConfidence}%`} />
+                    <InsightRow icon="receipt-outline" label="Recycling Tips Received"        value={`${analytics.totalRecyclingTips}`} />
+                    {analytics.mostCommonWaste && (
+                      <InsightRow
+                        icon="podium-outline"
+                        label="Most Common Waste Type"
+                        value={`${analytics.mostCommonWaste.type} (${analytics.mostCommonWaste.percentage}%)`}
+                        last
+                      />
+                    )}
 
-            {/* ══ 5. CO₂ by processing status ══ */}
-            <FadeIn delay={240}>
-              <View style={s.section}>
-                <SectionHeader icon="stats-chart-outline" title="By Processing Status" sub="CO₂ breakdown per disposal method" />
-                <View style={s.statusGrid}>
-                  {Object.entries(analytics.co2ByStatus).map(([status, data]) => (
-                    <StatusCard key={status} status={status} data={data} />
-                  ))}
-                </View>
-              </View>
-            </FadeIn>
-
-            {/* ══ 6. Insights ══ */}
-            <FadeIn delay={280}>
-              <View style={s.section}>
-                <SectionHeader icon="bulb-outline" title="Insights" sub="AI-generated observations" />
-                <View style={s.card}>
-                  <InsightRow icon="pulse-outline"   label="Avg Classification Confidence" value={`${analytics.avgConfidence}%`} />
-                  <InsightRow icon="receipt-outline" label="Recycling Tips Received"        value={`${analytics.totalRecyclingTips}`} />
-                  {analytics.mostCommonWaste && (
-                    <InsightRow
-                      icon="podium-outline"
-                      label="Most Common Waste Type"
-                      value={`${analytics.mostCommonWaste.type} (${analytics.mostCommonWaste.percentage}%)`}
-                      last
-                    />
-                  )}
-
-                  {parseFloat(analytics.co2Emissions) > 0 && (
-                    <View style={s.tipBox}>
-                      <View style={[s.tipIcon, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
-                        <Ionicons name="warning-outline" size={15} color={C.amber} />
-                      </View>
-                      <Text style={s.tipTxt}>
-                        Recycling more{' '}
-                        <Text style={{ color: C.amber, fontWeight: '700' }}>
-                          {Object.entries(analytics.co2ByWasteType)
-                            .filter(([,d]) => d.co2Impact > 0)
-                            .sort(([,a],[,b]) => b.co2Impact - a.co2Impact)
-                            .slice(0, 2).map(([t]) => t).join(' and ') || 'waste'}
+                    {parseFloat(analytics.co2Emissions) > 0 && (
+                      <View style={s.tipBox}>
+                        <View style={[s.tipIcon, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
+                          <Ionicons name="warning-outline" size={15} color={C.amber} />
+                        </View>
+                        <Text style={s.tipTxt}>
+                          Recycling more{' '}
+                          <Text style={{ color: C.amber, fontWeight: '700' }}>
+                            {Object.entries(analytics.co2ByWasteType)
+                              .filter(([,d]) => d.co2Impact > 0)
+                              .sort(([,a],[,b]) => b.co2Impact - a.co2Impact)
+                              .slice(0, 2).map(([t]) => t).join(' and ') || 'waste'}
+                          </Text>
+                          {' '}could cut your emissions by up to 50%.
                         </Text>
-                        {' '}could cut your emissions by up to 50%.
-                      </Text>
-                    </View>
-                  )}
+                      </View>
+                    )}
+                  </View>
                 </View>
-              </View>
-            </FadeIn>
-          </>
-        )}
-      </ScrollView>
-    </View>
+              </FadeIn>
+            </>
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 export default WasteAnalytics;
 
-// ── Stylesheet ─────────────────────────────────────────────────────────────────
+
 const CARD_SHADOW = {
   shadowColor: 'rgba(7,27,46,0.08)',
   shadowOffset: { width: 0, height: 4 },
@@ -604,12 +611,12 @@ const CARD_SHADOW = {
 };
 
 const s = StyleSheet.create({
+  rootSafe: { flex: 1, backgroundColor: C.ink },
   root: { flex: 1, backgroundColor: C.offWhite },
 
-  // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
-    paddingTop: Platform.OS === 'ios' ? 54 : 26,
+    paddingTop: Platform.OS === 'ios' ? 8 : 8,
     paddingBottom: 0,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,

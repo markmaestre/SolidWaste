@@ -1,65 +1,95 @@
 {
   "expo": {
-    "name": "Waste Scan",
+    "name": "SolidWaste",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/scan.png",
-    "scheme": "wastescan",
+    "icon": "./assets/images/TMFK.png",
+    "scheme": "SolidWaste",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kram_maestre.frontend",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SolidWaste uses your camera to scan and classify waste items in real-time for proper disposal.",
+        "NSPhotoLibraryUsageDescription": "SolidWaste accesses your photos to classify waste items for proper disposal.",
+        "NSPhotoLibraryAddUsageDescription": "SolidWaste saves classified waste images to your photo library.",
+        "NSMicrophoneUsageDescription": "Microphone access is not used by this app.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
+
     "android": {
       "package": "com.kram_maestre.frontend",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/scan.png",
+        "foregroundImage": "./assets/images/TMFK.png",
         "backgroundColor": "#001f3f"
       },
       "permissions": [
-        "VIBRATE",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.VIBRATE"
       ]
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/TMF.K.png"
     },
+
     "plugins": [
       "expo-router",
+
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/T.M.F.K.png",
-          "imageWidth": 350,
-          "resizeMode": "cover",
-          "backgroundColor": "#001f3f"
+          "image": "./assets/images/TMFK.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
+         "backgroundColor": "#0000FF"
         }
       ],
+
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/scan.png",
+          "icon": "./assets/images/TMFK.png",
           "color": "#001f3f"
         }
       ],
+
       "expo-font",
       "expo-web-browser",
-      "react-native-vision-camera"
+
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SolidWaste to access your photos to classify waste items and help with proper disposal.",
+          "cameraPermission": "Allow SolidWaste to access your camera to scan and classify waste items in real-time.",
+          "microphonePermission": false
+        }
+      ],
+
+      "expo-asset"
     ],
+
     "experiments": {
       "typedRoutes": true
     },
+
     "extra": {
       "router": {},
       "eas": {
         "projectId": "a1ef8d28-aa47-4b60-9536-7d5cb172031a"
       }
     },
+
     "owner": "kram_maestre"
   }
 }

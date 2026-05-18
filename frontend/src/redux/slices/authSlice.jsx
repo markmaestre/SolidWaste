@@ -28,17 +28,39 @@ const initialState = {
 
 // ==================== AUTH THUNKS ====================
 
-// Register User
+// Register User - Updated to handle new address structure
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
   try {
+    // formData already contains the combined address
+    // No need to modify here since frontend already combines fullAddress + barangay
     const res = await axiosInstance.post('/users/register', formData);
-    return res.data.message;
+    return res.data;
   } catch (error) {
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Registration failed');
   }
 });
 
-// Login User - UPDATED WITH PUSH TOKEN
+// Verify Email
+export const verifyEmail = createAsyncThunk('users/verifyEmail', async ({ email, verificationCode }, thunkAPI) => {
+  try {
+    const res = await axiosInstance.post('/users/verify-email', { email, verificationCode });
+    return res.data;
+  } catch (error) {
+    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Verification failed');
+  }
+});
+
+// Resend Verification Code
+export const resendVerificationCode = createAsyncThunk('users/resendVerification', async ({ email }, thunkAPI) => {
+  try {
+    const res = await axiosInstance.post('/users/resend-verification', { email });
+    return res.data;
+  } catch (error) {
+    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to resend code');
+  }
+});
+
+// Login User
 export const loginUser = createAsyncThunk('users/login', async ({ email, password, pushToken }, thunkAPI) => {
   try {
     const res = await axiosInstance.post('/users/login', { 
@@ -76,35 +98,67 @@ export const updatePushToken = createAsyncThunk(
   }
 );
 
-// Edit Profile
+// Edit Profile - Updated to properly handle address fields
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
     const token = state.auth.token;
-
-    console.log('🔄 Sending profile update request...');
-    console.log('📤 FormData contents:');
     
-    // Log FormData contents for debugging
-    for (let [key, value] of formData.entries()) {
-      if (key === 'profile' && value && value.startsWith('data:image')) {
-        console.log(`  ${key}: [Base64 Image Data - ${value.length} chars]`);
+    // Create a new FormData object to send
+    const submitData = new FormData();
+    
+    // Process each field
+    for (let pair of formData.entries()) {
+      const key = pair[0];
+      const value = pair[1];
+      
+      // Handle address fields specially
+      if (key === 'fullAddress' || key === 'barangay') {
+        // Skip for now, we'll handle them together
+        continue;
       } else {
-        console.log(`  ${key}:`, value);
+        submitData.append(key, value);
       }
     }
-
-    const res = await axiosInstance.put('/users/profile', formData, {
+    
+    // Combine fullAddress and barangay into address field
+    const fullAddress = formData.get('fullAddress');
+    const barangay = formData.get('barangay');
+    
+    if (fullAddress || barangay) {
+      let combinedAddress = '';
+      if (fullAddress && barangay) {
+        combinedAddress = `${fullAddress}, ${barangay}`;
+      } else if (fullAddress) {
+        combinedAddress = fullAddress;
+      } else if (barangay) {
+        combinedAddress = barangay;
+      }
+      
+      if (combinedAddress) {
+        submitData.append('address', combinedAddress);
+        console.log('📝 Combined address for submission:', combinedAddress);
+      }
+    }
+    
+    // If there's an address field directly in formData, use that instead
+    const directAddress = formData.get('address');
+    if (directAddress) {
+      submitData.append('address', directAddress);
+    }
+    
+    console.log('📤 Submitting profile update with fields:', [...submitData.keys()]);
+    
+    const res = await axiosInstance.put('/users/profile', submitData, {
       headers: {
         Authorization: token,
         'Content-Type': 'multipart/form-data',
       },
     });
 
-    console.log('✅ Profile update response:', res.data);
     return res.data.user;
   } catch (error) {
-    console.error('❌ Profile update error in thunk:', error);
+    console.error('❌ Edit profile error:', error.response?.data);
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Profile update failed');
   }
 });
@@ -299,7 +353,6 @@ const authSlice = createSlice({
       state.users = [];
       state.emailCheckError = null;
       state.error = null;
-      // Clear feedback data on logout
       state.feedback = [];
       state.allFeedback = [];
       state.feedbackStats = null;
@@ -329,13 +382,11 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
     },
-    // Push token reducer
     setPushToken: (state, action) => {
       if (state.user) {
         state.user.pushToken = action.payload;
       }
     },
-    // Feedback reducers
     clearFeedbackError: (state) => {
       state.feedbackError = null;
     },
@@ -358,8 +409,6 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // ==================== AUTH CASES ====================
-      
       // Register User
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
@@ -369,6 +418,31 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(registerUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Verify Email
+      .addCase(verifyEmail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyEmail.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(verifyEmail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Resend Verification
+      .addCase(resendVerificationCode.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(resendVerificationCode.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(resendVerificationCode.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -411,7 +485,6 @@ const authSlice = createSlice({
       .addCase(editProfile.fulfilled, (state, action) => {
         state.profileUpdateLoading = false;
         state.user = action.payload;
-        // Also update in users list if user is admin viewing users
         state.users = state.users.map((user) =>
           user._id === action.payload.id ? action.payload : user
         );
@@ -459,7 +532,6 @@ const authSlice = createSlice({
         state.users = state.users.map((user) =>
           user._id === updatedUser._id ? updatedUser : user
         );
-        // If updated user is the current user, update local state too
         if (state.user && state.user.id === updatedUser._id) {
           state.user = { ...state.user, status: updatedUser.status };
         }
@@ -481,8 +553,6 @@ const authSlice = createSlice({
         state.emailCheckLoading = false;
         state.emailCheckError = action.payload;
       })
-
-      // ==================== FEEDBACK & SUPPORT CASES ====================
 
       // Submit Feedback
       .addCase(submitFeedback.pending, (state) => {
@@ -538,12 +608,10 @@ const authSlice = createSlice({
         state.loading = false;
         const updatedFeedback = action.payload.feedback;
         
-        // Update in user's feedback list
         state.feedback = state.feedback.map((item) =>
           item._id === updatedFeedback._id ? updatedFeedback : item
         );
         
-        // Update in admin's all feedback list
         state.allFeedback = state.allFeedback.map((item) =>
           item._id === updatedFeedback._id ? updatedFeedback : item
         );

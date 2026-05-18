@@ -12,6 +12,8 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -231,13 +233,14 @@ const MessageList = () => {
   // ── Not logged in ───────────────────────────────────────────────────────────
   if (!currentUser) {
     return (
-      <View style={s.root}>
+      <SafeAreaView style={s.rootSafe} edges={['top']}>
+        <StatusBar style="light" backgroundColor={C.ink} />
         <View style={s.header}><View style={s.headerBlob} /></View>
         <View style={s.loadingWrap}>
           <ActivityIndicator size="large" color={C.teal} />
           <Text style={s.loadingTxt}>Loading user information…</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -248,169 +251,172 @@ const MessageList = () => {
   const convsCount   = conversations?.length || 0;
 
   return (
-    <View style={s.root}>
-
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerBlob} />
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={C.white} />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>Messages</Text>
-          <Text style={s.headerSub}>
-            {convsCount} conversation{convsCount !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity style={s.backBtn} onPress={loadData} activeOpacity={0.7}>
-          <Ionicons name="refresh-outline" size={19} color={C.ghost} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Profile strip ── */}
-      <FadeIn delay={0}>
-        <View style={s.profileStrip}>
-          <Avatar name={currentUser?.username || 'U'} size={44} />
-          <View style={s.profileInfo}>
-            <Text style={s.profileName}>{currentUser?.username || 'User'}</Text>
-            <Text style={s.profileRole}>{currentUser?.role || 'User'}</Text>
-          </View>
-          <View style={[s.roleBadge, { backgroundColor: isAdmin ? 'rgba(96,165,250,0.15)' : C.tealDim, borderColor: isAdmin ? 'rgba(96,165,250,0.4)' : C.tealLine }]}>
-            <Ionicons name={isAdmin ? 'shield-checkmark-outline' : 'person-outline'} size={12} color={isAdmin ? C.blue : C.teal} />
-            <Text style={[s.roleBadgeTxt, { color: isAdmin ? C.blue : C.teal }]}>
-              {isAdmin ? 'Admin' : 'Member'}
+    <SafeAreaView style={s.rootSafe} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      <View style={s.root}>
+        
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.headerBlob} />
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={22} color={C.white} />
+          </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Messages</Text>
+            <Text style={s.headerSub}>
+              {convsCount} conversation{convsCount !== 1 ? 's' : ''}
             </Text>
           </View>
+          <TouchableOpacity style={s.backBtn} onPress={loadData} activeOpacity={0.7}>
+            <Ionicons name="refresh-outline" size={19} color={C.ghost} />
+          </TouchableOpacity>
         </View>
-      </FadeIn>
 
-      {/* ── Search bar ── */}
-      <FadeIn delay={40}>
-        <View style={s.searchWrap}>
-          <View style={[s.searchBar, focusedSearch && s.searchBarFocused]}>
-            <Ionicons name="search-outline" size={16} color={C.slateL} />
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search users…"
-              placeholderTextColor={C.slateL}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setFocusedSearch(true)}
-              onBlur={() => setFocusedSearch(false)}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={16} color={C.slateL} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </FadeIn>
-
-      {/* ── Tab bar (continuous dark panel, like other screens) ── */}
-      {!showSearchResults && (
-        <FadeIn delay={60}>
-          <View style={s.tabBar}>
-            {[
-              { key: 'chats',   label: `Chats (${convsCount})`,           icon: 'chatbubbles-outline' },
-              { key: 'contacts',label: `${contactsTab} (${contactsCount})`, icon: 'people-outline'     },
-            ].map((tab) => {
-              const active = activeTab === tab.key;
-              return (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[s.tab, active && s.tabActive]}
-                  onPress={() => setActiveTab(tab.key)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
-                  <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </FadeIn>
-      )}
-
-      {/* ── Search results label ── */}
-      {showSearchResults && searchQuery.length > 0 && (
+        {/* ── Profile strip ── */}
         <FadeIn delay={0}>
-          <View style={s.searchResultBar}>
-            <Ionicons name="search-outline" size={13} color={C.teal} />
-            <Text style={s.searchResultTxt}>
-              {searchResults?.length || 0} result{searchResults?.length !== 1 ? 's' : ''} for "{searchQuery}"
-            </Text>
+          <View style={s.profileStrip}>
+            <Avatar name={currentUser?.username || 'U'} size={44} />
+            <View style={s.profileInfo}>
+              <Text style={s.profileName}>{currentUser?.username || 'User'}</Text>
+              <Text style={s.profileRole}>{currentUser?.role || 'User'}</Text>
+            </View>
+            <View style={[s.roleBadge, { backgroundColor: isAdmin ? 'rgba(96,165,250,0.15)' : C.tealDim, borderColor: isAdmin ? 'rgba(96,165,250,0.4)' : C.tealLine }]}>
+              <Ionicons name={isAdmin ? 'shield-checkmark-outline' : 'person-outline'} size={12} color={isAdmin ? C.blue : C.teal} />
+              <Text style={[s.roleBadgeTxt, { color: isAdmin ? C.blue : C.teal }]}>
+                {isAdmin ? 'Admin' : 'Member'}
+              </Text>
+            </View>
           </View>
         </FadeIn>
-      )}
 
-      {/* ── Lists ── */}
-      {showSearchResults ? (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item) => item._id || `u-${Math.random()}`}
-          renderItem={renderUser}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
-          ListEmptyComponent={
-            <EmptyState
-              icon="search-outline"
-              title="No users found"
-              subtitle="Try a different search term."
-            />
-          }
-        />
-      ) : activeTab === 'chats' ? (
-        <FlatList
-          data={conversations}
-          keyExtractor={(item) => item.user?._id || `c-${Math.random()}`}
-          renderItem={renderConversation}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[s.listContent, conversations?.length === 0 && { flexGrow: 1 }]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
-          ListEmptyComponent={
-            loading ? (
-              <View style={s.loadingWrap}>
-                <ActivityIndicator size="large" color={C.teal} />
-                <Text style={s.loadingTxt}>Loading conversations…</Text>
-              </View>
-            ) : (
-              <EmptyState
-                icon="chatbubbles-outline"
-                title="No conversations yet"
-                subtitle={`Start a chat with ${isAdmin ? 'users' : 'admins'} from the ${contactsTab} tab.`}
-                actionLabel="Refresh"
-                onAction={loadData}
+        {/* ── Search bar ── */}
+        <FadeIn delay={40}>
+          <View style={s.searchWrap}>
+            <View style={[s.searchBar, focusedSearch && s.searchBarFocused]}>
+              <Ionicons name="search-outline" size={16} color={C.slateL} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search users…"
+                placeholderTextColor={C.slateL}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onFocus={() => setFocusedSearch(true)}
+                onBlur={() => setFocusedSearch(false)}
               />
-            )
-          }
-        />
-      ) : (
-        <FlatList
-          data={contactsData}
-          keyExtractor={(item) => item._id || `u-${Math.random()}`}
-          renderItem={renderUser}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[s.listContent, contactsData?.length === 0 && { flexGrow: 1 }]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
-          ListEmptyComponent={
-            loading ? (
-              <View style={s.loadingWrap}>
-                <ActivityIndicator size="large" color={C.teal} />
-                <Text style={s.loadingTxt}>Loading {contactsTab.toLowerCase()}…</Text>
-              </View>
-            ) : (
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={16} color={C.slateL} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </FadeIn>
+
+        {/* ── Tab bar (continuous dark panel, like other screens) ── */}
+        {!showSearchResults && (
+          <FadeIn delay={60}>
+            <View style={s.tabBar}>
+              {[
+                { key: 'chats',   label: `Chats (${convsCount})`,           icon: 'chatbubbles-outline' },
+                { key: 'contacts',label: `${contactsTab} (${contactsCount})`, icon: 'people-outline'     },
+              ].map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <TouchableOpacity
+                    key={tab.key}
+                    style={[s.tab, active && s.tabActive]}
+                    onPress={() => setActiveTab(tab.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
+                    <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FadeIn>
+        )}
+
+        {/* ── Search results label ── */}
+        {showSearchResults && searchQuery.length > 0 && (
+          <FadeIn delay={0}>
+            <View style={s.searchResultBar}>
+              <Ionicons name="search-outline" size={13} color={C.teal} />
+              <Text style={s.searchResultTxt}>
+                {searchResults?.length || 0} result{searchResults?.length !== 1 ? 's' : ''} for "{searchQuery}"
+              </Text>
+            </View>
+          </FadeIn>
+        )}
+
+        {/* ── Lists ── */}
+        {showSearchResults ? (
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item._id || `u-${Math.random()}`}
+            renderItem={renderUser}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
+            ListEmptyComponent={
               <EmptyState
-                icon="people-outline"
-                title={`No ${contactsTab.toLowerCase()} found`}
-                subtitle={isAdmin ? 'There are no users in the system.' : 'There are no admins available.'}
+                icon="search-outline"
+                title="No users found"
+                subtitle="Try a different search term."
               />
-            )
-          }
-        />
-      )}
-    </View>
+            }
+          />
+        ) : activeTab === 'chats' ? (
+          <FlatList
+            data={conversations}
+            keyExtractor={(item) => item.user?._id || `c-${Math.random()}`}
+            renderItem={renderConversation}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[s.listContent, conversations?.length === 0 && { flexGrow: 1 }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
+            ListEmptyComponent={
+              loading ? (
+                <View style={s.loadingWrap}>
+                  <ActivityIndicator size="large" color={C.teal} />
+                  <Text style={s.loadingTxt}>Loading conversations…</Text>
+                </View>
+              ) : (
+                <EmptyState
+                  icon="chatbubbles-outline"
+                  title="No conversations yet"
+                  subtitle={`Start a chat with ${isAdmin ? 'users' : 'admins'} from the ${contactsTab} tab.`}
+                  actionLabel="Refresh"
+                  onAction={loadData}
+                />
+              )
+            }
+          />
+        ) : (
+          <FlatList
+            data={contactsData}
+            keyExtractor={(item) => item._id || `u-${Math.random()}`}
+            renderItem={renderUser}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[s.listContent, contactsData?.length === 0 && { flexGrow: 1 }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />}
+            ListEmptyComponent={
+              loading ? (
+                <View style={s.loadingWrap}>
+                  <ActivityIndicator size="large" color={C.teal} />
+                  <Text style={s.loadingTxt}>Loading {contactsTab.toLowerCase()}…</Text>
+                </View>
+              ) : (
+                <EmptyState
+                  icon="people-outline"
+                  title={`No ${contactsTab.toLowerCase()} found`}
+                  subtitle={isAdmin ? 'There are no users in the system.' : 'There are no admins available.'}
+                />
+              )
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -418,13 +424,14 @@ export default MessageList;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  rootSafe: { flex: 1, backgroundColor: C.ink },
   root: { flex: 1, backgroundColor: C.offWhite },
 
   // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 52 : 24,
+    paddingTop: Platform.OS === 'ios' ? 8 : 8,
     paddingBottom: 18, paddingHorizontal: 20,
     borderBottomWidth: 1, borderBottomColor: C.borderDk,
     overflow: 'hidden',

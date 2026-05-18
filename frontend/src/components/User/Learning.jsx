@@ -12,6 +12,8 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -278,346 +280,349 @@ const Learning = ({ navigation }) => {
   const openDetail = (waste) => { setSelectedWaste(waste); setDetailModalVisible(true); };
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.rootSafe} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      <View style={s.root}>
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerBlob} />
-        {navigation && (
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color={C.white} />
-          </TouchableOpacity>
-        )}
-        <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>WACS Learning</Text>
-          <Text style={s.headerSub}>Master waste management</Text>
-        </View>
-        <View style={{ width: navigation ? 38 : 0 }} />
-      </View>
-
-      {/* ── Tab bar ── */}
-      <View style={s.tabBar}>
-        {TABS.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[s.tab, active && s.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
-              <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.headerBlob} />
+          {navigation && (
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={22} color={C.white} />
             </TouchableOpacity>
-          );
-        })}
-      </View>
+          )}
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>WACS Learning</Text>
+            <Text style={s.headerSub}>Master waste management</Text>
+          </View>
+          <View style={{ width: navigation ? 38 : 0 }} />
+        </View>
 
-      {/* ── Content ── */}
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={s.scrollContent}
-      >
+        {/* ── Tab bar ── */}
+        <View style={s.tabBar}>
+          {TABS.map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[s.tab, active && s.tabActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
+                <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-        {/* ══ Waste Types tab ══ */}
-        {activeTab === 'WasteEducation' && (
-          <>
-            <FadeIn delay={0}>
-              <SectionHeader icon="layers-outline" title="Waste Types in WACS" />
-              <Text style={s.tabDesc}>
-                Tap any card for detailed info, recycling tips, and environmental impact.
-              </Text>
-            </FadeIn>
+        {/* ── Content ── */}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scrollContent}
+        >
 
-            {WASTE_TYPES.map((waste, i) => (
-              <FadeIn key={waste.id} delay={i * 50}>
-                <TouchableOpacity
-                  style={[s.wasteCard, { borderLeftColor: waste.color }]}
-                  onPress={() => openDetail(waste)}
-                  activeOpacity={0.8}
-                >
-                  {/* card top row */}
-                  <View style={s.wasteCardTop}>
-                    <View style={[s.wasteIconWrap, { backgroundColor: `${waste.color}22`, borderColor: `${waste.color}44` }]}>
-                      <Ionicons name={waste.icon} size={22} color={waste.color} />
-                    </View>
-                    <View style={s.wasteCardTopText}>
-                      <Text style={s.wasteCardTitle}>{waste.title}</Text>
-                      <View style={[s.categoryChip, { backgroundColor: `${waste.color}22`, borderColor: `${waste.color}44` }]}>
-                        <Text style={[s.categoryChipTxt, { color: waste.color }]}>{waste.wacsCategory}</Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={C.slateL} />
-                  </View>
-
-                  <Text style={s.wasteCardDesc} numberOfLines={2}>{waste.description}</Text>
-
-                  <View style={s.wasteCardFooter}>
-                    <Ionicons name="list-outline" size={13} color={C.slateL} />
-                    <Text style={s.wasteCardExamples} numberOfLines={1}>{waste.examples}</Text>
-                  </View>
-                </TouchableOpacity>
+          {/* ══ Waste Types tab ══ */}
+          {activeTab === 'WasteEducation' && (
+            <>
+              <FadeIn delay={0}>
+                <SectionHeader icon="layers-outline" title="Waste Types in WACS" />
+                <Text style={s.tabDesc}>
+                  Tap any card for detailed info, recycling tips, and environmental impact.
+                </Text>
               </FadeIn>
-            ))}
 
-            {/* Environmental Facts */}
-            <FadeIn delay={400}>
-              <View style={s.factsSection}>
-                <SectionHeader icon="bulb-outline" title="Environmental Facts" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                  {ENV_FACTS.map((f, i) => (
-                    <View key={i} style={s.factCard}>
-                      <View style={[s.factIconWrap, { backgroundColor: `${f.color}22`, borderColor: `${f.color}44` }]}>
-                        <Ionicons name={f.icon} size={20} color={f.color} />
+              {WASTE_TYPES.map((waste, i) => (
+                <FadeIn key={waste.id} delay={i * 50}>
+                  <TouchableOpacity
+                    style={[s.wasteCard, { borderLeftColor: waste.color }]}
+                    onPress={() => openDetail(waste)}
+                    activeOpacity={0.8}
+                  >
+                    {/* card top row */}
+                    <View style={s.wasteCardTop}>
+                      <View style={[s.wasteIconWrap, { backgroundColor: `${waste.color}22`, borderColor: `${waste.color}44` }]}>
+                        <Ionicons name={waste.icon} size={22} color={waste.color} />
                       </View>
-                      <Text style={s.factTxt}>{f.fact}</Text>
-                      <View style={[s.factChip, { backgroundColor: `${f.color}22`, borderColor: `${f.color}44` }]}>
-                        <Text style={[s.factChipTxt, { color: f.color }]}>{f.impact}</Text>
+                      <View style={s.wasteCardTopText}>
+                        <Text style={s.wasteCardTitle}>{waste.title}</Text>
+                        <View style={[s.categoryChip, { backgroundColor: `${waste.color}22`, borderColor: `${waste.color}44` }]}>
+                          <Text style={[s.categoryChipTxt, { color: waste.color }]}>{waste.wacsCategory}</Text>
+                        </View>
                       </View>
+                      <Ionicons name="chevron-forward" size={16} color={C.slateL} />
                     </View>
-                  ))}
-                </ScrollView>
-              </View>
-            </FadeIn>
-          </>
-        )}
 
-        {/* ══ Recycling Guides tab ══ */}
-        {activeTab === 'RecyclingGuides' && (
-          <>
-            <FadeIn delay={0}>
-              <SectionHeader icon="refresh-circle-outline" title="Recycling 101" />
-            </FadeIn>
+                    <Text style={s.wasteCardDesc} numberOfLines={2}>{waste.description}</Text>
 
-            {RECYCLING_GUIDES.map((guide, i) => (
-              <FadeIn key={guide.id} delay={i * 60}>
-                <View style={s.guideCard}>
-                  <View style={s.guideCardHeader}>
-                    <View style={s.formCardIconWrap}>
-                      <Ionicons name={guide.icon} size={15} color={C.teal} />
+                    <View style={s.wasteCardFooter}>
+                      <Ionicons name="list-outline" size={13} color={C.slateL} />
+                      <Text style={s.wasteCardExamples} numberOfLines={1}>{waste.examples}</Text>
                     </View>
-                    <Text style={s.guideCardTitle}>{guide.title}</Text>
-                  </View>
-                  <View style={s.guideLines}>
-                    {guide.lines.map((line, li) => (
-                      <View key={li} style={s.guideLine}>
-                        <View style={s.guideLineDot} />
-                        <Text style={s.guideLineTxt}>{line}</Text>
+                  </TouchableOpacity>
+                </FadeIn>
+              ))}
+
+              {/* Environmental Facts */}
+              <FadeIn delay={400}>
+                <View style={s.factsSection}>
+                  <SectionHeader icon="bulb-outline" title="Environmental Facts" />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+                    {ENV_FACTS.map((f, i) => (
+                      <View key={i} style={s.factCard}>
+                        <View style={[s.factIconWrap, { backgroundColor: `${f.color}22`, borderColor: `${f.color}44` }]}>
+                          <Ionicons name={f.icon} size={20} color={f.color} />
+                        </View>
+                        <Text style={s.factTxt}>{f.fact}</Text>
+                        <View style={[s.factChip, { backgroundColor: `${f.color}22`, borderColor: `${f.color}44` }]}>
+                          <Text style={[s.factChipTxt, { color: f.color }]}>{f.impact}</Text>
+                        </View>
                       </View>
                     ))}
-                  </View>
+                  </ScrollView>
                 </View>
               </FadeIn>
-            ))}
+            </>
+          )}
 
-            <FadeIn delay={240}>
-              <View style={s.tipBox}>
-                <View style={[s.tipBoxIcon, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
-                  <Ionicons name="trophy-outline" size={16} color={C.amber} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.tipBoxTitle}>Pro Tip</Text>
-                  <Text style={s.tipBoxTxt}>
-                    Use the WACS Scanner to instantly identify if an item is recyclable.
-                    Our AI recognizes over 100 different materials and provides specific disposal instructions!
-                  </Text>
-                </View>
-              </View>
-            </FadeIn>
-          </>
-        )}
+          {/* ══ Recycling Guides tab ══ */}
+          {activeTab === 'RecyclingGuides' && (
+            <>
+              <FadeIn delay={0}>
+                <SectionHeader icon="refresh-circle-outline" title="Recycling 101" />
+              </FadeIn>
 
-        {/* ══ WACS Features tab ══ */}
-        {activeTab === 'WACSFeatures' && (
-          <>
-            <FadeIn delay={0}>
-              <SectionHeader icon="analytics-outline" title="How WACS Works" />
-            </FadeIn>
-
-            {WACS_FEATURES.map((item, i) => (
-              <FadeIn key={i} delay={i * 80}>
-                <View style={s.featureCard}>
-                  <View style={s.featureCardHeader}>
-                    <View style={s.formCardIconWrap}>
-                      <Ionicons name={item.icon} size={15} color={C.teal} />
-                    </View>
-                    <Text style={s.featureCardTitle}>{item.title}</Text>
-                  </View>
-                  {item.features.map((f, fi) => (
-                    <View key={fi} style={s.featureRow}>
-                      <View style={[s.featureCheck, { backgroundColor: C.tealDim, borderColor: C.tealLine }]}>
-                        <Ionicons name="checkmark" size={11} color={C.teal} />
+              {RECYCLING_GUIDES.map((guide, i) => (
+                <FadeIn key={guide.id} delay={i * 60}>
+                  <View style={s.guideCard}>
+                    <View style={s.guideCardHeader}>
+                      <View style={s.formCardIconWrap}>
+                        <Ionicons name={guide.icon} size={15} color={C.teal} />
                       </View>
-                      <Text style={s.featureTxt}>{f}</Text>
+                      <Text style={s.guideCardTitle}>{guide.title}</Text>
                     </View>
-                  ))}
-                </View>
-              </FadeIn>
-            ))}
-          </>
-        )}
+                    <View style={s.guideLines}>
+                      {guide.lines.map((line, li) => (
+                        <View key={li} style={s.guideLine}>
+                          <View style={s.guideLineDot} />
+                          <Text style={s.guideLineTxt}>{line}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </FadeIn>
+              ))}
 
-        {/* ══ AI Assistant tab ══ */}
-        {activeTab === 'AIAssistant' && (
-          <>
-            <FadeIn delay={0}>
-              <SectionHeader icon="chatbubble-ellipses-outline" title="WACS AI Guide" />
-            </FadeIn>
-
-            <FadeIn delay={60}>
-              <View style={s.aiCard}>
-                {/* Avatar row */}
-                <View style={s.aiAvatarRow}>
-                  <View style={s.aiAvatar}>
-                    <Ionicons name="hardware-chip-outline" size={28} color={C.teal} />
+              <FadeIn delay={240}>
+                <View style={s.tipBox}>
+                  <View style={[s.tipBoxIcon, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
+                    <Ionicons name="trophy-outline" size={16} color={C.amber} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.aiGreeting}>Hi! I'm your WACS Guide</Text>
-                    <Text style={s.aiSubtext}>
-                      Ask me anything about waste management, recycling, or how to use WACS features.
+                    <Text style={s.tipBoxTitle}>Pro Tip</Text>
+                    <Text style={s.tipBoxTxt}>
+                      Use the WACS Scanner to instantly identify if an item is recyclable.
+                      Our AI recognizes over 100 different materials and provides specific disposal instructions!
                     </Text>
                   </View>
                 </View>
+              </FadeIn>
+            </>
+          )}
 
-                {/* Input */}
-                <TextInput
-                  style={s.aiInput}
-                  placeholder="Type your question here…"
-                  placeholderTextColor={C.slateL}
-                  value={userQuestion}
-                  onChangeText={setUserQuestion}
-                  multiline
-                  maxLength={200}
-                  textAlignVertical="top"
-                />
+          {/* ══ WACS Features tab ══ */}
+          {activeTab === 'WACSFeatures' && (
+            <>
+              <FadeIn delay={0}>
+                <SectionHeader icon="analytics-outline" title="How WACS Works" />
+              </FadeIn>
 
-                {/* Send button */}
-                <TouchableOpacity
-                  style={[s.askBtn, loading && { opacity: 0.6 }]}
-                  onPress={handleAsk}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={C.navy} size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="send-outline" size={16} color={C.navy} />
-                      <Text style={s.askBtnTxt}>Ask WACS AI</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {/* Sample questions */}
-                <View style={s.samplesWrap}>
-                  <Text style={s.samplesLabel}>Try asking about:</Text>
-                  <View style={s.samplesGrid}>
-                    {SAMPLE_QUESTIONS.map((q, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={s.sampleChip}
-                        onPress={() => setUserQuestion(q)}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name="search-outline" size={12} color={C.teal} />
-                        <Text style={s.sampleChipTxt}>{q}</Text>
-                      </TouchableOpacity>
+              {WACS_FEATURES.map((item, i) => (
+                <FadeIn key={i} delay={i * 80}>
+                  <View style={s.featureCard}>
+                    <View style={s.featureCardHeader}>
+                      <View style={s.formCardIconWrap}>
+                        <Ionicons name={item.icon} size={15} color={C.teal} />
+                      </View>
+                      <Text style={s.featureCardTitle}>{item.title}</Text>
+                    </View>
+                    {item.features.map((f, fi) => (
+                      <View key={fi} style={s.featureRow}>
+                        <View style={[s.featureCheck, { backgroundColor: C.tealDim, borderColor: C.tealLine }]}>
+                          <Ionicons name="checkmark" size={11} color={C.teal} />
+                        </View>
+                        <Text style={s.featureTxt}>{f}</Text>
+                      </View>
                     ))}
                   </View>
-                </View>
-              </View>
-            </FadeIn>
-          </>
-        )}
-      </ScrollView>
+                </FadeIn>
+              ))}
+            </>
+          )}
 
-      {/* ══ Waste Detail Modal ══ */}
-      <Modal animationType="slide" transparent visible={detailModalVisible} onRequestClose={() => setDetailModalVisible(false)}>
-        <View style={s.modalOverlay}>
-          <View style={s.modalSheet}>
-            {selectedWaste && (
-              <>
-                {/* Modal header */}
-                <View style={s.modalHeader}>
-                  <View style={[s.modalHeaderIconWrap, { backgroundColor: `${selectedWaste.color}22`, borderColor: `${selectedWaste.color}44` }]}>
-                    <Ionicons name={selectedWaste.icon} size={20} color={selectedWaste.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.modalTitle}>{selectedWaste.title}</Text>
-                    <View style={[s.modalChip, { backgroundColor: `${selectedWaste.color}22`, borderColor: `${selectedWaste.color}44` }]}>
-                      <Text style={[s.modalChipTxt, { color: selectedWaste.color }]}>{selectedWaste.wacsCategory}</Text>
+          {/* ══ AI Assistant tab ══ */}
+          {activeTab === 'AIAssistant' && (
+            <>
+              <FadeIn delay={0}>
+                <SectionHeader icon="chatbubble-ellipses-outline" title="WACS AI Guide" />
+              </FadeIn>
+
+              <FadeIn delay={60}>
+                <View style={s.aiCard}>
+                  {/* Avatar row */}
+                  <View style={s.aiAvatarRow}>
+                    <View style={s.aiAvatar}>
+                      <Ionicons name="hardware-chip-outline" size={28} color={C.teal} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.aiGreeting}>Hi! I'm your WACS Guide</Text>
+                      <Text style={s.aiSubtext}>
+                        Ask me anything about waste management, recycling, or how to use WACS features.
+                      </Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={s.modalCloseBtn} onPress={() => setDetailModalVisible(false)} activeOpacity={0.7}>
-                    <Ionicons name="close" size={18} color={C.slate} />
+
+                  {/* Input */}
+                  <TextInput
+                    style={s.aiInput}
+                    placeholder="Type your question here…"
+                    placeholderTextColor={C.slateL}
+                    value={userQuestion}
+                    onChangeText={setUserQuestion}
+                    multiline
+                    maxLength={200}
+                    textAlignVertical="top"
+                  />
+
+                  {/* Send button */}
+                  <TouchableOpacity
+                    style={[s.askBtn, loading && { opacity: 0.6 }]}
+                    onPress={handleAsk}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color={C.navy} size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="send-outline" size={16} color={C.navy} />
+                        <Text style={s.askBtnTxt}>Ask WACS AI</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
+
+                  {/* Sample questions */}
+                  <View style={s.samplesWrap}>
+                    <Text style={s.samplesLabel}>Try asking about:</Text>
+                    <View style={s.samplesGrid}>
+                      {SAMPLE_QUESTIONS.map((q, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={s.sampleChip}
+                          onPress={() => setUserQuestion(q)}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="search-outline" size={12} color={C.teal} />
+                          <Text style={s.sampleChipTxt}>{q}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
                 </View>
+              </FadeIn>
+            </>
+          )}
+        </ScrollView>
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
-                  {[
-                    { label: 'Description',           icon: 'information-circle-outline', content: selectedWaste.description },
-                    { label: 'Disposal Tips',          icon: 'trash-outline',              content: selectedWaste.disposalTips },
-                    { label: 'Recycling Process',      icon: 'refresh-circle-outline',     content: selectedWaste.recyclingProcess },
-                    { label: 'Environmental Impact',   icon: 'globe-outline',              content: selectedWaste.environmentalImpact },
-                    { label: 'CO₂ Impact',             icon: 'cloud-outline',              content: selectedWaste.co2Impact },
-                    { label: 'Sustainable Alternatives',icon: 'leaf-outline',              content: selectedWaste.alternatives },
-                  ].map(({ label, icon, content }) => (
-                    <View key={label} style={s.detailSection}>
-                      <View style={s.detailSectionHeader}>
-                        <Ionicons name={icon} size={13} color={C.teal} />
-                        <Text style={s.detailSectionTitle}>{label}</Text>
+        {/* ══ Waste Detail Modal ══ */}
+        <Modal animationType="slide" transparent visible={detailModalVisible} onRequestClose={() => setDetailModalVisible(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalSheet}>
+              {selectedWaste && (
+                <>
+                  {/* Modal header */}
+                  <View style={s.modalHeader}>
+                    <View style={[s.modalHeaderIconWrap, { backgroundColor: `${selectedWaste.color}22`, borderColor: `${selectedWaste.color}44` }]}>
+                      <Ionicons name={selectedWaste.icon} size={20} color={selectedWaste.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.modalTitle}>{selectedWaste.title}</Text>
+                      <View style={[s.modalChip, { backgroundColor: `${selectedWaste.color}22`, borderColor: `${selectedWaste.color}44` }]}>
+                        <Text style={[s.modalChipTxt, { color: selectedWaste.color }]}>{selectedWaste.wacsCategory}</Text>
                       </View>
-                      <Text style={s.detailSectionTxt}>{content}</Text>
                     </View>
-                  ))}
+                    <TouchableOpacity style={s.modalCloseBtn} onPress={() => setDetailModalVisible(false)} activeOpacity={0.7}>
+                      <Ionicons name="close" size={18} color={C.slate} />
+                    </TouchableOpacity>
+                  </View>
 
-                  {/* Examples */}
-                  <View style={s.detailSection}>
-                    <View style={s.detailSectionHeader}>
-                      <Ionicons name="list-outline" size={13} color={C.teal} />
-                      <Text style={s.detailSectionTitle}>Common Examples</Text>
-                    </View>
-                    {selectedWaste.examples.split(', ').map((ex, i) => (
-                      <View key={i} style={s.exampleRow}>
-                        <View style={[s.exampleDot, { backgroundColor: selectedWaste.color }]} />
-                        <Text style={s.exampleTxt}>{ex}</Text>
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
+                    {[
+                      { label: 'Description',           icon: 'information-circle-outline', content: selectedWaste.description },
+                      { label: 'Disposal Tips',          icon: 'trash-outline',              content: selectedWaste.disposalTips },
+                      { label: 'Recycling Process',      icon: 'refresh-circle-outline',     content: selectedWaste.recyclingProcess },
+                      { label: 'Environmental Impact',   icon: 'globe-outline',              content: selectedWaste.environmentalImpact },
+                      { label: 'CO₂ Impact',             icon: 'cloud-outline',              content: selectedWaste.co2Impact },
+                      { label: 'Sustainable Alternatives',icon: 'leaf-outline',              content: selectedWaste.alternatives },
+                    ].map(({ label, icon, content }) => (
+                      <View key={label} style={s.detailSection}>
+                        <View style={s.detailSectionHeader}>
+                          <Ionicons name={icon} size={13} color={C.teal} />
+                          <Text style={s.detailSectionTitle}>{label}</Text>
+                        </View>
+                        <Text style={s.detailSectionTxt}>{content}</Text>
                       </View>
                     ))}
-                  </View>
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
 
-      {/* ══ AI Response Modal ══ */}
-      <Modal animationType="slide" transparent visible={aiModalVisible} onRequestClose={() => setAiModalVisible(false)}>
-        <View style={s.modalOverlay}>
-          <View style={s.modalSheet}>
-            <View style={s.modalHeader}>
-              <View style={s.formCardIconWrap}>
-                <Ionicons name="chatbubble-ellipses-outline" size={15} color={C.teal} />
+                    {/* Examples */}
+                    <View style={s.detailSection}>
+                      <View style={s.detailSectionHeader}>
+                        <Ionicons name="list-outline" size={13} color={C.teal} />
+                        <Text style={s.detailSectionTitle}>Common Examples</Text>
+                      </View>
+                      {selectedWaste.examples.split(', ').map((ex, i) => (
+                        <View key={i} style={s.exampleRow}>
+                          <View style={[s.exampleDot, { backgroundColor: selectedWaste.color }]} />
+                          <Text style={s.exampleTxt}>{ex}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ══ AI Response Modal ══ */}
+        <Modal animationType="slide" transparent visible={aiModalVisible} onRequestClose={() => setAiModalVisible(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalSheet}>
+              <View style={s.modalHeader}>
+                <View style={s.formCardIconWrap}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={15} color={C.teal} />
+                </View>
+                <Text style={s.modalTitle}>WACS AI Response</Text>
+                <TouchableOpacity style={s.modalCloseBtn} onPress={() => setAiModalVisible(false)} activeOpacity={0.7}>
+                  <Ionicons name="close" size={18} color={C.slate} />
+                </TouchableOpacity>
               </View>
-              <Text style={s.modalTitle}>WACS AI Response</Text>
-              <TouchableOpacity style={s.modalCloseBtn} onPress={() => setAiModalVisible(false)} activeOpacity={0.7}>
-                <Ionicons name="close" size={18} color={C.slate} />
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                <Text style={s.aiResponseTxt}>{aiResponse}</Text>
+              </ScrollView>
+
+              <TouchableOpacity style={s.btnSave} onPress={() => setAiModalVisible(false)} activeOpacity={0.85}>
+                <Ionicons name="checkmark-outline" size={16} color={C.navy} />
+                <Text style={s.btnSaveTxt}>Got it</Text>
               </TouchableOpacity>
             </View>
-Active
-            <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
-              <Text style={s.aiResponseTxt}>{aiResponse}</Text>
-            </ScrollView>
-
-            <TouchableOpacity style={s.btnSave} onPress={() => setAiModalVisible(false)} activeOpacity={0.85}>
-              <Ionicons name="checkmark-outline" size={16} color={C.navy} />
-              <Text style={s.btnSaveTxt}>Got it</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -625,13 +630,14 @@ export default Learning;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  rootSafe: { flex: 1, backgroundColor: C.ink },
   root: { flex: 1, backgroundColor: C.offWhite },
 
   // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 52 : 24,
+    paddingTop: Platform.OS === 'ios' ? 8 : 8,
     paddingBottom: 18, paddingHorizontal: 20,
     borderBottomWidth: 1, borderBottomColor: C.borderDk,
     overflow: 'hidden',

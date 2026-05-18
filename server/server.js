@@ -5,13 +5,15 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 
-const userRoutes = require('./routes/userRoutes');
+// Make sure this path is correct - change 'userRoutes' to 'auth' if your file is named auth.js
+const authRoutes = require('./routes/userRoutes'); // Adjust this line to match your actual file name and path
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const wasteReportRoutes = require('./routes/wasteReportRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const classifyRoutes = require('./routes/classifyRoutes');
+const PostRoutes = require('./routes/postRoutes'); // Add this line for post routes
 
 const app = express();
 const server = http.createServer(app);
@@ -24,19 +26,23 @@ const io = new Server(server, {
   }
 });
 
+// Make io accessible to routes
+app.set('io', io);
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Routes
-app.use('/api/users', userRoutes);
+// Routes - Make sure this is correct
+app.use('/api/users', authRoutes); // Change this line
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/waste-reports', wasteReportRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admins', adminRoutes);
 app.use('/api/classify', classifyRoutes);
+app.use('/api/posts', PostRoutes); // Add this line for post routes
 
 // In-memory online users storage
 const onlineUsers = {}; // { userId: socketId }
@@ -136,9 +142,9 @@ mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection failed:', err));
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB connection failed:', err));
 
 // Start the server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

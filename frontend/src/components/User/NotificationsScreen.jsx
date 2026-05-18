@@ -13,6 +13,8 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -201,189 +203,195 @@ const NotificationsScreen = ({ navigation }) => {
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading && !refreshing) {
     return (
-      <View style={s.root}>
+      <SafeAreaView style={s.root} edges={['top']}>
+        <StatusBar style="light" backgroundColor={C.ink} />
+        <View style={s.container}>
+          <View style={s.header}>
+            <View style={s.headerBlob} />
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={22} color={C.white} />
+            </TouchableOpacity>
+            <View style={s.headerCenter}>
+              <Text style={s.headerTitle}>Notifications</Text>
+              <Text style={s.headerSub}>Stay up to date</Text>
+            </View>
+            <View style={{ width: 38 }} />
+          </View>
+          <View style={s.loadingWrap}>
+            <ActivityIndicator size="large" color={C.teal} />
+            <Text style={s.loadingTxt}>Loading notifications…</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.root} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      
+      <View style={s.container}>
+        {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.headerBlob} />
           <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={22} color={C.white} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
-            <Text style={s.headerTitle}>Notifications</Text>
+            <View style={s.headerTitleRow}>
+              <Text style={s.headerTitle}>Notifications</Text>
+              {unreadCount > 0 && (
+                <View style={s.unreadPill}>
+                  <Text style={s.unreadPillTxt}>{unreadCount}</Text>
+                </View>
+              )}
+            </View>
             <Text style={s.headerSub}>Stay up to date</Text>
           </View>
-          <View style={{ width: 38 }} />
-        </View>
-        <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color={C.teal} />
-          <Text style={s.loadingTxt}>Loading notifications…</Text>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={s.root}>
-
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerBlob} />
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={C.white} />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <View style={s.headerTitleRow}>
-            <Text style={s.headerTitle}>Notifications</Text>
+          <View style={s.headerActions}>
             {unreadCount > 0 && (
-              <View style={s.unreadPill}>
-                <Text style={s.unreadPillTxt}>{unreadCount}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={s.headerSub}>Stay up to date</Text>
-        </View>
-        <View style={s.headerActions}>
-          {unreadCount > 0 && (
-            <TouchableOpacity style={s.headerIconBtn} onPress={handleMarkAllAsRead} activeOpacity={0.7}>
-              <Ionicons name="checkmark-done-outline" size={19} color={C.teal} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[s.headerIconBtn, showSettings && { backgroundColor: C.tealDim, borderColor: C.tealLine }]}
-            onPress={() => setShowSettings(v => !v)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name={showSettings ? 'close' : 'settings-outline'} size={19} color={showSettings ? C.teal : C.ghost} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Search bar ── */}
-      <FadeIn delay={0}>
-        <View style={s.searchWrap}>
-          <View style={s.searchBar}>
-            <Ionicons name="search-outline" size={16} color={C.slateL} />
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search notifications…"
-              placeholderTextColor={C.slateL}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={16} color={C.slateL} />
+              <TouchableOpacity style={s.headerIconBtn} onPress={handleMarkAllAsRead} activeOpacity={0.7}>
+                <Ionicons name="checkmark-done-outline" size={19} color={C.teal} />
               </TouchableOpacity>
             )}
-          </View>
-        </View>
-      </FadeIn>
-
-      {/* ── Settings panel ── */}
-      {showSettings && (
-        <FadeIn delay={0}>
-          <View style={s.settingsCard}>
-            <View style={s.settingsCardHeader}>
-              <View style={s.formCardIconWrap}>
-                <Ionicons name="settings-outline" size={15} color={C.teal} />
-              </View>
-              <Text style={s.settingsCardTitle}>Notification Settings</Text>
-            </View>
-
-            {[
-              { key:'notificationsEnabled', icon:'notifications-outline', label:'Enable Notifications',  desc:'Receive all notifications',            alwaysOn: true },
-              { key:'reportUpdates',        icon:'document-text-outline', label:'Report Updates',         desc:'Status changes for your reports' },
-              { key:'recyclingTips',        icon:'leaf-outline',          label:'Recycling Tips',          desc:'Helpful recycling advice' },
-              { key:'systemNotifications',  icon:'information-circle-outline', label:'System Notifications', desc:'App updates and announcements' },
-            ].map(({ key, icon, label, desc, alwaysOn }) => (
-              <View key={key} style={s.prefRow}>
-                <View style={s.prefLeft}>
-                  <View style={s.prefIconWrap}>
-                    <Ionicons name={icon} size={15} color={C.teal} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.prefLabel}>{label}</Text>
-                    <Text style={s.prefDesc}>{desc}</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={preferences[key]}
-                  onValueChange={(v) => handlePreferenceChange(key, v)}
-                  disabled={!alwaysOn && !preferences.notificationsEnabled}
-                  trackColor={{ false: C.border, true: C.tealLine }}
-                  thumbColor={preferences[key] ? C.teal : C.slateL}
-                  ios_backgroundColor={C.border}
-                />
-              </View>
-            ))}
-          </View>
-        </FadeIn>
-      )}
-
-      {/* ── Unread banner ── */}
-      {unreadCount > 0 && !showSettings && (
-        <FadeIn delay={40}>
-          <View style={s.unreadBanner}>
-            <View style={s.unreadBannerLeft}>
-              <View style={s.unreadBannerDot} />
-              <Text style={s.unreadBannerTxt}>
-                {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={handleMarkAllAsRead} activeOpacity={0.7}>
-              <Text style={s.unreadBannerAction}>Mark all as read</Text>
+            <TouchableOpacity
+              style={[s.headerIconBtn, showSettings && { backgroundColor: C.tealDim, borderColor: C.tealLine }]}
+              onPress={() => setShowSettings(v => !v)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={showSettings ? 'close' : 'settings-outline'} size={19} color={showSettings ? C.teal : C.ghost} />
             </TouchableOpacity>
           </View>
-        </FadeIn>
-      )}
+        </View>
 
-      {/* ── Search results info ── */}
-      {searchQuery.length > 0 && (
+        {/* ── Search bar ── */}
         <FadeIn delay={0}>
-          <View style={s.searchResultBar}>
-            <Ionicons name="search-outline" size={13} color={C.teal} />
-            <Text style={s.searchResultTxt}>
-              {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{searchQuery}"
-            </Text>
+          <View style={s.searchWrap}>
+            <View style={s.searchBar}>
+              <Ionicons name="search-outline" size={16} color={C.slateL} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search notifications…"
+                placeholderTextColor={C.slateL}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={16} color={C.slateL} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </FadeIn>
-      )}
 
-      {/* ── List ── */}
-      <FlatList
-        data={filtered}
-        renderItem={renderItem}
-        keyExtractor={(item) => item._id}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
-        }
-        contentContainerStyle={[
-          s.listContent,
-          filtered.length === 0 && { flexGrow: 1 },
-        ]}
-        ListEmptyComponent={
-          <FadeIn delay={60}>
-            <View style={s.emptyWrap}>
-              <View style={s.emptyIconWrap}>
-                <Ionicons
-                  name={searchQuery.length > 0 ? 'search-outline' : 'notifications-off-outline'}
-                  size={38}
-                  color={C.teal}
-                />
+        {/* ── Settings panel ── */}
+        {showSettings && (
+          <FadeIn delay={0}>
+            <View style={s.settingsCard}>
+              <View style={s.settingsCardHeader}>
+                <View style={s.formCardIconWrap}>
+                  <Ionicons name="settings-outline" size={15} color={C.teal} />
+                </View>
+                <Text style={s.settingsCardTitle}>Notification Settings</Text>
               </View>
-              <Text style={s.emptyTitle}>
-                {searchQuery.length > 0 ? 'No results found' : 'No notifications'}
-              </Text>
-              <Text style={s.emptyText}>
-                {searchQuery.length > 0
-                  ? 'Try adjusting your search terms.'
-                  : "You're all caught up! Check back later for updates."}
+
+              {[
+                { key:'notificationsEnabled', icon:'notifications-outline', label:'Enable Notifications',  desc:'Receive all notifications',            alwaysOn: true },
+                { key:'reportUpdates',        icon:'document-text-outline', label:'Report Updates',         desc:'Status changes for your reports' },
+                { key:'recyclingTips',        icon:'leaf-outline',          label:'Recycling Tips',          desc:'Helpful recycling advice' },
+                { key:'systemNotifications',  icon:'information-circle-outline', label:'System Notifications', desc:'App updates and announcements' },
+              ].map(({ key, icon, label, desc, alwaysOn }) => (
+                <View key={key} style={s.prefRow}>
+                  <View style={s.prefLeft}>
+                    <View style={s.prefIconWrap}>
+                      <Ionicons name={icon} size={15} color={C.teal} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.prefLabel}>{label}</Text>
+                      <Text style={s.prefDesc}>{desc}</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={preferences[key]}
+                    onValueChange={(v) => handlePreferenceChange(key, v)}
+                    disabled={!alwaysOn && !preferences.notificationsEnabled}
+                    trackColor={{ false: C.border, true: C.tealLine }}
+                    thumbColor={preferences[key] ? C.teal : C.slateL}
+                    ios_backgroundColor={C.border}
+                  />
+                </View>
+              ))}
+            </View>
+          </FadeIn>
+        )}
+
+        {/* ── Unread banner ── */}
+        {unreadCount > 0 && !showSettings && (
+          <FadeIn delay={40}>
+            <View style={s.unreadBanner}>
+              <View style={s.unreadBannerLeft}>
+                <View style={s.unreadBannerDot} />
+                <Text style={s.unreadBannerTxt}>
+                  {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleMarkAllAsRead} activeOpacity={0.7}>
+                <Text style={s.unreadBannerAction}>Mark all as read</Text>
+              </TouchableOpacity>
+            </View>
+          </FadeIn>
+        )}
+
+        {/* ── Search results info ── */}
+        {searchQuery.length > 0 && (
+          <FadeIn delay={0}>
+            <View style={s.searchResultBar}>
+              <Ionicons name="search-outline" size={13} color={C.teal} />
+              <Text style={s.searchResultTxt}>
+                {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{searchQuery}"
               </Text>
             </View>
           </FadeIn>
-        }
-      />
-    </View>
+        )}
+
+        {/* ── List ── */}
+        <FlatList
+          data={filtered}
+          renderItem={renderItem}
+          keyExtractor={(item) => item._id}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
+          }
+          contentContainerStyle={[
+            s.listContent,
+            filtered.length === 0 && { flexGrow: 1 },
+          ]}
+          ListEmptyComponent={
+            <FadeIn delay={60}>
+              <View style={s.emptyWrap}>
+                <View style={s.emptyIconWrap}>
+                  <Ionicons
+                    name={searchQuery.length > 0 ? 'search-outline' : 'notifications-off-outline'}
+                    size={38}
+                    color={C.teal}
+                  />
+                </View>
+                <Text style={s.emptyTitle}>
+                  {searchQuery.length > 0 ? 'No results found' : 'No notifications'}
+                </Text>
+                <Text style={s.emptyText}>
+                  {searchQuery.length > 0
+                    ? 'Try adjusting your search terms.'
+                    : "You're all caught up! Check back later for updates."}
+                </Text>
+              </View>
+            </FadeIn>
+          }
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -391,137 +399,389 @@ export default NotificationsScreen;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.offWhite },
+  root: { 
+    flex: 1, 
+    backgroundColor: C.offWhite 
+  },
+  container: {
+    flex: 1,
+  },
 
   // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 52 : 24,
-    paddingBottom: 18, paddingHorizontal: 20,
-    borderBottomWidth: 1, borderBottomColor: C.borderDk,
+    paddingTop: Platform.OS === 'ios' ? 8 : 14,
+    paddingBottom: 18, 
+    paddingHorizontal: 20,
+    borderBottomWidth: 1, 
+    borderBottomColor: C.borderDk,
     overflow: 'hidden',
   },
   headerBlob: {
-    position: 'absolute', width: 200, height: 200, borderRadius: 100,
-    backgroundColor: C.tealGlow, top: -80, right: -70,
+    position: 'absolute', 
+    width: 200, 
+    height: 200, 
+    borderRadius: 100,
+    backgroundColor: C.tealGlow, 
+    top: -80, 
+    right: -70,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 38, 
+    height: 38, 
+    borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, 
+    borderColor: C.borderDk,
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
-  headerCenter:   { flex: 1, alignItems: 'center' },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle:    { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
-  headerSub:      { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2 },
-  headerActions:  { flexDirection: 'row', gap: 8 },
+  headerCenter:   { 
+    flex: 1, 
+    alignItems: 'center' 
+  },
+  headerTitleRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  headerTitle:    { 
+    fontSize: 17, 
+    fontWeight: '900', 
+    color: C.white, 
+    letterSpacing: -0.2 
+  },
+  headerSub:      { 
+    fontSize: 10, 
+    color: C.teal, 
+    fontWeight: '700', 
+    letterSpacing: 0.6, 
+    textTransform: 'uppercase', 
+    marginTop: 2 
+  },
+  headerActions:  { 
+    flexDirection: 'row', 
+    gap: 8 
+  },
   headerIconBtn: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 38, 
+    height: 38, 
+    borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, 
+    borderColor: C.borderDk,
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
   unreadPill: {
-    backgroundColor: C.teal, borderRadius: 10,
-    paddingHorizontal: 7, paddingVertical: 2, minWidth: 22, alignItems: 'center',
+    backgroundColor: C.teal, 
+    borderRadius: 10,
+    paddingHorizontal: 7, 
+    paddingVertical: 2, 
+    minWidth: 22, 
+    alignItems: 'center',
   },
-  unreadPillTxt: { fontSize: 11, fontWeight: '900', color: C.navy },
+  unreadPillTxt: { 
+    fontSize: 11, 
+    fontWeight: '900', 
+    color: C.navy 
+  },
 
   // ── Search ───────────────────────────────────────────────────────────────────
-  searchWrap: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: C.white, borderRadius: 12,
-    borderWidth: 1.5, borderColor: C.border,
-    paddingHorizontal: 14, height: 46,
+  searchWrap: { 
+    paddingHorizontal: 20, 
+    paddingTop: 16, 
+    paddingBottom: 4 
   },
-  searchInput: { flex: 1, fontSize: 14, color: C.navy },
+  searchBar: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10,
+    backgroundColor: C.white, 
+    borderRadius: 12,
+    borderWidth: 1.5, 
+    borderColor: C.border,
+    paddingHorizontal: 14, 
+    height: 46,
+  },
+  searchInput: { 
+    flex: 1, 
+    fontSize: 14, 
+    color: C.navy 
+  },
 
   searchResultBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginHorizontal: 20, marginTop: 8, marginBottom: 4,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    marginHorizontal: 20, 
+    marginTop: 8, 
+    marginBottom: 4,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+    borderRadius: 8, 
+    paddingVertical: 8, 
+    paddingHorizontal: 12,
   },
-  searchResultTxt: { fontSize: 12, color: C.tealDark, fontWeight: '600' },
+  searchResultTxt: { 
+    fontSize: 12, 
+    color: C.tealDark, 
+    fontWeight: '600' 
+  },
 
   // ── Settings card ─────────────────────────────────────────────────────────────
   settingsCard: {
-    backgroundColor: C.white, borderRadius: 20,
-    marginHorizontal: 20, marginTop: 12,
-    padding: 20, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.white, 
+    borderRadius: 20,
+    marginHorizontal: 20, 
+    marginTop: 12,
+    padding: 20, 
+    borderWidth: 1, 
+    borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3,
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 1, 
+    shadowRadius: 12, 
+    elevation: 3,
   },
-  settingsCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
+  settingsCardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10, 
+    marginBottom: 18 
+  },
   formCardIconWrap: {
-    width: 32, height: 32, borderRadius: 9,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center',
+    width: 32, 
+    height: 32, 
+    borderRadius: 9,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
-  settingsCardTitle: { fontSize: 15, fontWeight: '800', color: C.navy },
+  settingsCardTitle: { 
+    fontSize: 15, 
+    fontWeight: '800', 
+    color: C.navy 
+  },
 
   prefRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    paddingVertical: 13, 
+    borderBottomWidth: 1, 
+    borderBottomColor: C.border,
   },
-  prefLeft:    { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 },
-  prefIconWrap:{ width: 32, height: 32, borderRadius: 9, backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine, alignItems: 'center', justifyContent: 'center' },
-  prefLabel:   { fontSize: 14, fontWeight: '700', color: C.navy, marginBottom: 2 },
-  prefDesc:    { fontSize: 11, color: C.slateL },
+  prefLeft:    { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    flex: 1, 
+    marginRight: 12 
+  },
+  prefIconWrap: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 9, 
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  prefLabel:   { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: C.navy, 
+    marginBottom: 2 
+  },
+  prefDesc:    { 
+    fontSize: 11, 
+    color: C.slateL 
+  },
 
   // ── Unread banner ─────────────────────────────────────────────────────────────
   unreadBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: 20, marginTop: 12,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    marginHorizontal: 20, 
+    marginTop: 12,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+    borderRadius: 10, 
+    paddingVertical: 10, 
+    paddingHorizontal: 14,
   },
-  unreadBannerLeft:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  unreadBannerDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: C.teal },
-  unreadBannerTxt:    { fontSize: 12, color: C.tealDark, fontWeight: '600' },
-  unreadBannerAction: { fontSize: 12, color: C.teal, fontWeight: '700', textDecorationLine: 'underline' },
+  unreadBannerLeft:   { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  unreadBannerDot:    { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: C.teal 
+  },
+  unreadBannerTxt:    { 
+    fontSize: 12, 
+    color: C.tealDark, 
+    fontWeight: '600' 
+  },
+  unreadBannerAction: { 
+    fontSize: 12, 
+    color: C.teal, 
+    fontWeight: '700', 
+    textDecorationLine: 'underline' 
+  },
 
   // ── List ─────────────────────────────────────────────────────────────────────
-  listContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  listContent: { 
+    paddingHorizontal: 20, 
+    paddingTop: 12, 
+    paddingBottom: 40 
+  },
 
   // ── Notification card ─────────────────────────────────────────────────────────
   notifCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: C.white, borderRadius: 16, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: C.border,
+    flexDirection: 'row', 
+    alignItems: 'flex-start', 
+    gap: 12,
+    backgroundColor: C.white, 
+    borderRadius: 16, 
+    padding: 14, 
+    marginBottom: 10,
+    borderWidth: 1, 
+    borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+    shadowOffset: { width: 0, height: 3 }, 
+    shadowOpacity: 1, 
+    shadowRadius: 8, 
+    elevation: 2,
   },
   notifIconWrap: {
-    width: 42, height: 42, borderRadius: 12,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    width: 42, 
+    height: 42, 
+    borderRadius: 12,
+    borderWidth: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center',
     flexShrink: 0,
   },
-  notifContent: { flex: 1 },
-  notifTopRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 5 },
-  notifTitle:   { fontSize: 14, fontWeight: '800', color: C.navy, flex: 1, marginRight: 8 },
-  typeBadge: {
-    borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0,
+  notifContent: { 
+    flex: 1 
   },
-  typeBadgeTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-  notifMsg:     { fontSize: 12, color: C.slate, lineHeight: 18, marginBottom: 8 },
-  notifFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  timeRow:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timeTxt:      { fontSize: 11, color: C.slateL },
-  newBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  newDot:       { width: 5, height: 5, borderRadius: 3 },
-  newTxt:       { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+  notifTopRow:  { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start', 
+    justifyContent: 'space-between', 
+    marginBottom: 5 
+  },
+  notifTitle:   { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    color: C.navy, 
+    flex: 1, 
+    marginRight: 8 
+  },
+  typeBadge: {
+    borderWidth: 1, 
+    borderRadius: 6, 
+    paddingHorizontal: 7, 
+    paddingVertical: 3, 
+    flexShrink: 0,
+  },
+  typeBadgeTxt: { 
+    fontSize: 9, 
+    fontWeight: '800', 
+    letterSpacing: 0.4 
+  },
+  notifMsg:     { 
+    fontSize: 12, 
+    color: C.slate, 
+    lineHeight: 18, 
+    marginBottom: 8 
+  },
+  notifFooter:  { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between' 
+  },
+  timeRow:      { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4 
+  },
+  timeTxt:      { 
+    fontSize: 11, 
+    color: C.slateL 
+  },
+  newBadge:     { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4, 
+    borderWidth: 1, 
+    borderRadius: 6, 
+    paddingHorizontal: 7, 
+    paddingVertical: 3 
+  },
+  newDot:       { 
+    width: 5, 
+    height: 5, 
+    borderRadius: 3 
+  },
+  newTxt:       { 
+    fontSize: 9, 
+    fontWeight: '800', 
+    letterSpacing: 0.4 
+  },
 
   // ── Empty ─────────────────────────────────────────────────────────────────────
-  emptyWrap:    { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
-  emptyIconWrap:{ width: 80, height: 80, borderRadius: 22, backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  emptyTitle:   { fontSize: 20, fontWeight: '900', color: C.navy, marginBottom: 8 },
-  emptyText:    { fontSize: 14, color: C.slate, textAlign: 'center', lineHeight: 21 },
+  emptyWrap:    { 
+    alignItems: 'center', 
+    paddingTop: 80, 
+    paddingHorizontal: 40 
+  },
+  emptyIconWrap: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 22, 
+    backgroundColor: C.tealDim, 
+    borderWidth: 1.5, 
+    borderColor: C.tealLine, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 18 
+  },
+  emptyTitle:   { 
+    fontSize: 20, 
+    fontWeight: '900', 
+    color: C.navy, 
+    marginBottom: 8 
+  },
+  emptyText:    { 
+    fontSize: 14, 
+    color: C.slate, 
+    textAlign: 'center', 
+    lineHeight: 21 
+  },
 
   // ── Loading ──────────────────────────────────────────────────────────────────
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt:  { marginTop: 14, fontSize: 14, color: C.slate, fontWeight: '600' },
+  loadingWrap: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  loadingTxt:  { 
+    marginTop: 14, 
+    fontSize: 14, 
+    color: C.slate, 
+    fontWeight: '600' 
+  },
 });

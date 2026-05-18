@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity, ScrollView, Dimensions, BackHandler, Alert, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { styles } from "../../components/Styles/Maps";
@@ -17,7 +19,7 @@ const Maps = ({ navigation }) => {
 
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-  // ✅ HARDCODED TAGUIG RECYCLING & WASTE DROP-OFF LOCATIONS
+
   const TAGUIG_DROPOFF_LOCATIONS = [
     {
       id: 'taguig-mrf-bgc-001',
@@ -1011,18 +1013,20 @@ const Maps = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E8B57" />
           <Text style={styles.loadingText}>Finding recycling and waste drop-off points in Taguig...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error && !selectedFacility) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" />
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Unable to Load Locations</Text>
           <Text style={styles.errorText}>{error}</Text>
@@ -1030,189 +1034,192 @@ const Maps = ({ navigation }) => {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={handleBackPress}>
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {selectedFacility ? 'Route to Drop-off Point' : 'Taguig Recycling & Waste Drop-off'}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar style="dark" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.closeButton} onPress={handleBackPress}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {selectedFacility ? 'Route to Drop-off Point' : 'Taguig Recycling & Waste Drop-off'}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-      {/* Map Section */}
-      <View style={styles.mapContainer}>
-        <WebView
-          key={webViewKey}
-          source={{ html: generateMapHTML() }}
-          style={styles.map}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-          onMessage={handleWebViewMessage}
-          onLoadEnd={() => {
-            console.log('WebView loaded successfully');
-            setMapLoading(false);
-          }}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn('WebView error: ', nativeEvent);
-          }}
-        />
-        
-        {mapLoading && (
-          <View style={styles.mapOverlay}>
-            <View style={styles.mapLoadingContent}>
-              <ActivityIndicator size="large" color="#2E8B57" />
-              <Text style={styles.loadingText}>Loading interactive map...</Text>
+        {/* Map Section */}
+        <View style={styles.mapContainer}>
+          <WebView
+            key={webViewKey}
+            source={{ html: generateMapHTML() }}
+            style={styles.map}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            onMessage={handleWebViewMessage}
+            onLoadEnd={() => {
+              console.log('WebView loaded successfully');
+              setMapLoading(false);
+            }}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.warn('WebView error: ', nativeEvent);
+            }}
+          />
+          
+          {mapLoading && (
+            <View style={styles.mapOverlay}>
+              <View style={styles.mapLoadingContent}>
+                <ActivityIndicator size="large" color="#2E8B57" />
+                <Text style={styles.loadingText}>Loading interactive map...</Text>
+              </View>
             </View>
+          )}
+        </View>
+
+        {/* Route Info Panel - Shows EXACT distance and time from API */}
+        {selectedFacility && (
+          <View style={styles.routePanel}>
+            <View style={styles.routeHeader}>
+              <View style={styles.routeTitleContainer}>
+                <Text style={styles.routeTitle} numberOfLines={1}>{selectedFacility.name}</Text>
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedText}>✓ Verified Drop-off</Text>
+                </View>
+              </View>
+            </View>
+            
+            {isRouteLoading ? (
+              <View style={styles.loadingRoute}>
+                <ActivityIndicator size="small" color="#2E8B57" />
+                <Text style={styles.loadingRouteText}>Calculating route and drawing line on map...</Text>
+              </View>
+            ) : routeInfo ? (
+              <View style={styles.routeInfo}>
+                <View style={styles.routeMetrics}>
+                  <View style={styles.metricItem}>
+                    <Text style={styles.metricLabel}>Distance</Text>
+                    <Text style={styles.metricValue}>{routeInfo.distance}</Text>
+                  </View>
+                  <View style={styles.metricSeparator} />
+                  <View style={styles.metricItem}>
+                    <Text style={styles.metricLabel}>Est. Travel Time</Text>
+                    <Text style={styles.metricValue}>{routeInfo.duration}</Text>
+                    {routeInfo.isEstimated && (
+                      <Text style={styles.estimatedText}>estimated</Text>
+                    )}
+                  </View>
+                </View>
+                
+                {selectedFacility.dropoffTypes && (
+                  <View style={styles.acceptedTypes}>
+                    <Text style={styles.acceptedTypesLabel}>Accepts:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {selectedFacility.dropoffTypes.map((type, index) => (
+                        <View key={index} style={styles.typeTag}>
+                          <Text style={styles.typeTagText}>{type}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                
+                {/* Button to open in Google Maps for turn-by-turn navigation */}
+                <TouchableOpacity 
+                  style={styles.navigateButton}
+                  onPress={() => openInGoogleMaps(selectedFacility)}
+                >
+                  <Text style={styles.navigateButtonText}>🗺️ Open in Google Maps for Navigation</Text>
+                </TouchableOpacity>
+              </View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity 
+                  style={styles.retrySmallButton} 
+                  onPress={() => getRouteInfo(selectedFacility)}
+                >
+                  <Text style={styles.retrySmallButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        {/* Facilities List with EXACT distances */}
+        {!selectedFacility && (
+          <View style={styles.infoPanel}>
+            <View style={styles.infoHeader}>
+              <Text style={styles.infoTitle}>Recycling & Waste Drop-off Points</Text>
+              <Text style={styles.facilityCount}>
+                {facilities.length} location{facilities.length !== 1 ? 's' : ''} in Taguig
+              </Text>
+            </View>
+            
+            {facilities.length > 0 && (
+              <ScrollView 
+                style={styles.facilitiesList} 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.facilitiesListContent}
+              >
+                {facilities.map((facility, index) => (
+                  <TouchableOpacity 
+                    key={facility.id} 
+                    style={styles.facilityCard}
+                    onPress={() => handleFacilitySelect(facility)}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardNumber}>
+                        <Text style={styles.facilityNumber}>{index + 1}</Text>
+                      </View>
+                      <View style={[styles.cardType, 
+                        facility.category === 'recycling' ? styles.recyclingType :
+                        facility.category === 'ewaste' ? styles.ewasteType :
+                        styles.wasteType
+                      ]}>
+                        <Text style={styles.cardTypeText}>
+                          {facility.type === 'Materials Recovery Facility' ? 'MRF' : 'Drop-off'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.facilityName} numberOfLines={2}>
+                      {facility.name}
+                    </Text>
+                    {/* EXACT distance from current location - no mock data */}
+                    <View style={styles.distanceContainer}>
+                      <Text style={styles.distanceIcon}>📍</Text>
+                      <Text style={styles.exactDistanceText}>
+                        {facility.distance ? `${facility.distance.toFixed(2)} km away` : 'Calculating...'}
+                      </Text>
+                    </View>
+                    {facility.dropoffTypes && (
+                      <Text style={styles.dropoffTypesPreview} numberOfLines={1}>
+                        Accepts: {facility.dropoffTypes.slice(0, 3).join(' • ')}
+                        {facility.dropoffTypes.length > 3 ? ' • +more' : ''}
+                      </Text>
+                    )}
+                    <View style={styles.facilityAction}>
+                      <Text style={styles.facilityActionText}>Get Directions →</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={styles.refreshButton} onPress={handleRetry}>
+              <Text style={styles.refreshButtonText}>↻ Refresh Locations</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
-
-      {/* Route Info Panel - Shows EXACT distance and time from API */}
-      {selectedFacility && (
-        <View style={styles.routePanel}>
-          <View style={styles.routeHeader}>
-            <View style={styles.routeTitleContainer}>
-              <Text style={styles.routeTitle} numberOfLines={1}>{selectedFacility.name}</Text>
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>✓ Verified Drop-off</Text>
-              </View>
-            </View>
-          </View>
-          
-          {isRouteLoading ? (
-            <View style={styles.loadingRoute}>
-              <ActivityIndicator size="small" color="#2E8B57" />
-              <Text style={styles.loadingRouteText}>Calculating route and drawing line on map...</Text>
-            </View>
-          ) : routeInfo ? (
-            <View style={styles.routeInfo}>
-              <View style={styles.routeMetrics}>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Distance</Text>
-                  <Text style={styles.metricValue}>{routeInfo.distance}</Text>
-                </View>
-                <View style={styles.metricSeparator} />
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Est. Travel Time</Text>
-                  <Text style={styles.metricValue}>{routeInfo.duration}</Text>
-                  {routeInfo.isEstimated && (
-                    <Text style={styles.estimatedText}>estimated</Text>
-                  )}
-                </View>
-              </View>
-              
-              {selectedFacility.dropoffTypes && (
-                <View style={styles.acceptedTypes}>
-                  <Text style={styles.acceptedTypesLabel}>Accepts:</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {selectedFacility.dropoffTypes.map((type, index) => (
-                      <View key={index} style={styles.typeTag}>
-                        <Text style={styles.typeTagText}>{type}</Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-              
-              {/* Button to open in Google Maps for turn-by-turn navigation */}
-              <TouchableOpacity 
-                style={styles.navigateButton}
-                onPress={() => openInGoogleMaps(selectedFacility)}
-              >
-                <Text style={styles.navigateButtonText}>🗺️ Open in Google Maps for Navigation</Text>
-              </TouchableOpacity>
-            </View>
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity 
-                style={styles.retrySmallButton} 
-                onPress={() => getRouteInfo(selectedFacility)}
-              >
-                <Text style={styles.retrySmallButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {/* Facilities List with EXACT distances */}
-      {!selectedFacility && (
-        <View style={styles.infoPanel}>
-          <View style={styles.infoHeader}>
-            <Text style={styles.infoTitle}>Recycling & Waste Drop-off Points</Text>
-            <Text style={styles.facilityCount}>
-              {facilities.length} location{facilities.length !== 1 ? 's' : ''} in Taguig
-            </Text>
-          </View>
-          
-          {facilities.length > 0 && (
-            <ScrollView 
-              style={styles.facilitiesList} 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.facilitiesListContent}
-            >
-              {facilities.map((facility, index) => (
-                <TouchableOpacity 
-                  key={facility.id} 
-                  style={styles.facilityCard}
-                  onPress={() => handleFacilitySelect(facility)}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardNumber}>
-                      <Text style={styles.facilityNumber}>{index + 1}</Text>
-                    </View>
-                    <View style={[styles.cardType, 
-                      facility.category === 'recycling' ? styles.recyclingType :
-                      facility.category === 'ewaste' ? styles.ewasteType :
-                      styles.wasteType
-                    ]}>
-                      <Text style={styles.cardTypeText}>
-                        {facility.type === 'Materials Recovery Facility' ? 'MRF' : 'Drop-off'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.facilityName} numberOfLines={2}>
-                    {facility.name}
-                  </Text>
-                  {/* EXACT distance from current location - no mock data */}
-                  <View style={styles.distanceContainer}>
-                    <Text style={styles.distanceIcon}>📍</Text>
-                    <Text style={styles.exactDistanceText}>
-                      {facility.distance ? `${facility.distance.toFixed(2)} km away` : 'Calculating...'}
-                    </Text>
-                  </View>
-                  {facility.dropoffTypes && (
-                    <Text style={styles.dropoffTypesPreview} numberOfLines={1}>
-                      Accepts: {facility.dropoffTypes.slice(0, 3).join(' • ')}
-                      {facility.dropoffTypes.length > 3 ? ' • +more' : ''}
-                    </Text>
-                  )}
-                  <View style={styles.facilityAction}>
-                    <Text style={styles.facilityActionText}>Get Directions →</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          <TouchableOpacity style={styles.refreshButton} onPress={handleRetry}>
-            <Text style={styles.refreshButtonText}>↻ Refresh Locations</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    </SafeAreaView>
   );
 };
 

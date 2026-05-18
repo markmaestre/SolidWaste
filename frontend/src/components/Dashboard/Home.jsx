@@ -200,7 +200,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={s.logoRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
             <View style={s.logoImgBox}>
-              <Image source={require('../assets/T.M.F.K.png')} style={s.logoImg} resizeMode="contain" />
+              <Image source={require('../assets/TMFK.png')} style={s.logoImg} resizeMode="contain" />
             </View>
             <View>
               <Text style={s.logoName}>T.M.F.K</Text>
@@ -309,31 +309,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* CTA Banner */}
-            <View style={s.ctaBanner}>
-              <View style={s.ctaBlob} />
-              <FadeIn>
-                <Text style={s.ctaEyebrow}>Start today — free for 14 days</Text>
-                <Text style={s.ctaTitle}>Transform your waste{'\n'}operations now.</Text>
-                <Text style={s.ctaSub}>
-                  Join leading organisations using SolidWaste for intelligent
-                  classification and sustainable operations.
-                </Text>
-                <View style={s.ctaBtns}>
-                  <TouchableOpacity
-                    style={s.btnPrimary}
-                    onPress={() => navigation.navigate('Register')}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={s.btnPrimaryTxt}>Start Free Trial</Text>
-                    <Ionicons name="arrow-forward-outline" size={16} color={C.navy} style={{ marginLeft: 8 }} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                    <Text style={s.ctaSignIn}>Already have an account? Sign in →</Text>
-                  </TouchableOpacity>
-                </View>
-              </FadeIn>
-            </View>
+           
           </>
         )}
 
@@ -342,7 +318,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={s.section}>
             <FadeIn>
               <Badge label="Our Story" light />
-              <Text style={s.pageTitle}>About{'\n'}SolidWaste</Text>
+              <Text style={s.pageTitle}>About{'\n'}T.M.F.K SolidWaste</Text>
             </FadeIn>
 
             <FadeIn delay={60}>
@@ -351,6 +327,7 @@ const HomeScreen = ({ navigation }) => {
                   SolidWaste is dedicated to revolutionising waste management through cutting-edge
                   AI and data-driven insights — empowering organisations and communities to achieve
                   sustainable practices and contribute to a cleaner environment.
+                  
                 </Text>
               </InfoCard>
             </FadeIn>
@@ -439,16 +416,16 @@ const HomeScreen = ({ navigation }) => {
           <View style={s.section}>
             <FadeIn>
               <Badge label="Reach Out" light />
-              <Text style={s.pageTitle}>Contact{'\n'}Us</Text>
+              <Text style={s.pageTitle}>Contact Us</Text>
             </FadeIn>
 
             <FadeIn delay={60}>
               <View style={s.contactStrip}>
-                <ContactRow iconName="mail-outline"     label="Email"    value="info@solidwaste.ph" />
+                <ContactRow iconName="mail-outline"     label="Email"    value="solidwaste@gmail.com" />
                 <View style={s.contactStripDiv} />
-                <ContactRow iconName="call-outline"     label="Phone"    value="+63 (2) 8XXX XXXX" />
+                <ContactRow iconName="call-outline"     label="Phone"    value="+63 981 174 7940" />
                 <View style={s.contactStripDiv} />
-                <ContactRow iconName="location-outline" label="Location" value="Metro Manila, PH" />
+                <ContactRow iconName="location-outline" label="Location" value=" Taguig Metro Manila, PH" />
               </View>
             </FadeIn>
 
@@ -488,21 +465,10 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Footer ── */}
         <View style={s.footer}>
-          <View style={s.footerInner}>
-            <View>
-              <Text style={s.footerBrand}>T.M.F.K</Text>
-              <Text style={s.footerSub}>Waste Innovations</Text>
-            </View>
-            <View style={s.footerNav}>
-              {['home', 'about', 'services', 'contact'].map((tab) => (
-                <TouchableOpacity key={tab} onPress={() => handleTabChange(tab)}>
-                  <Text style={s.footerNavTxt}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+         <View style={s.footerTop}>
           </View>
           <Divider style={{ borderColor: C.borderDk, marginVertical: 20 }} />
-          <Text style={s.footerCopy}>© 2025 SolidWaste Philippines Inc. All rights reserved.</Text>
+          <Text style={s.footerCopy}>© 2026 T.M.F.K Waste Innovations. All rights reserved.</Text>
         </View>
 
       </ScrollView>

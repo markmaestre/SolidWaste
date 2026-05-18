@@ -13,6 +13,8 @@ import {
   Platform,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -415,45 +417,48 @@ const FeedbackSupport = () => {
   };
 
   return (
-    <View style={s.root}>
-
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerBlob} />
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={C.white} />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>Feedback & Support</Text>
-          <Text style={s.headerSub}>We value your opinion</Text>
+    <SafeAreaView style={s.root} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      
+      <View style={s.container}>
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.headerBlob} />
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={22} color={C.white} />
+          </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Feedback & Support</Text>
+            <Text style={s.headerSub}>We value your opinion</Text>
+          </View>
+          <View style={{ width: 38 }} />
         </View>
-        <View style={{ width: 38 }} />
-      </View>
 
-      {/* ── Tab bar ── */}
-      <View style={s.tabBar}>
-        {[
-          { key: 'submit',  label: 'Submit Feedback', icon: 'create-outline' },
-          { key: 'history', label: `My Feedback (${feedback.length})`, icon: 'time-outline' },
-        ].map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[s.tab, active && s.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
-              <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+        {/* ── Tab bar ── */}
+        <View style={s.tabBar}>
+          {[
+            { key: 'submit',  label: 'Submit Feedback', icon: 'create-outline' },
+            { key: 'history', label: `My Feedback (${feedback.length})`, icon: 'time-outline' },
+          ].map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[s.tab, active && s.tabActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={tab.icon} size={14} color={active ? C.navy : C.teal} />
+                <Text style={[s.tabTxt, active && s.tabTxtActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      {/* ── Content ── */}
-      <View style={{ flex: 1 }}>
-        {activeTab === 'submit' ? renderSubmitTab() : renderHistoryTab()}
+        {/* ── Content ── */}
+        <View style={{ flex: 1 }}>
+          {activeTab === 'submit' ? renderSubmitTab() : renderHistoryTab()}
+        </View>
       </View>
 
       {/* ══ Loading Modal ══ */}
@@ -492,7 +497,7 @@ const FeedbackSupport = () => {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -500,198 +505,539 @@ export default FeedbackSupport;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.offWhite },
+  root: { 
+    flex: 1, 
+    backgroundColor: C.offWhite 
+  },
+  container: {
+    flex: 1,
+  },
 
   // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 52 : 24,
-    paddingBottom: 18, paddingHorizontal: 20,
-    borderBottomWidth: 1, borderBottomColor: C.borderDk,
+    paddingTop: Platform.OS === 'ios' ? 8 : 14,
+    paddingBottom: 18, 
+    paddingHorizontal: 20,
+    borderBottomWidth: 1, 
+    borderBottomColor: C.borderDk,
     overflow: 'hidden',
   },
   headerBlob: {
-    position: 'absolute', width: 200, height: 200, borderRadius: 100,
-    backgroundColor: C.tealGlow, top: -80, right: -70,
+    position: 'absolute', 
+    width: 200, 
+    height: 200, 
+    borderRadius: 100,
+    backgroundColor: C.tealGlow, 
+    top: -80, 
+    right: -70,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 38, 
+    height: 38, 
+    borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, 
+    borderColor: C.borderDk,
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
-  headerCenter:  { flex: 1, alignItems: 'center' },
-  headerTitle:   { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
-  headerSub:     { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2 },
+  headerCenter:  { 
+    flex: 1, 
+    alignItems: 'center' 
+  },
+  headerTitle:   { 
+    fontSize: 17, 
+    fontWeight: '900', 
+    color: C.white, 
+    letterSpacing: -0.2 
+  },
+  headerSub:     { 
+    fontSize: 10, 
+    color: C.teal, 
+    fontWeight: '700', 
+    letterSpacing: 0.6, 
+    textTransform: 'uppercase', 
+    marginTop: 2 
+  },
 
   // ── Tab bar ───────────────────────────────────────────────────────────────────
   tabBar: {
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', 
+    gap: 8,
     backgroundColor: C.ink,
-    paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    paddingHorizontal: 20, 
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24, 
+    borderBottomRightRadius: 24,
     marginBottom: 20,
   },
   tab: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, borderRadius: 12,
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 6,
+    paddingVertical: 10, 
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1, borderColor: C.borderDk,
+    borderWidth: 1, 
+    borderColor: C.borderDk,
   },
-  tabActive:    { backgroundColor: C.teal, borderColor: C.teal },
-  tabTxt:       { fontSize: 12, fontWeight: '700', color: C.teal },
-  tabTxtActive: { color: C.navy },
+  tabActive:    { 
+    backgroundColor: C.teal, 
+    borderColor: C.teal 
+  },
+  tabTxt:       { 
+    fontSize: 12, 
+    fontWeight: '700', 
+    color: C.teal 
+  },
+  tabTxtActive: { 
+    color: C.navy 
+  },
 
   // ── Scroll content ────────────────────────────────────────────────────────────
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 48 },
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 48 
+  },
 
   // ── Card ─────────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: C.white, borderRadius: 20, padding: 20, marginBottom: 16,
-    borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.white, 
+    borderRadius: 20, 
+    padding: 20, 
+    marginBottom: 16,
+    borderWidth: 1, 
+    borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3,
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 1, 
+    shadowRadius: 12, 
+    elevation: 3,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
+  cardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10, 
+    marginBottom: 18 
+  },
   formCardIconWrap: {
-    width: 32, height: 32, borderRadius: 9,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center',
+    width: 32, 
+    height: 32, 
+    borderRadius: 9,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
-  cardTitle:  { flex: 1, fontSize: 15, fontWeight: '800', color: C.navy },
-  reqBadge:   { backgroundColor: C.tealDim, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  reqBadgeTxt:{ fontSize: 10, color: C.teal, fontWeight: '700' },
+  cardTitle:  { 
+    flex: 1, 
+    fontSize: 15, 
+    fontWeight: '800', 
+    color: C.navy 
+  },
+  reqBadge:   { 
+    backgroundColor: C.tealDim, 
+    borderRadius: 8, 
+    paddingVertical: 3, 
+    paddingHorizontal: 8 
+  },
+  reqBadgeTxt: { 
+    fontSize: 10, 
+    color: C.teal, 
+    fontWeight: '700' 
+  },
 
   // ── Stars ─────────────────────────────────────────────────────────────────────
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: C.slateL, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
-  starsRow:   { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 14 },
-  starBtn:    { padding: 4 },
-  ratingChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'center', borderWidth: 1, borderRadius: 20,
-    paddingVertical: 6, paddingHorizontal: 14,
+  fieldLabel: { 
+    fontSize: 11, 
+    fontWeight: '700', 
+    color: C.slateL, 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.5, 
+    marginBottom: 14 
   },
-  ratingChipTxt: { fontSize: 13, fontWeight: '700' },
+  starsRow:   { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    gap: 6, 
+    marginBottom: 14 
+  },
+  starBtn:    { 
+    padding: 4 
+  },
+  ratingChip: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    alignSelf: 'center', 
+    borderWidth: 1, 
+    borderRadius: 20,
+    paddingVertical: 6, 
+    paddingHorizontal: 14,
+  },
+  ratingChipTxt: { 
+    fontSize: 13, 
+    fontWeight: '700' 
+  },
 
   // ── Category chips ────────────────────────────────────────────────────────────
-  catRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 4, paddingVertical: 4 },
-  catChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+  catRow: { 
+    flexDirection: 'row', 
+    gap: 8, 
+    paddingHorizontal: 4, 
+    paddingVertical: 4 
   },
-  catChipActive: { backgroundColor: C.teal, borderColor: C.teal },
-  catChipTxt:    { fontSize: 12, fontWeight: '700', color: C.teal },
-  catChipTxtActive:{ color: C.navy },
+  catChip: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    paddingVertical: 9, 
+    paddingHorizontal: 14, 
+    borderRadius: 12,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+  },
+  catChipActive: { 
+    backgroundColor: C.teal, 
+    borderColor: C.teal 
+  },
+  catChipTxt:    { 
+    fontSize: 12, 
+    fontWeight: '700', 
+    color: C.teal 
+  },
+  catChipTxtActive: { 
+    color: C.navy 
+  },
 
   // ── Message input ─────────────────────────────────────────────────────────────
-  labelRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  charCount: { fontSize: 11, color: C.slateL, fontWeight: '600' },
+  labelRow:  { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 10 
+  },
+  charCount: { 
+    fontSize: 11, 
+    color: C.slateL, 
+    fontWeight: '600' 
+  },
   textArea: {
-    minHeight: 120, backgroundColor: C.offWhite,
-    borderWidth: 1.5, borderColor: C.border,
-    borderRadius: 12, padding: 14,
-    fontSize: 14, color: C.navy, lineHeight: 22,
+    minHeight: 120, 
+    backgroundColor: C.offWhite,
+    borderWidth: 1.5, 
+    borderColor: C.border,
+    borderRadius: 12, 
+    padding: 14,
+    fontSize: 14, 
+    color: C.navy, 
+    lineHeight: 22,
   },
   textAreaFocused: {
-    borderColor: C.tealLine, backgroundColor: C.white,
-    shadowColor: C.teal, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 2,
+    borderColor: C.tealLine, 
+    backgroundColor: C.white,
+    shadowColor: C.teal, 
+    shadowOffset: { width: 0, height: 0 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 6, 
+    elevation: 2,
   },
-  hintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  hintTxt: { fontSize: 12, fontWeight: '600' },
+  hintRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5, 
+    marginTop: 8 
+  },
+  hintTxt: { 
+    fontSize: 12, 
+    fontWeight: '600' 
+  },
 
   // ── Submit button ─────────────────────────────────────────────────────────────
   submitBtn: {
-    height: 52, borderRadius: 14,
+    height: 52, 
+    borderRadius: 14,
     backgroundColor: C.teal,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    shadowColor: C.teal, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    shadowColor: C.teal, 
+    shadowOffset: { width: 0, height: 6 }, 
+    shadowOpacity: 0.35, 
+    shadowRadius: 12, 
+    elevation: 6,
     marginBottom: 4,
   },
-  submitBtnTxt: { fontSize: 15, fontWeight: '800', color: C.navy },
+  submitBtnTxt: { 
+    fontSize: 15, 
+    fontWeight: '800', 
+    color: C.navy 
+  },
 
   // ── History stats row ─────────────────────────────────────────────────────────
   historyStatsRow: {
-    backgroundColor: C.ink, borderRadius: 20,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    paddingVertical: 18, marginBottom: 20,
+    backgroundColor: C.ink, 
+    borderRadius: 20,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-around',
+    paddingVertical: 18, 
+    marginBottom: 20,
   },
-  historyStatItem:  { alignItems: 'center' },
-  historyStatNum:   { fontSize: 22, fontWeight: '900', color: C.white },
-  historyStatLabel: { fontSize: 10, color: C.slateL, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 3 },
-  historyStatDiv:   { width: 1, height: 34, backgroundColor: C.borderDk },
+  historyStatItem:  { 
+    alignItems: 'center' 
+  },
+  historyStatNum:   { 
+    fontSize: 22, 
+    fontWeight: '900', 
+    color: C.white 
+  },
+  historyStatLabel: { 
+    fontSize: 10, 
+    color: C.slateL, 
+    fontWeight: '700', 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.5, 
+    marginTop: 3 
+  },
+  historyStatDiv:   { 
+    width: 1, 
+    height: 34, 
+    backgroundColor: C.borderDk 
+  },
 
   // ── Feedback card ─────────────────────────────────────────────────────────────
   feedbackCard: {
-    backgroundColor: C.white, borderRadius: 18, marginBottom: 14,
-    borderWidth: 1, borderColor: C.border, overflow: 'hidden',
+    backgroundColor: C.white, 
+    borderRadius: 18, 
+    marginBottom: 14,
+    borderWidth: 1, 
+    borderColor: C.border, 
+    overflow: 'hidden',
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+    shadowOffset: { width: 0, height: 3 }, 
+    shadowOpacity: 1, 
+    shadowRadius: 8, 
+    elevation: 2,
   },
-  feedbackAccent:     { height: 3, width: '100%' },
-  feedbackCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
-  feedbackStars:      { flexDirection: 'row', gap: 2 },
+  feedbackAccent:     { 
+    height: 3, 
+    width: '100%' 
+  },
+  feedbackCardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16, 
+    paddingTop: 14, 
+    paddingBottom: 10 
+  },
+  feedbackStars:      { 
+    flexDirection: 'row', 
+    gap: 2 
+  },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4,
+    borderWidth: 1, 
+    borderRadius: 20, 
+    paddingVertical: 4, 
+    paddingHorizontal: 10,
   },
-  statusBadgeTxt: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-  feedbackMsg:    { fontSize: 13, color: C.slate, lineHeight: 20, paddingHorizontal: 16, marginBottom: 12 },
+  statusBadgeTxt: { 
+    fontSize: 11, 
+    fontWeight: '700', 
+    textTransform: 'capitalize' 
+  },
+  feedbackMsg:    { 
+    fontSize: 13, 
+    color: C.slate, 
+    lineHeight: 20, 
+    paddingHorizontal: 16, 
+    marginBottom: 12 
+  },
 
-  feedbackMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 14 },
-  catBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8,
+  feedbackMetaRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10, 
+    paddingHorizontal: 16, 
+    paddingBottom: 14 
   },
-  catBadgeTxt: { fontSize: 11, fontWeight: '700', color: C.teal },
-  dateBadge:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dateTxt:     { fontSize: 11, color: C.slateL },
+  catBadge: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4,
+    borderWidth: 1, 
+    borderRadius: 8, 
+    paddingVertical: 4, 
+    paddingHorizontal: 8,
+  },
+  catBadgeTxt: { 
+    fontSize: 11, 
+    fontWeight: '700', 
+    color: C.teal 
+  },
+  dateBadge:   { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4 
+  },
+  dateTxt:     { 
+    fontSize: 11, 
+    color: C.slateL 
+  },
 
   adminReply: {
-    margin: 12, marginTop: 0,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    borderRadius: 12, padding: 14,
+    margin: 12, 
+    marginTop: 0,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1, 
+    borderColor: C.tealLine,
+    borderRadius: 12, 
+    padding: 14,
   },
-  adminReplyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  adminReplyLabel:  { fontSize: 11, fontWeight: '800', color: C.teal, textTransform: 'uppercase', letterSpacing: 0.5 },
-  adminReplyTxt:    { fontSize: 13, color: C.slate, lineHeight: 19 },
+  adminReplyHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    marginBottom: 8 
+  },
+  adminReplyLabel:  { 
+    fontSize: 11, 
+    fontWeight: '800', 
+    color: C.teal, 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.5 
+  },
+  adminReplyTxt:    { 
+    fontSize: 13, 
+    color: C.slate, 
+    lineHeight: 19 
+  },
 
   // ── Empty ─────────────────────────────────────────────────────────────────────
-  emptyWrap: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32, gap: 0 },
-  emptyIconWrap: {
-    width: 80, height: 80, borderRadius: 22,
-    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+  emptyWrap: { 
+    alignItems: 'center', 
+    paddingTop: 60, 
+    paddingHorizontal: 32, 
+    gap: 0 
   },
-  emptyTitle: { fontSize: 20, fontWeight: '900', color: C.navy, marginBottom: 8 },
-  emptyText:  { fontSize: 14, color: C.slate, textAlign: 'center', lineHeight: 21, marginBottom: 24 },
+  emptyIconWrap: {
+    width: 80, 
+    height: 80, 
+    borderRadius: 22,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1.5, 
+    borderColor: C.tealLine,
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 18,
+  },
+  emptyTitle: { 
+    fontSize: 20, 
+    fontWeight: '900', 
+    color: C.navy, 
+    marginBottom: 8 
+  },
+  emptyText:  { 
+    fontSize: 14, 
+    color: C.slate, 
+    textAlign: 'center', 
+    lineHeight: 21, 
+    marginBottom: 24 
+  },
 
   // ── Loading ──────────────────────────────────────────────────────────────────
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt:  { marginTop: 14, fontSize: 14, color: C.slate, fontWeight: '600' },
+  loadingWrap: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  loadingTxt:  { 
+    marginTop: 14, 
+    fontSize: 14, 
+    color: C.slate, 
+    fontWeight: '600' 
+  },
 
   // ── Modals ────────────────────────────────────────────────────────────────────
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(7,27,46,0.7)', justifyContent: 'center', alignItems: 'center', padding: 28 },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(7,27,46,0.7)', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 28 
+  },
 
   loadingModalSheet: {
-    backgroundColor: C.white, borderRadius: 24,
-    padding: 32, alignItems: 'center', width: '100%',
+    backgroundColor: C.white, 
+    borderRadius: 24,
+    padding: 32, 
+    alignItems: 'center', 
+    width: '100%',
   },
-  loadingModalTitle: { fontSize: 17, fontWeight: '900', color: C.navy, marginTop: 18, marginBottom: 6 },
-  loadingModalTxt:   { fontSize: 13, color: C.slate, textAlign: 'center', lineHeight: 20 },
-  loadingDots:       { flexDirection: 'row', gap: 6, marginTop: 20 },
-  loadingDot:        { width: 8, height: 8, borderRadius: 4, backgroundColor: C.teal },
+  loadingModalTitle: { 
+    fontSize: 17, 
+    fontWeight: '900', 
+    color: C.navy, 
+    marginTop: 18, 
+    marginBottom: 6 
+  },
+  loadingModalTxt:   { 
+    fontSize: 13, 
+    color: C.slate, 
+    textAlign: 'center', 
+    lineHeight: 20 
+  },
+  loadingDots:       { 
+    flexDirection: 'row', 
+    gap: 6, 
+    marginTop: 20 
+  },
+  loadingDot:        { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: C.teal 
+  },
 
   successSheet: {
-    backgroundColor: C.white, borderRadius: 24,
-    padding: 32, alignItems: 'center', width: '100%',
+    backgroundColor: C.white, 
+    borderRadius: 24,
+    padding: 32, 
+    alignItems: 'center', 
+    width: '100%',
   },
   successIconWrap: {
-    width: 80, height: 80, borderRadius: 22,
-    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+    width: 80, 
+    height: 80, 
+    borderRadius: 22,
+    backgroundColor: C.tealDim, 
+    borderWidth: 1.5, 
+    borderColor: C.tealLine,
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 18,
   },
-  successTitle: { fontSize: 22, fontWeight: '900', color: C.navy, marginBottom: 10 },
-  successTxt:   { fontSize: 14, color: C.slate, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  successTitle: { 
+    fontSize: 22, 
+    fontWeight: '900', 
+    color: C.navy, 
+    marginBottom: 10 
+  },
+  successTxt:   { 
+    fontSize: 14, 
+    color: C.slate, 
+    textAlign: 'center', 
+    lineHeight: 22, 
+    marginBottom: 24 
+  },
 });

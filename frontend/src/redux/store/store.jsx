@@ -4,7 +4,7 @@ import wasteReportReducer from "../slices/wasteReportSlice";
 import notificationReducer from "../slices/notificationSlice";
 import messageReducer from "../slices/messageSlice";
 import classifyReducer from "../slices/classifySlice";
-
+import postReducer from "../slices/postSlice";
 
 export default configureStore({
   reducer: {
@@ -13,6 +13,7 @@ export default configureStore({
     notification: notificationReducer,
     message: messageReducer,
     classify: classifyReducer,
+    posts: postReducer,
     
   },
 });
