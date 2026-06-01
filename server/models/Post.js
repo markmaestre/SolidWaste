@@ -3,7 +3,16 @@ const mongoose = require('mongoose');
 const postSchema = new mongoose.Schema({
   admin: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Admin',  
+    required: true
+  },
+  adminName: { 
+    type: String,
+    required: true
+  },
+  adminRole: { 
+    type: String,
+    enum: ['admin', 'southadmin', 'centraladmin'],
     required: true
   },
   title: {
@@ -41,7 +50,7 @@ const postSchema = new mongoose.Schema({
   },
   likes: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User'  // Assuming regular users like posts
   }],
   comments: [{
     user: {
@@ -75,13 +84,17 @@ postSchema.index({ createdAt: -1 });
 postSchema.index({ status: 1 });
 postSchema.index({ category: 1 });
 postSchema.index({ targetBarangay: 1 });
+postSchema.index({ admin: 1 });
+postSchema.index({ adminRole: 1 });
 postSchema.index({ title: 'text', content: 'text' });
 
+// Middleware
 postSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
 
+// Virtuals
 postSchema.virtual('likeCount').get(function() {
   return this.likes.length;
 });
@@ -93,6 +106,22 @@ postSchema.virtual('commentCount').get(function() {
 // Method to check if post is published
 postSchema.methods.isPublished = function() {
   return this.status === 'published';
+};
+
+// Static method to get posts visible to a specific admin
+postSchema.statics.getVisiblePosts = async function(admin) {
+  let query = { status: 'published' };
+  
+  if (admin.role === 'southadmin') {
+    query.targetBarangay = 'South Signal';
+  } else if (admin.role === 'centraladmin') {
+    query.targetBarangay = 'Central Bicutan';
+  }
+
+  
+  return await this.find(query)
+    .populate('admin', 'fullName email assignedBarangayLabel')
+    .sort({ isPinned: -1, createdAt: -1 });
 };
 
 module.exports = mongoose.model('Post', postSchema);

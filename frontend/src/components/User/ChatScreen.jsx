@@ -1,192 +1,185 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert
+  View, Text, FlatList, TextInput, TouchableOpacity,
+  StyleSheet, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
 import { io } from 'socket.io-client';
-import axiosInstance from '../../utils/axiosInstance';  
+import axiosInstance from '../../utils/axiosInstance';
 import {
   getConversation,
   sendMessage,
   markMessagesAsRead,
   addMessageToConversation,
-  updateMessageReadStatus
+  updateMessageReadStatus,
 } from '../../redux/slices/messageSlice';
 
+// ── Design tokens (same as MessageList) ──────────────────────────────────────
+const C = {
+  ink:          '#06121E',
+  navy:         '#0B2033',
+  navyMid:      '#153045',
+  teal:         '#00B896',
+  tealLight:    '#00D4AC',
+  tealDark:     '#008F75',
+  tealDim:      'rgba(0,184,150,0.10)',
+  tealLine:     'rgba(0,184,150,0.28)',
+  white:        '#FFFFFF',
+  surface:      '#F0F4F8',
+  border:       '#D9E4EE',
+  textPrimary:  '#0B2033',
+  textSecondary:'#4A6580',
+  textMuted:    '#8EA5BC',
+  ghost:        'rgba(255,255,255,0.55)',
+  blue:         '#2A7FE8',
+  orange:       '#E07B2A',
+  purple:       '#A78BFA',
+  green:        '#22C55E',
+  bubbleOut:    '#0B2033',
+  bubbleIn:     '#FFFFFF',
+};
+
+const ROLE_COLORS = {
+  admin:        C.blue,
+  southadmin:   C.teal,
+  centraladmin: C.purple,
+  user:         C.orange,
+};
+
+const ROLE_LABELS = {
+  admin:        'Super Admin',
+  southadmin:   'South Admin',
+  centraladmin: 'Central Admin',
+  user:         'Resident',
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const formatTime = (ts) => {
+  if (!ts) return '';
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+};
+
+// ── Avatar ────────────────────────────────────────────────────────────────────
+const Avatar = ({ name = '', role = 'user', size = 34 }) => {
+  const color = ROLE_COLORS[role] || C.textSecondary;
+  return (
+    <View style={[s.avatar, {
+      width: size, height: size, borderRadius: size * 0.28,
+      backgroundColor: `${color}18`, borderColor: `${color}44`,
+    }]}>
+      <Text style={[s.avatarTxt, { color, fontSize: size * 0.42 }]}>
+        {(name || '?').charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
 const ChatScreen = () => {
-  const dispatch = useDispatch();
-  const route = useRoute();
+  const dispatch   = useDispatch();
+  const route      = useRoute();
   const navigation = useNavigation();
-  const { user } = route.params || {};
-  
-  // Redux state access
-  const authState = useSelector(state => state.auth);
+  const { user }   = route.params || {};
+
+  const authState   = useSelector(st => st.auth);
   const currentUser = authState.user || authState.userInfo;
-  
-  const { currentConversation, sending, loading } = useSelector(state => state.message);
-  
-  const [message, setMessage] = useState('');
-  const [socket, setSocket] = useState(null);
+  const { currentConversation, sending, loading } = useSelector(st => st.message);
+
+  const [message,     setMessage]     = useState('');
+  const [socket,      setSocket]      = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const flatListRef = useRef(null);
 
-  // Validate user data on component mount
+  // ── Validate ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user || !currentUser) {
-      Alert.alert('Error', 'User information not found. Please go back and try again.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      Alert.alert('Error', 'User information not found.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
       return;
     }
-
     if (!user._id || !currentUser.id) {
-      Alert.alert('Error', 'Invalid user data. Missing user IDs.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      Alert.alert('Error', 'Invalid user data.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-      return;
     }
+  }, [user, currentUser]);
 
-    console.log('Starting chat with:', {
-      currentUser: {
-        id: currentUser.id,
-        username: currentUser.username,
-        role: currentUser.role
-      },
-      otherUser: {
-        id: user._id,
-        username: user.username
-      }
-    });
-  }, [user, currentUser, navigation]);
-
+  // ── Load & socket ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user?._id || !currentUser?.id) return;
 
-    // Set up navigation header
-    navigation.setOptions({
-      title: user.username || 'Chat',
-      headerShown: true,
-    });
+    navigation.setOptions({ headerShown: false });
 
-    // Load conversation
-    dispatch(getConversation({
-      userId: currentUser.id,
-      otherUserId: user._id
-    }));
-
-    // Initialize socket connection
+    dispatch(getConversation({ userId: currentUser.id, otherUserId: user._id }));
     initializeSocket();
 
     return () => {
-      if (socket) {
-        console.log('Cleaning up socket connection');
-        socket.disconnect();
-        setSocket(null);
-      }
+      if (socket) { socket.disconnect(); setSocket(null); }
     };
   }, [user, currentUser]);
 
   const initializeSocket = () => {
     try {
-      console.log('🔄 Initializing socket connection...');
       const newSocket = io('http://192.168.1.44:4000', {
-        transports: ['websocket'],
-        timeout: 10000,
+        transports: ['websocket'], timeout: 10000,
       });
-      
       newSocket.on('connect', () => {
-        console.log('✅ Socket connected successfully');
         setIsConnected(true);
         newSocket.emit('join', currentUser.id);
       });
-      
-      newSocket.on('disconnect', (reason) => {
-        console.log('🔌 Socket disconnected:', reason);
-        setIsConnected(false);
-      });
-      
-      newSocket.on('connect_error', (error) => {
-        console.log('❌ Socket connection error:', error);
-        setIsConnected(false);
-      });
-
-      newSocket.on('receiveMessage', (receivedMessage) => {
-        console.log('📨 Received message via socket:', receivedMessage);
+      newSocket.on('disconnect', () => setIsConnected(false));
+      newSocket.on('connect_error', () => setIsConnected(false));
+      newSocket.on('receiveMessage', (msg) => {
+        // Backend emits receiveMessage to BOTH sender and receiver after saving.
+        // The sender's message was already dispatched from the API response — skip duplicates by _id.
+        // We still process it for the receiver side (incoming messages from others).
         dispatch(addMessageToConversation({
-          message: receivedMessage,
-          currentUserId: currentUser.id
+          message: msg,
+          currentUserId: currentUser.id || currentUser._id,
         }));
-        
-        // Mark as read if message is for current user
-        if (receivedMessage.senderId === user._id && receivedMessage.receiverId === currentUser.id) {
-          dispatch(updateMessageReadStatus({
-            senderId: user._id,
-            receiverId: currentUser.id
-          }));
-          
-          // Emit seen event
+        if (msg.senderId === user._id && msg.receiverId === currentUser.id) {
+          dispatch(updateMessageReadStatus({ senderId: user._id, receiverId: currentUser.id }));
           if (newSocket.connected) {
-            newSocket.emit('markSeen', {
-              senderId: user._id,
-              receiverId: currentUser.id
-            });
+            newSocket.emit('markSeen', { senderId: user._id, receiverId: currentUser.id });
           }
         }
-        
         scrollToBottom();
       });
-
       newSocket.on('messagesSeen', (data) => {
-        console.log('Messages seen by receiver:', data);
-        // Update read status for messages sent by current user
-        dispatch(updateMessageReadStatus({
-          senderId: currentUser.id,
-          receiverId: data.receiverId
-        }));
+        dispatch(updateMessageReadStatus({ senderId: currentUser.id, receiverId: data.receiverId }));
       });
-
       setSocket(newSocket);
-    } catch (error) {
-      console.error('❌ Failed to initialize socket:', error);
-      Alert.alert('Connection Error', 'Failed to connect to chat server. Some features may not work.');
+    } catch (e) {
+      Alert.alert('Connection Error', 'Failed to connect to chat server.');
     }
   };
 
+  // ── Mark read & scroll ──────────────────────────────────────────────────────
   useEffect(() => {
-    // Mark messages as read when opening chat
     if (currentUser && user && currentConversation.length > 0) {
-      const unreadMessages = currentConversation.filter(
-        msg => msg.senderId === user._id && !msg.read
+      const hasUnread = currentConversation.some(
+        m => m.senderId === user._id && !m.read
       );
-      
-      if (unreadMessages.length > 0) {
-        markMessagesAsReadAPI();
-      }
+      if (hasUnread) markMessagesAsReadAPI();
     }
-    
     scrollToBottom();
   }, [currentConversation]);
 
   const markMessagesAsReadAPI = async () => {
     try {
-      await axiosInstance.put(`/messages/read/${user._id}/${currentUser.id}`);
-      dispatch(updateMessageReadStatus({
-        senderId: user._id,
-        receiverId: currentUser.id
-      }));
-    } catch (error) {
-      console.error('Failed to mark messages as read:', error);
+      // Backend route: PUT /messages/read/:senderId (receiver is from auth token)
+      await axiosInstance.put(`/messages/read/${user._id}`);
+      dispatch(updateMessageReadStatus({ senderId: user._id }));
+    } catch (e) {
+      console.log('Mark as read failed (non-critical):', e?.response?.status);
     }
   };
 
@@ -198,381 +191,342 @@ const ChatScreen = () => {
     }, 100);
   };
 
-  const handleSendMessage = async () => {
+  // ── Send ────────────────────────────────────────────────────────────────────
+  const handleSend = async () => {
     if (!message.trim() || !currentUser || sending) return;
-
-    const messageData = {
-      senderId: currentUser.id,
-      receiverId: user._id,
-      text: message.trim()
-    };
-
+    const msgData = { senderId: currentUser.id, receiverId: user._id, text: message.trim() };
     try {
-      // Send via HTTP first for persistence
-      await sendMessageAPI(messageData);
-      
-      // Then send via socket for real-time if connected
-      if (socket && socket.connected) {
-        socket.emit('sendMessage', messageData);
-      } else {
-        console.log('⚠️ Socket not connected, message saved but real-time update may be delayed');
+      const response = await axiosInstance.post('/messages/send', msgData);
+      if (response.data.success && response.data.message) {
+        // Only dispatch locally — socket's receiveMessage would double-add for sender
+        dispatch(addMessageToConversation({ message: response.data.message, currentUserId: currentUser.id }));
       }
-      
+      // Emit via socket for real-time delivery to RECEIVER only (not re-added for sender)
+      if (socket?.connected) socket.emit('sendMessage', msgData);
       setMessage('');
       scrollToBottom();
-    } catch (error) {
-      console.error('❌ Failed to send message:', error);
+    } catch (e) {
       Alert.alert('Error', 'Failed to send message. Please try again.');
     }
   };
 
-  const sendMessageAPI = async (messageData) => {
-    try {
-      const response = await axiosInstance.post('/messages/send', messageData);
-      
-      if (response.data.success && response.data.message) {
-        dispatch(addMessageToConversation({
-          message: response.data.message,
-          currentUserId: currentUser.id
-        }));
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('❌ Failed to send message via API:', error);
-      throw error;
-    }
-  };
-
+  // ── Render message ──────────────────────────────────────────────────────────
   const renderMessage = ({ item, index }) => {
+    // Guard: skip empty, malformed, or duplicate-placeholder messages
     if (!currentUser) return null;
+    if (!item || !item.senderId) return null;
+    if (!item.text || !item.text.trim()) return null;
 
-    const isMyMessage = item.senderId === currentUser.id;
-    const showAvatar = index === 0 || 
-      (currentConversation[index - 1]?.senderId !== item.senderId);
+    // Backend stores sender as ObjectId in msg.sender / msg.senderId
+    // populated messages return senderId = msg.sender (the raw ObjectId stored)
+    const myId = String(currentUser.id || currentUser._id || '');
+    const senderId = String(item.senderId || item.sender?._id || item.sender || '');
+    const isMe = Boolean(myId && senderId && myId === senderId);
+
+    // Show avatar only on first message of a consecutive group
+    const prevItem = currentConversation[index - 1];
+    const isGroupStart = !prevItem || prevItem.senderId !== item.senderId;
+
+    // Show timestamp only if gap > 5 min or first message
+    const showTimestamp = !prevItem ||
+      (new Date(item.timestamp) - new Date(prevItem.timestamp)) > 5 * 60 * 1000;
 
     return (
-      <View style={[
-        styles.messageContainer,
-        isMyMessage ? styles.myMessageContainer : styles.theirMessageContainer
-      ]}>
-        {!isMyMessage && showAvatar && (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-            </Text>
+      <View>
+        {showTimestamp && item.timestamp ? (
+          <View style={s.timeDivider}>
+            <View style={s.timeDividerLine} />
+            <Text style={s.timeDividerTxt}>{formatTime(item.timestamp)}</Text>
+            <View style={s.timeDividerLine} />
           </View>
-        )}
-        
-        <View style={[
-          styles.messageBubble,
-          isMyMessage ? styles.myMessageBubble : styles.theirMessageBubble
-        ]}>
-          <Text style={[
-            styles.messageText,
-            isMyMessage ? styles.myMessageText : styles.theirMessageText
+        ) : null}
+
+        <View style={[s.msgRow, isMe ? s.msgRowMe : s.msgRowThem]}>
+          <View style={[
+            s.bubble,
+            isMe ? s.bubbleMe : s.bubbleThem,
           ]}>
-            {item.text}
-          </Text>
-          <View style={styles.messageMeta}>
-            <Text style={styles.timestamp}>
-              {formatTime(item.timestamp)}
+            <Text style={[s.bubbleTxt, isMe ? s.bubbleTxtMe : s.bubbleTxtThem]}>
+              {item.text}
             </Text>
-            {isMyMessage && (
-              <Icon 
-                name={item.read ? 'done-all' : 'check'} 
-                size={14} 
-                color={item.read ? '#2196F3' : '#999'} 
-                style={styles.readIcon}
-              />
-            )}
+            <View style={s.bubbleMeta}>
+              <Text style={[s.bubbleTime, isMe && s.bubbleTimeMe]}>
+                {formatTime(item.timestamp)}
+              </Text>
+              {isMe && (
+                <Ionicons
+                  name={item.read ? 'checkmark-done' : 'checkmark'}
+                  size={12}
+                  color={item.read ? C.tealLight : 'rgba(255,255,255,0.5)'}
+                  style={{ marginLeft: 3 }}
+                />
+              )}
+            </View>
           </View>
         </View>
-        
-        {isMyMessage && showAvatar && (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {currentUser.username?.charAt(0)?.toUpperCase() || 'U'}
-            </Text>
-          </View>
-        )}
       </View>
     );
   };
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    try {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (error) {
-      return '';
-    }
-  };
-
-  const renderConnectionStatus = () => (
-    <View style={[
-      styles.connectionStatus,
-      { backgroundColor: isConnected ? '#4CAF50' : '#FF9800' }
-    ]}>
-      <Text style={styles.connectionStatusText}>
-        {isConnected ? 'Connected' : 'Connecting...'}
-      </Text>
-    </View>
-  );
-
-  // Enhanced loading and error states
+  // ── Guards ──────────────────────────────────────────────────────────────────
   if (!user || !currentUser) {
     return (
-      <View style={styles.center}>
-        <Icon name="error" size={50} color="#FF6B6B" />
-        <Text style={styles.errorText}>User information not available</Text>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={s.safe} edges={['top']}>
+        <View style={s.center}>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF6B6B" />
+          <Text style={s.errorTxt}>User information not available</Text>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={s.backBtnTxt}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (loading && currentConversation.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text>Loading conversation...</Text>
-      </View>
+      <SafeAreaView style={s.safe} edges={['top']}>
+        <View style={s.center}>
+          <ActivityIndicator size="large" color={C.teal} />
+          <Text style={s.loadingTxt}>Loading conversation…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
+  const otherName      = user.username || user.email?.split('@')[0] || 'User';
+  const otherRole      = user.role || 'user';
+  const otherRoleColor = ROLE_COLORS[otherRole] || C.textSecondary;
+  const otherRoleLabel = ROLE_LABELS[otherRole] || otherRole;
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      {/* Connection Status */}
-      {renderConnectionStatus()}
+    <SafeAreaView style={s.safe} edges={['top']}>
+      <StatusBar style="light" backgroundColor={C.ink} />
+      <KeyboardAvoidingView
+        style={s.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <TouchableOpacity style={s.headerBack} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={20} color={C.white} />
+          </TouchableOpacity>
 
-      {/* Messages List */}
-      <FlatList
-        ref={flatListRef}
-        data={currentConversation}
-        keyExtractor={(item) => item._id || `msg-${item.timestamp}-${Math.random()}`}
-        renderItem={renderMessage}
-        style={styles.messagesList}
-        contentContainerStyle={styles.messagesContent}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={scrollToBottom}
-        onLayout={scrollToBottom}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Icon name="chat" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySubtext}>
-              Start the conversation by sending a message
-            </Text>
-            {!isConnected && (
-              <Text style={styles.connectionWarning}>
-                Connection issues detected. Messages may be delayed.
-              </Text>
-            )}
+          <Avatar name={otherName} role={otherRole} size={38} />
+
+          <View style={s.headerMeta}>
+            <Text style={s.headerName} numberOfLines={1}>{otherName}</Text>
+            <View style={s.headerRoleRow}>
+              <View style={[s.headerRoleDot, { backgroundColor: otherRoleColor }]} />
+              <Text style={[s.headerRoleTxt, { color: otherRoleColor }]}>{otherRoleLabel}</Text>
+            </View>
           </View>
-        }
-      />
 
-      {/* Message Input */}
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type a message..."
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          maxLength={500}
-          editable={!sending}
+          {/* Connection indicator */}
+          <View style={[s.connDot, { backgroundColor: isConnected ? C.green : '#F97316' }]} />
+        </View>
+
+        {/* ── Connection banner (only when disconnected) ── */}
+        {!isConnected && (
+          <View style={s.connBanner}>
+            <Ionicons name="wifi-outline" size={12} color={C.white} />
+            <Text style={s.connBannerTxt}>Reconnecting…</Text>
+          </View>
+        )}
+
+        {/* ── Messages ── */}
+        <FlatList
+          ref={flatListRef}
+          data={currentConversation}
+          keyExtractor={item => item._id || `msg-${item.timestamp}-${Math.random()}`}
+          renderItem={renderMessage}
+          style={s.list}
+          contentContainerStyle={s.listContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={scrollToBottom}
+          onLayout={scrollToBottom}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <View style={s.emptyIconBox}>
+                <Ionicons name="chatbubble-ellipses-outline" size={30} color={C.teal} />
+              </View>
+              <Text style={s.emptyTitle}>No messages yet</Text>
+              <Text style={s.emptySub}>Send a message to start the conversation</Text>
+            </View>
+          }
         />
-        <TouchableOpacity 
-          style={[
-            styles.sendButton,
-            (!message.trim() || sending) && styles.sendButtonDisabled
-          ]}
-          onPress={handleSendMessage}
-          disabled={!message.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Icon name="send" size={20} color="#fff" />
-          )}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+
+        {/* ── Input bar ── */}
+        <View style={s.inputBar}>
+          <View style={s.inputWrap}>
+            <TextInput
+              style={s.input}
+              placeholder="Type a message…"
+              placeholderTextColor={C.textMuted}
+              value={message}
+              onChangeText={setMessage}
+              multiline
+              maxLength={500}
+              editable={!sending}
+              onSubmitEditing={handleSend}
+            />
+          </View>
+          <TouchableOpacity
+            style={[s.sendBtn, (!message.trim() || sending) && s.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={!message.trim() || sending}
+            activeOpacity={0.8}
+          >
+            {sending
+              ? <ActivityIndicator size="small" color={C.white} />
+              : <Ionicons name="send" size={16} color={C.white} />
+            }
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#FF6B6B',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  backButton: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  connectionStatus: {
-    padding: 8,
-    alignItems: 'center',
-  },
-  connectionStatusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  connectionWarning: {
-    fontSize: 12,
-    color: '#FF9800',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  messagesList: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    marginVertical: 4,
-    alignItems: 'flex-end',
-  },
-  myMessageContainer: {
-    justifyContent: 'flex-end',
-  },
-  theirMessageContainer: {
-    justifyContent: 'flex-start',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#2196F3',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  avatarText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  messageBubble: {
-    maxWidth: '70%',
-    padding: 12,
-    borderRadius: 18,
-    marginHorizontal: 4,
-  },
-  myMessageBubble: {
-    backgroundColor: '#2196F3',
-    borderBottomRightRadius: 4,
-  },
-  theirMessageBubble: {
-    backgroundColor: '#f0f0f0',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  myMessageText: {
-    color: '#fff',
-  },
-  theirMessageText: {
-    color: '#333',
-  },
-  messageMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  timestamp: {
-    fontSize: 11,
-    opacity: 0.7,
-  },
-  readIcon: {
-    marginLeft: 4,
-  },
-  empty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: '#666',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#f5f5f5',
-    alignItems: 'flex-end',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    maxHeight: 100,
-    backgroundColor: '#fff',
-    marginRight: 8,
-    fontSize: 16,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2196F3',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-});
-
 export default ChatScreen;
+
+// ── Stylesheet ────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe:  { flex: 1, backgroundColor: C.ink },
+  flex:  { flex: 1, backgroundColor: C.surface },
+
+  // ── Header
+  header: {
+    backgroundColor: C.ink,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: Platform.OS === 'ios' ? 4 : 10,
+    paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  headerBack: {
+    width: 34, height: 34, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerMeta:    { flex: 1 },
+  headerName:    { fontSize: 14, fontWeight: '700', color: C.white },
+  headerRoleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  headerRoleDot: { width: 6, height: 6, borderRadius: 3 },
+  headerRoleTxt: { fontSize: 10, fontWeight: '600' },
+  connDot: {
+    width: 9, height: 9, borderRadius: 5,
+    borderWidth: 2, borderColor: C.ink,
+  },
+
+  // ── Connection banner
+  connBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    backgroundColor: '#F97316', paddingVertical: 5,
+  },
+  connBannerTxt: { fontSize: 11, fontWeight: '600', color: C.white },
+
+  // ── Avatar
+  avatar:    { borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  avatarTxt: { fontWeight: '800' },
+  avatarSlot: {},
+
+  // ── List
+  list:        { flex: 1 },
+  listContent: { paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8 },
+
+  // ── Time divider
+  timeDivider: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginVertical: 14, paddingHorizontal: 4,
+  },
+  timeDividerLine: { flex: 1, height: 1, backgroundColor: C.border },
+  timeDividerTxt:  { fontSize: 10, color: C.textMuted, fontWeight: '600' },
+
+  // ── Message row
+  msgRow: {
+    flexDirection: 'row',
+    marginVertical: 2,
+    paddingHorizontal: 4,
+  },
+  msgRowMe:   { justifyContent: 'flex-end' },
+  msgRowThem: { justifyContent: 'flex-start' },
+
+  // ── Bubble
+  bubble: {
+    maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 20,
+  },
+  bubbleMe: {
+    backgroundColor: C.bubbleOut,
+    borderBottomRightRadius: 5,
+    borderTopRightRadius: 20,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  bubbleThem: {
+    backgroundColor: C.bubbleIn,
+    borderBottomLeftRadius: 5,
+    borderTopRightRadius: 20,
+    borderTopLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderWidth: 1, borderColor: C.border,
+  },
+  bubbleMeFirst:   {},
+  bubbleThemFirst: {},
+
+  bubbleTxt:     { fontSize: 14, lineHeight: 20 },
+  bubbleTxtMe:   { color: C.white },
+  bubbleTxtThem: { color: C.textPrimary },
+
+  bubbleMeta:    { flexDirection: 'row', alignItems: 'center', marginTop: 4, justifyContent: 'flex-end' },
+  bubbleTime:    { fontSize: 10, color: C.textMuted },
+  bubbleTimeMe:  { color: 'rgba(255,255,255,0.45)' },
+
+  // ── Input bar
+  inputBar: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: C.white,
+    borderTopWidth: 1, borderTopColor: C.border,
+  },
+  inputWrap: {
+    flex: 1,
+    backgroundColor: C.surface, borderRadius: 22,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 9 : 6,
+    minHeight: 42, justifyContent: 'center',
+  },
+  input: {
+    fontSize: 14, color: C.textPrimary, maxHeight: 100,
+    padding: 0, margin: 0,
+  },
+  sendBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: C.teal, alignItems: 'center', justifyContent: 'center',
+    shadowColor: C.teal, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 5, elevation: 3,
+  },
+  sendBtnDisabled: { backgroundColor: C.border, shadowOpacity: 0 },
+
+  // ── Empty
+  empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
+  emptyIconBox: {
+    width: 64, height: 64, borderRadius: 16,
+    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: C.textPrimary, marginBottom: 6 },
+  emptySub:   { fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },
+
+  // ── Loading / error
+  center:     { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorTxt:   { fontSize: 16, color: '#FF6B6B', marginTop: 14, textAlign: 'center' },
+  loadingTxt: { fontSize: 13, color: C.textSecondary, marginTop: 12 },
+  backBtn: {
+    marginTop: 20, paddingHorizontal: 22, paddingVertical: 10,
+    backgroundColor: C.teal, borderRadius: 9,
+  },
+  backBtnTxt: { color: C.white, fontSize: 14, fontWeight: '700' },
+});

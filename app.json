@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "b43e1aef-9143-4c81-8ebd-a6dab8969e0a"
+      }
+    },
+    "android": {
+      "package": "com.kram_maestre.solidwaste"
+    }
+  }
+}

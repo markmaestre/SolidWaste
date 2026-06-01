@@ -5,6 +5,7 @@ import {
   ScrollView, StatusBar, Modal, Animated, Easing,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, checkEmail, verifyEmail, resendVerificationCode } from '../../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
@@ -60,6 +61,7 @@ const Register = () => {
   const [isOffline, setIsOffline] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [canResend, setCanResend] = useState(true);
+  const [isUnderMaintenance, setIsUnderMaintenance] = useState(false); // Added maintenance state
 
   const dispatch = useDispatch();
   const navigation = useNavigation();
@@ -288,6 +290,12 @@ const Register = () => {
   };
 
   const handleResendCode = async () => {
+    // Check if under maintenance
+    if (isUnderMaintenance) {
+      Alert.alert('Under Maintenance', 'The resend verification feature is currently under maintenance. Please try again later.');
+      return;
+    }
+    
     if (!canResend) return;
 
     setCanResend(false);
@@ -326,369 +334,379 @@ const Register = () => {
   ];
 
   return (
-    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle="light-content" backgroundColor={C.ink} />
+    <SafeAreaView style={s.safeArea} edges={['top']}>
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <StatusBar barStyle="light-content" backgroundColor={C.ink} />
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.logoRing}>
-            <Image source={require('../assets/TMFK.png')} style={s.logoImg} resizeMode="contain" />
-          </View>
-          <Text style={s.brandName}>T.M.F.K</Text>
-          <Text style={s.brandSub}>Waste Innovations</Text>
-        </View>
-
-        <View style={s.badgeWrap}>
-          <View style={s.badge}>
-            <View style={s.badgeDot} />
-            <Text style={s.badgeText}>Create Account</Text>
-          </View>
-        </View>
-
-        {/* Form card */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Join SolidWaste</Text>
-          <Text style={s.cardSub}>Fill in all required fields to get started</Text>
-
-          {error && (
-            <View style={s.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color={C.red} />
-              <Text style={[s.errorBannerTxt, { marginLeft: 8 }]}>{error}</Text>
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={s.header}>
+            <View style={s.logoRing}>
+              <Image source={require('../assets/TMFK.png')} style={s.logoImg} resizeMode="contain" />
             </View>
-          )}
-
-          {/* Full Name */}
-          <View style={s.fieldWrap}>
-            <View style={s.labelRow}>
-              <Ionicons name="person-outline" size={13} color={C.slateL} />
-              <Text style={s.label}>Full Name <Text style={s.req}>*</Text></Text>
-            </View>
-            <TextInput
-              style={inputStyle('username')}
-              placeholder="Enter your full name"
-              placeholderTextColor={C.slateL}
-              value={form.username}
-              onChangeText={(v) => handleChange('username', v)}
-              onFocus={() => setFocusedField('username')}
-              onBlur={() => handleBlur('username', form.username)}
-              autoCapitalize="words"
-            />
-            {fieldErrors.username ? <Text style={s.errorText}>{fieldErrors.username}</Text> : null}
+            <Text style={s.brandName}>T.M.F.K</Text>
+            <Text style={s.brandSub}>Waste Innovations</Text>
           </View>
 
-          {/* Email */}
-          <View style={s.fieldWrap}>
-            <View style={s.labelRow}>
-              <Ionicons name="mail-outline" size={13} color={C.slateL} />
-              <Text style={s.label}>Email Address <Text style={s.req}>*</Text></Text>
-              {isCheckingEmail && <Text style={s.checkingTxt}>  Checking…</Text>}
+          <View style={s.badgeWrap}>
+            <View style={s.badge}>
+              <View style={s.badgeDot} />
+              <Text style={s.badgeText}>Create Account</Text>
             </View>
-            <TextInput
-              style={inputStyle('email')}
-              placeholder="your@email.com"
-              placeholderTextColor={C.slateL}
-              value={form.email}
-              onChangeText={(v) => handleChange('email', v)}
-              onFocus={() => setFocusedField('email')}
-              onBlur={() => handleBlur('email', form.email)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {(fieldErrors.email || emailError) ? <Text style={s.errorText}>{fieldErrors.email || emailError}</Text> : null}
           </View>
 
-          {/* Password */}
-          <View style={s.fieldWrap}>
-            <View style={s.labelRow}>
-              <Ionicons name="lock-closed-outline" size={13} color={C.slateL} />
-              <Text style={s.label}>Password <Text style={s.req}>*</Text></Text>
-            </View>
-            <View>
+          {/* Form card */}
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Join SolidWaste</Text>
+            <Text style={s.cardSub}>Fill in all required fields to get started</Text>
+
+            {error && (
+              <View style={s.errorBanner}>
+                <Ionicons name="alert-circle" size={16} color={C.red} />
+                <Text style={[s.errorBannerTxt, { marginLeft: 8 }]}>{error}</Text>
+              </View>
+            )}
+
+            {/* Full Name */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="person-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Full Name <Text style={s.req}>*</Text></Text>
+              </View>
               <TextInput
-                style={inputStyle('password')}
-                placeholder="Create a secure password"
+                style={inputStyle('username')}
+                placeholder="Enter your full name"
                 placeholderTextColor={C.slateL}
-                value={form.password}
-                secureTextEntry={!showPassword}
-                onChangeText={(v) => handleChange('password', v)}
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => handleBlur('password', form.password)}
+                value={form.username}
+                onChangeText={(v) => handleChange('username', v)}
+                onFocus={() => setFocusedField('username')}
+                onBlur={() => handleBlur('username', form.username)}
+                autoCapitalize="words"
+              />
+              {fieldErrors.username ? <Text style={s.errorText}>{fieldErrors.username}</Text> : null}
+            </View>
+
+            {/* Email */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="mail-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Email Address <Text style={s.req}>*</Text></Text>
+                {isCheckingEmail && <Text style={s.checkingTxt}>  Checking…</Text>}
+              </View>
+              <TextInput
+                style={inputStyle('email')}
+                placeholder="your@email.com"
+                placeholderTextColor={C.slateL}
+                value={form.email}
+                onChangeText={(v) => handleChange('email', v)}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => handleBlur('email', form.email)}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPassword((p) => !p)}>
-                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.slateL} />
-              </TouchableOpacity>
+              {(fieldErrors.email || emailError) ? <Text style={s.errorText}>{fieldErrors.email || emailError}</Text> : null}
             </View>
-            {fieldErrors.password ? <Text style={s.errorText}>{fieldErrors.password}</Text> : null}
-          </View>
 
-          {/* DOB + Gender row */}
-          <View style={s.row}>
-            <View style={[s.fieldWrap, { flex: 1 }]}>
+            {/* Password */}
+            <View style={s.fieldWrap}>
               <View style={s.labelRow}>
-                <Ionicons name="calendar-outline" size={13} color={C.slateL} />
-                <Text style={s.label}>Date of Birth <Text style={s.req}>*</Text></Text>
+                <Ionicons name="lock-closed-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Password <Text style={s.req}>*</Text></Text>
               </View>
-              <TouchableOpacity
-                style={[s.input, s.selectInput, fieldErrors.bod && s.inputError]}
-                onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.selectTxt, !form.bod && s.placeholderTxt]} numberOfLines={1}>
-                  {form.bod ? formatDisplayDate(form.bod) : 'Select Date'}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color={C.slateL} />
-              </TouchableOpacity>
-              {fieldErrors.bod ? <Text style={s.errorText}>{fieldErrors.bod}</Text> : null}
+              <View>
+                <TextInput
+                  style={inputStyle('password')}
+                  placeholder="Create a secure password"
+                  placeholderTextColor={C.slateL}
+                  value={form.password}
+                  secureTextEntry={!showPassword}
+                  onChangeText={(v) => handleChange('password', v)}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => handleBlur('password', form.password)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPassword((p) => !p)}>
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.slateL} />
+                </TouchableOpacity>
+              </View>
+              {fieldErrors.password ? <Text style={s.errorText}>{fieldErrors.password}</Text> : null}
             </View>
 
-            <View style={[s.fieldWrap, { flex: 1 }]}>
+            {/* DOB + Gender row */}
+            <View style={s.row}>
+              <View style={[s.fieldWrap, { flex: 1 }]}>
+                <View style={s.labelRow}>
+                  <Ionicons name="calendar-outline" size={13} color={C.slateL} />
+                  <Text style={s.label}>Date of Birth <Text style={s.req}>*</Text></Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.input, s.selectInput, fieldErrors.bod && s.inputError]}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.selectTxt, !form.bod && s.placeholderTxt]} numberOfLines={1}>
+                    {form.bod ? formatDisplayDate(form.bod) : 'Select Date'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={C.slateL} />
+                </TouchableOpacity>
+                {fieldErrors.bod ? <Text style={s.errorText}>{fieldErrors.bod}</Text> : null}
+              </View>
+
+              <View style={[s.fieldWrap, { flex: 1 }]}>
+                <View style={s.labelRow}>
+                  <Ionicons name="people-outline" size={13} color={C.slateL} />
+                  <Text style={s.label}>Gender <Text style={s.req}>*</Text></Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.input, s.selectInput, fieldErrors.gender && s.inputError]}
+                  onPress={() => setShowGenderPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.selectTxt, !form.gender && s.placeholderTxt]}>
+                    {form.gender || 'Select'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={C.slateL} />
+                </TouchableOpacity>
+                {fieldErrors.gender ? <Text style={s.errorText}>{fieldErrors.gender}</Text> : null}
+              </View>
+            </View>
+
+            {/* Complete Address Field - Full Address First */}
+            <View style={s.fieldWrap}>
               <View style={s.labelRow}>
-                <Ionicons name="people-outline" size={13} color={C.slateL} />
-                <Text style={s.label}>Gender <Text style={s.req}>*</Text></Text>
+                <Ionicons name="home-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Complete Address <Text style={s.req}>*</Text></Text>
               </View>
-              <TouchableOpacity
-                style={[s.input, s.selectInput, fieldErrors.gender && s.inputError]}
-                onPress={() => setShowGenderPicker(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.selectTxt, !form.gender && s.placeholderTxt]}>
-                  {form.gender || 'Select'}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color={C.slateL} />
-              </TouchableOpacity>
-              {fieldErrors.gender ? <Text style={s.errorText}>{fieldErrors.gender}</Text> : null}
-            </View>
-          </View>
-
-          {/* Complete Address Field - Full Address First */}
-          <View style={s.fieldWrap}>
-            <View style={s.labelRow}>
-              <Ionicons name="home-outline" size={13} color={C.slateL} />
-              <Text style={s.label}>Complete Address <Text style={s.req}>*</Text></Text>
-            </View>
-            <TextInput
-              style={[inputStyle('fullAddress'), { height: 'auto', minHeight: 50, textAlignVertical: 'top' }]}
-              placeholder="House number, street, subdivision, etc."
-              placeholderTextColor={C.slateL}
-              value={form.fullAddress}
-              onChangeText={(v) => handleChange('fullAddress', v)}
-              onFocus={() => setFocusedField('fullAddress')}
-              onBlur={() => handleBlur('fullAddress', form.fullAddress)}
-              multiline={true}
-              numberOfLines={3}
-            />
-            {fieldErrors.fullAddress ? <Text style={s.errorText}>{fieldErrors.fullAddress}</Text> : null}
-          </View>
-
-          {/* Barangay Selection Field */}
-          <View style={s.fieldWrap}>
-            <View style={s.labelRow}>
-              <Ionicons name="location-outline" size={13} color={C.slateL} />
-              <Text style={s.label}>Barangay <Text style={s.req}>*</Text></Text>
-            </View>
-            <TouchableOpacity
-              style={[s.input, s.selectInput, fieldErrors.barangay && s.inputError]}
-              onPress={() => setShowBarangayPicker(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.selectTxt, !form.barangay && s.placeholderTxt]}>
-                {form.barangay || 'Select your barangay'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={C.slateL} />
-            </TouchableOpacity>
-            {fieldErrors.barangay ? <Text style={s.errorText}>{fieldErrors.barangay}</Text> : null}
-          </View>
-
-          <Text style={s.addressNote}>Your complete address will be: {form.fullAddress ? form.fullAddress : '[Your address]'}, {form.barangay ? form.barangay : '[Barangay]'}</Text>
-          <Text style={s.requiredNote}>* Required fields</Text>
-
-          {/* Create Account button */}
-          <TouchableOpacity
-            style={[s.btnPrimary, (loading || isCheckingEmail || isOffline) && { opacity: 0.5 }]}
-            onPress={handleRegisterClick}
-            disabled={loading || isCheckingEmail || isOffline}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <>
-                <MaterialCommunityIcons name="loading" size={18} color={C.navy} />
-                <Text style={s.btnPrimaryTxt}>Creating Account…</Text>
-              </>
-            ) : (
-              <>
-                <Text style={s.btnPrimaryTxt}>Create Account</Text>
-                <Ionicons name="arrow-forward-outline" size={16} color={C.navy} style={{ marginLeft: 6 }} />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Sign In link */}
-          <View style={s.loginRow}>
-            <Text style={s.loginTxt}>Already have an account?</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Login')}
-              style={s.loginBtn}
-              activeOpacity={0.7}
-            >
-              <Text style={s.loginLink}>Sign In</Text>
-              <Ionicons name="arrow-forward" size={14} color={C.teal} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Date Picker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
-          maximumDate={new Date()}
-          minimumDate={new Date(1950, 0, 1)}
-        />
-      )}
-
-      {/* Gender Modal */}
-      <Modal visible={showGenderPicker} transparent animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
-        <View style={s.modalOverlay}>
-          <View style={s.genderSheet}>
-            <View style={s.sheetHandle} />
-            <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Select Gender</Text>
-              <TouchableOpacity style={s.sheetClose} onPress={() => setShowGenderPicker(false)}>
-                <Ionicons name="close" size={20} color={C.slateL} />
-              </TouchableOpacity>
-            </View>
-            {genderOptions.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[s.genderOpt, form.gender === opt.value && s.genderOptActive]}
-                onPress={() => { handleChange('gender', opt.value); validateField('gender', opt.value); setShowGenderPicker(false); }}
-                activeOpacity={0.75}
-              >
-                <View style={[s.genderOptIcon, form.gender === opt.value && s.genderOptIconActive]}>
-                  <Ionicons name={opt.icon} size={18} color={form.gender === opt.value ? C.teal : C.slateL} />
-                </View>
-                <Text style={[s.genderOptTxt, form.gender === opt.value && s.genderOptTxtActive]}>
-                  {opt.label}
-                </Text>
-                {form.gender === opt.value && (
-                  <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Barangay Modal */}
-      <Modal visible={showBarangayPicker} transparent animationType="slide" onRequestClose={() => setShowBarangayPicker(false)}>
-        <View style={s.modalOverlay}>
-          <View style={s.genderSheet}>
-            <View style={s.sheetHandle} />
-            <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Select Barangay</Text>
-              <TouchableOpacity style={s.sheetClose} onPress={() => setShowBarangayPicker(false)}>
-                <Ionicons name="close" size={20} color={C.slateL} />
-              </TouchableOpacity>
-            </View>
-            {barangayOptions.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[s.genderOpt, form.barangay === opt.value && s.genderOptActive]}
-                onPress={() => { handleChange('barangay', opt.value); validateField('barangay', opt.value); setShowBarangayPicker(false); }}
-                activeOpacity={0.75}
-              >
-                <View style={[s.genderOptIcon, form.barangay === opt.value && s.genderOptIconActive]}>
-                  <Ionicons name={opt.icon} size={18} color={form.barangay === opt.value ? C.teal : C.slateL} />
-                </View>
-                <Text style={[s.genderOptTxt, form.barangay === opt.value && s.genderOptTxtActive]}>
-                  {opt.label}
-                </Text>
-                {form.barangay === opt.value && (
-                  <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Verification Modal */}
-      <Modal visible={showVerificationModal} transparent animationType="fade" onRequestClose={() => setShowVerificationModal(false)}>
-        <View style={s.verifyOverlay}>
-          <View style={s.verifyCard}>
-            <View style={s.verifyIconRing}>
-              <Ionicons name="mail-outline" size={28} color={C.teal} />
-            </View>
-            <Text style={s.verifyTitle}>Email Verification</Text>
-            <Text style={s.verifySub}>
-              We've sent a 6-digit code to{'\n'}
-              <Text style={{ color: C.teal, fontWeight: 'bold' }}>{form.email}</Text>
-            </Text>
-
-            <View style={s.verificationCodeInput}>
               <TextInput
-                style={s.codeInput}
-                placeholder="Enter 6-digit code"
+                style={[inputStyle('fullAddress'), { height: 'auto', minHeight: 50, textAlignVertical: 'top' }]}
+                placeholder="House number, street, subdivision, etc."
                 placeholderTextColor={C.slateL}
-                value={verificationCode}
-                onChangeText={setVerificationCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                textAlign="center"
+                value={form.fullAddress}
+                onChangeText={(v) => handleChange('fullAddress', v)}
+                onFocus={() => setFocusedField('fullAddress')}
+                onBlur={() => handleBlur('fullAddress', form.fullAddress)}
+                multiline={true}
+                numberOfLines={3}
               />
+              {fieldErrors.fullAddress ? <Text style={s.errorText}>{fieldErrors.fullAddress}</Text> : null}
             </View>
 
-            <TouchableOpacity 
-              style={[s.verifyConfirm, isVerifying && { opacity: 0.5 }]}
-              onPress={handleVerifyCode}
-              disabled={isVerifying}
+            {/* Barangay Selection Field */}
+            <View style={s.fieldWrap}>
+              <View style={s.labelRow}>
+                <Ionicons name="location-outline" size={13} color={C.slateL} />
+                <Text style={s.label}>Barangay <Text style={s.req}>*</Text></Text>
+              </View>
+              <TouchableOpacity
+                style={[s.input, s.selectInput, fieldErrors.barangay && s.inputError]}
+                onPress={() => setShowBarangayPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.selectTxt, !form.barangay && s.placeholderTxt]}>
+                  {form.barangay || 'Select your barangay'}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={C.slateL} />
+              </TouchableOpacity>
+              {fieldErrors.barangay ? <Text style={s.errorText}>{fieldErrors.barangay}</Text> : null}
+            </View>
+
+            <Text style={s.addressNote}>Your complete address will be: {form.fullAddress ? form.fullAddress : '[Your address]'}, {form.barangay ? form.barangay : '[Barangay]'}</Text>
+            <Text style={s.requiredNote}>* Required fields</Text>
+
+            {/* Create Account button */}
+            <TouchableOpacity
+              style={[s.btnPrimary, (loading || isCheckingEmail || isOffline) && { opacity: 0.5 }]}
+              onPress={handleRegisterClick}
+              disabled={loading || isCheckingEmail || isOffline}
+              activeOpacity={0.85}
             >
-              <Text style={s.verifyConfirmTxt}>
-                {isVerifying ? 'Verifying...' : 'Verify & Complete Registration'}
-              </Text>
+              {loading ? (
+                <>
+                  <MaterialCommunityIcons name="loading" size={18} color={C.navy} />
+                  <Text style={s.btnPrimaryTxt}>Creating Account…</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.btnPrimaryTxt}>Create Account</Text>
+                  <Ionicons name="arrow-forward-outline" size={16} color={C.navy} style={{ marginLeft: 6 }} />
+                </>
+              )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={s.resendButton}
-              onPress={handleResendCode}
-              disabled={!canResend}
-            >
-              <Text style={[s.resendText, !canResend && { opacity: 0.5 }]}>
-                {canResend ? 'Resend Code' : `Resend in ${resendTimer}s`}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={s.verifyCancel}
-              onPress={() => {
-                setShowVerificationModal(false);
-                setVerificationCode('');
-              }}
-            >
-              <Text style={s.verifyCancelTxt}>Cancel</Text>
-            </TouchableOpacity>
+            {/* Sign In link */}
+            <View style={s.loginRow}>
+              <Text style={s.loginTxt}>Already have an account?</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login')}
+                style={s.loginBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={s.loginLink}>Sign In</Text>
+                <Ionicons name="arrow-forward" size={14} color={C.teal} />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+        </ScrollView>
+
+        {/* Date Picker */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+            minimumDate={new Date(1950, 0, 1)}
+          />
+        )}
+
+        {/* Gender Modal */}
+        <Modal visible={showGenderPicker} transparent animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.genderSheet}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <Text style={s.sheetTitle}>Select Gender</Text>
+                <TouchableOpacity style={s.sheetClose} onPress={() => setShowGenderPicker(false)}>
+                  <Ionicons name="close" size={20} color={C.slateL} />
+                </TouchableOpacity>
+              </View>
+              {genderOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[s.genderOpt, form.gender === opt.value && s.genderOptActive]}
+                  onPress={() => { handleChange('gender', opt.value); validateField('gender', opt.value); setShowGenderPicker(false); }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[s.genderOptIcon, form.gender === opt.value && s.genderOptIconActive]}>
+                    <Ionicons name={opt.icon} size={18} color={form.gender === opt.value ? C.teal : C.slateL} />
+                  </View>
+                  <Text style={[s.genderOptTxt, form.gender === opt.value && s.genderOptTxtActive]}>
+                    {opt.label}
+                  </Text>
+                  {form.gender === opt.value && (
+                    <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Barangay Modal */}
+        <Modal visible={showBarangayPicker} transparent animationType="slide" onRequestClose={() => setShowBarangayPicker(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.genderSheet}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <Text style={s.sheetTitle}>Select Barangay</Text>
+                <TouchableOpacity style={s.sheetClose} onPress={() => setShowBarangayPicker(false)}>
+                  <Ionicons name="close" size={20} color={C.slateL} />
+                </TouchableOpacity>
+              </View>
+              {barangayOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[s.genderOpt, form.barangay === opt.value && s.genderOptActive]}
+                  onPress={() => { handleChange('barangay', opt.value); validateField('barangay', opt.value); setShowBarangayPicker(false); }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[s.genderOptIcon, form.barangay === opt.value && s.genderOptIconActive]}>
+                    <Ionicons name={opt.icon} size={18} color={form.barangay === opt.value ? C.teal : C.slateL} />
+                  </View>
+                  <Text style={[s.genderOptTxt, form.barangay === opt.value && s.genderOptTxtActive]}>
+                    {opt.label}
+                  </Text>
+                  {form.barangay === opt.value && (
+                    <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Verification Modal */}
+        <Modal visible={showVerificationModal} transparent animationType="fade" onRequestClose={() => setShowVerificationModal(false)}>
+          <View style={s.verifyOverlay}>
+            <View style={s.verifyCard}>
+              <View style={s.verifyIconRing}>
+                <Ionicons name="mail-outline" size={28} color={C.teal} />
+              </View>
+              <Text style={s.verifyTitle}>Email Verification</Text>
+              <Text style={s.verifySub}>
+                We've sent a 6-digit code to{'\n'}
+                <Text style={{ color: C.teal, fontWeight: 'bold' }}>{form.email}</Text>
+              </Text>
+
+              <View style={s.verificationCodeInput}>
+                <TextInput
+                  style={s.codeInput}
+                  placeholder="Enter 6-digit code"
+                  placeholderTextColor={C.slateL}
+                  value={verificationCode}
+                  onChangeText={setVerificationCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  textAlign="center"
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={[s.verifyConfirm, isVerifying && { opacity: 0.5 }]}
+                onPress={handleVerifyCode}
+                disabled={isVerifying}
+              >
+                <Text style={s.verifyConfirmTxt}>
+                  {isVerifying ? 'Verifying...' : 'Verify & Complete Registration'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={s.resendButton}
+                onPress={handleResendCode}
+                disabled={!canResend || isUnderMaintenance}
+              >
+                <Text style={[
+                  s.resendText, 
+                  (!canResend || isUnderMaintenance) && { opacity: 0.5 }
+                ]}>
+                  {isUnderMaintenance 
+                    ? 'Under Maintenance' 
+                    : canResend 
+                      ? 'Resend Code' 
+                      : `Resend in ${resendTimer}s`}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={s.verifyCancel}
+                onPress={() => {
+                  setShowVerificationModal(false);
+                  setVerificationCode('');
+                }}
+              >
+                <Text style={s.verifyCancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const s = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: C.ink },
   root: { flex: 1, backgroundColor: C.ink },
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 48 },
-  header: { alignItems: 'center', paddingTop: 64, marginBottom: 24 },
+  header: { alignItems: 'center', paddingTop: 32, marginBottom: 24 },
   logoRing: {
     width: 72, height: 72, borderRadius: 20,
     backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.borderDk,

@@ -28,7 +28,14 @@ const isAdmin = (user) => {
 const getAdminBarangay = (user) => {
   if (user.role === 'southadmin') return 'South Signal';
   if (user.role === 'centraladmin') return 'Central Bicutan';
-  return null; // Super admin can see all
+  return null; // Super admin or admin can see all
+};
+
+// Helper to get admin role label
+const getAdminRoleLabel = (role) => {
+  if (role === 'southadmin') return 'southadmin';
+  if (role === 'centraladmin') return 'centraladmin';
+  return 'admin';
 };
 
 // ==================== CREATE POST ====================
@@ -68,17 +75,19 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 
     const post = new Post({
       admin: req.user.id,
+      adminName: req.user.fullName || req.user.username || 'Admin', // Use fullName or username
+      adminRole: getAdminRoleLabel(req.user.role),
       title,
       content,
       category: category || 'announcement',
       image: imageUrl,
       status: status || 'draft',
       isPinned: isPinned || false,
-      targetBarangay: adminBarangay // Automatically set to admin's barangay
+      targetBarangay: adminBarangay || (req.user.role === 'superadmin' ? 'South Signal' : adminBarangay) // Default for superadmin if needed
     });
 
     await post.save();
-    await post.populate('admin', 'username email profile role');
+    await post.populate('admin', 'fullName email username role');
 
     res.status(201).json({ 
       success: true,
@@ -122,7 +131,7 @@ router.get('/', auth, async (req, res) => {
       .sort({ isPinned: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .populate('admin', 'username email profile role');
+      .populate('admin', 'fullName email username role assignedBarangayLabel');
     
     const total = await Post.countDocuments(query);
     
@@ -143,8 +152,9 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate('admin', 'username email profile role')
-      .populate('comments.user', 'username profile');
+      .populate('admin', 'fullName email username role assignedBarangayLabel')
+      .populate('comments.user', 'username profile fullName')
+      .populate('likes', 'username profile fullName'); // Populate likes if needed
     
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -152,7 +162,7 @@ router.get('/:id', auth, async (req, res) => {
     
     // Check if user can view this post based on barangay
     const adminBarangay = getAdminBarangay(req.user);
-    if (adminBarangay && post.targetBarangay !== adminBarangay) {
+    if (adminBarangay && post.targetBarangay !== adminBarangay && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Post not available for your barangay' });
     }
     
@@ -187,7 +197,7 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
     
     // Check if admin owns this post or is super admin
     const adminBarangay = getAdminBarangay(req.user);
-    if (adminBarangay && post.targetBarangay !== adminBarangay) {
+    if (adminBarangay && post.targetBarangay !== adminBarangay && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'You can only edit posts from your barangay' });
     }
     
@@ -197,8 +207,12 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
     if (req.file) {
       // Delete old image from Cloudinary if exists
       if (post.image) {
-        const publicId = post.image.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(`posts/${publicId}`);
+        try {
+          const publicId = post.image.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(`posts/${publicId}`);
+        } catch (deleteError) {
+          console.error('Error deleting old image:', deleteError);
+        }
       }
       
       const result = await new Promise((resolve, reject) => {
@@ -221,8 +235,11 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
     if (status) post.status = status;
     if (isPinned !== undefined) post.isPinned = isPinned;
     
+    // Update admin info if changed (optional)
+    if (req.user.fullName) post.adminName = req.user.fullName;
+    
     await post.save();
-    await post.populate('admin', 'username email profile role');
+    await post.populate('admin', 'fullName email username role assignedBarangayLabel');
     
     res.json({ 
       success: true,
@@ -250,14 +267,18 @@ router.delete('/:id', auth, async (req, res) => {
     
     // Check if admin owns this post or is super admin
     const adminBarangay = getAdminBarangay(req.user);
-    if (adminBarangay && post.targetBarangay !== adminBarangay) {
+    if (adminBarangay && post.targetBarangay !== adminBarangay && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'You can only delete posts from your barangay' });
     }
     
     // Delete image from Cloudinary
     if (post.image) {
-      const publicId = post.image.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(`posts/${publicId}`);
+      try {
+        const publicId = post.image.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`posts/${publicId}`);
+      } catch (deleteError) {
+        console.error('Error deleting image:', deleteError);
+      }
     }
     
     await Post.findByIdAndDelete(req.params.id);
@@ -276,6 +297,12 @@ router.post('/:id/like', auth, async (req, res) => {
     
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    
+    // Check if user can like this post
+    const adminBarangay = getAdminBarangay(req.user);
+    if (adminBarangay && post.targetBarangay !== adminBarangay && !isAdmin(req.user)) {
+      return res.status(403).json({ message: 'Cannot like posts from other barangays' });
     }
     
     const likeIndex = post.likes.indexOf(req.user.id);
@@ -304,10 +331,20 @@ router.post('/:id/comment', auth, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
     
+    // Check if user can comment on this post
+    const adminBarangay = getAdminBarangay(req.user);
+    if (adminBarangay && post.targetBarangay !== adminBarangay && !isAdmin(req.user)) {
+      return res.status(403).json({ message: 'Cannot comment on posts from other barangays' });
+    }
+    
     const { content } = req.body;
     
     if (!content || content.trim() === '') {
       return res.status(400).json({ message: 'Comment content is required' });
+    }
+    
+    if (content.length > 1000) {
+      return res.status(400).json({ message: 'Comment cannot exceed 1000 characters' });
     }
     
     post.comments.push({
@@ -316,16 +353,108 @@ router.post('/:id/comment', auth, async (req, res) => {
     });
     
     await post.save();
-    await post.populate('comments.user', 'username profile');
+    await post.populate('comments.user', 'username profile fullName');
+    
+    // Get the newly added comment
+    const newComment = post.comments[post.comments.length - 1];
     
     res.json({ 
       success: true, 
       message: 'Comment added', 
-      comment: post.comments[post.comments.length - 1] 
+      comment: newComment,
+      commentCount: post.comments.length
     });
   } catch (error) {
     console.error('Add comment error:', error);
     res.status(500).json({ message: 'Error adding comment: ' + error.message });
+  }
+});
+
+// ==================== DELETE COMMENT ====================
+router.delete('/:postId/comment/:commentId', auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.postId);
+    
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    
+    const comment = post.comments.id(req.params.commentId);
+    
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+    
+    // Check if user is comment author or admin
+    const isCommentAuthor = comment.user.toString() === req.user.id;
+    const isAdminUser = isAdmin(req.user);
+    const isPostAuthor = post.admin.toString() === req.user.id;
+    
+    if (!isCommentAuthor && !isAdminUser && !isPostAuthor) {
+      return res.status(403).json({ message: 'You can only delete your own comments' });
+    }
+    
+    comment.remove();
+    await post.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Comment deleted successfully',
+      commentCount: post.comments.length
+    });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({ message: 'Error deleting comment: ' + error.message });
+  }
+});
+
+// ==================== GET POSTS BY BARANGAY (Admin specific) ====================
+router.get('/barangay/:barangay', auth, async (req, res) => {
+  try {
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ message: 'Access denied. Admins only.' });
+    }
+    
+    const { barangay } = req.params;
+    const { status, category, page = 1, limit = 20 } = req.query;
+    
+    // Validate barangay
+    if (!['South Signal', 'Central Bicutan'].includes(barangay)) {
+      return res.status(400).json({ message: 'Invalid barangay name' });
+    }
+    
+    // Check if admin has access to this barangay
+    const adminBarangay = getAdminBarangay(req.user);
+    if (adminBarangay && adminBarangay !== barangay && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'You do not have access to this barangay\'s posts' });
+    }
+    
+    const query = { targetBarangay: barangay };
+    
+    if (status) query.status = status;
+    if (category) query.category = category;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const posts = await Post.find(query)
+      .sort({ isPinned: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('admin', 'fullName email username role');
+    
+    const total = await Post.countDocuments(query);
+    
+    res.json({
+      success: true,
+      posts,
+      barangay,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      totalPosts: total
+    });
+  } catch (error) {
+    console.error('Get posts by barangay error:', error);
+    res.status(500).json({ message: 'Error fetching posts: ' + error.message });
   }
 });
 

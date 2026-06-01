@@ -24,7 +24,7 @@ import {
   clearPostError,
 } from '../../redux/slices/postSlice';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const C = {
   ink:      '#071B2E',
@@ -89,10 +89,73 @@ const getCategoryColor = (category) => {
   return colors[category?.toLowerCase()] || C.slate;
 };
 
+// ── Image Viewer Modal Component ──────────────────────────────────────────────
+const ImageViewer = ({ visible, imageUrl, onClose }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  
+  const handleZoom = (event) => {
+    // Simple pinch zoom logic
+    const { scale: newScale } = event.nativeEvent;
+    scale.setValue(Math.min(Math.max(newScale, 1), 3));
+  };
+
+  const handlePan = (event) => {
+    if (scale._value > 1) {
+      translateX.setValue(event.nativeEvent.translationX);
+      translateY.setValue(event.nativeEvent.translationY);
+    }
+  };
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={s.imageViewerOverlay}>
+        <TouchableOpacity 
+          style={s.imageViewerCloseBtn} 
+          onPress={onClose}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={28} color={C.white} />
+        </TouchableOpacity>
+        
+        <Animated.Image
+          source={{ uri: imageUrl }}
+          style={[
+            s.imageViewerImage,
+            {
+              transform: [
+                { scale },
+                { translateX },
+                { translateY },
+              ],
+            },
+          ]}
+          resizeMode="contain"
+          onTouchStart={() => {}}
+        />
+        
+        <View style={s.imageViewerFooter}>
+          <Text style={s.imageViewerFooterText}>Pinch to zoom • Tap to close</Text>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 // ── Post Card Component ───────────────────────────────────────────────────────
 const PostCard = ({ post, onLike, onComment, currentUser }) => {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [textLines, setTextLines] = useState(0);
+  const textRef = useRef(null);
 
   // Local state seeded from props — makes UI instant (optimistic updates)
   const [liked, setLiked] = useState(!!post.liked);
@@ -112,6 +175,15 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
     if (diffDays < 7) return `${diffDays} days ago`;
     return date.toLocaleDateString();
   };
+
+  // Truncate text function
+  const truncateText = (text, maxLength = 200) => {
+    if (!text) return '';
+    if (text.length <= maxLength || expanded) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
+  const needsTruncation = post.content?.length > 200;
 
   // Optimistic like — flips instantly, reverts on failure
   const handleLike = async () => {
@@ -191,12 +263,37 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
 
       {/* Post Content */}
       {post.title && <Text style={s.postTitle}>{post.title}</Text>}
-      <Text style={s.postContent}>{post.content}</Text>
-
-      {/* Post Image */}
-      {post.image && (
-        <Image source={{ uri: post.image }} style={s.postImage} resizeMode="cover" />
+      
+      {/* Text content with see more/see less */}
+      <Text style={s.postContent}>
+        {truncateText(post.content, 200)}
+      </Text>
+      
+      {needsTruncation && (
+        <TouchableOpacity onPress={() => setExpanded(!expanded)} style={s.seeMoreBtn}>
+          <Text style={s.seeMoreText}>{expanded ? 'See less' : 'See more'}</Text>
+        </TouchableOpacity>
       )}
+
+      {/* Post Image with tap to view */}
+      {post.image && (
+        <TouchableOpacity 
+          activeOpacity={0.9} 
+          onPress={() => setImageViewerVisible(true)}
+        >
+          <Image source={{ uri: post.image }} style={s.postImage} resizeMode="cover" />
+          <View style={s.imageOverlayIcon}>
+            <Ionicons name="expand-outline" size={24} color={C.white} />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Image Viewer Modal */}
+      <ImageViewer 
+        visible={imageViewerVisible}
+        imageUrl={post.image}
+        onClose={() => setImageViewerVisible(false)}
+      />
 
       {/* Post Actions */}
       <View style={s.postActions}>
@@ -1547,7 +1644,24 @@ const s = StyleSheet.create({
     fontSize: 14, 
     color: C.slate, 
     lineHeight: 20, 
-    marginBottom: 12 
+    marginBottom: 8 
+  },
+  seeMoreBtn: {
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+  },
+  seeMoreText: {
+    fontSize: 13,
+    color: C.teal,
+    fontWeight: '600',
+  },
+  imageOverlayIcon: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 6,
   },
   postImage: { 
     width: '100%', 
@@ -1668,6 +1782,42 @@ const s = StyleSheet.create({
     fontSize: 12, 
     color: C.slateL, 
     fontStyle: 'italic' 
+  },
+
+  // Image Viewer
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  imageViewerImage: {
+    width: width,
+    height: height * 0.7,
+  },
+  imageViewerFooter: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  imageViewerFooterText: {
+    color: C.white,
+    fontSize: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
 
   // Loading & Error States

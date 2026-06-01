@@ -59,14 +59,74 @@ const CO2_EMISSION_FACTORS = {
   landfill:     { plastic:0.1,paper:0.5,glass:0.02,metal:0.05,aluminum:0.05,organic:1.5,electronic:0.8,textile:0.7,cardboard:0.5,default:0.3 },
   incineration: { plastic:2.5,paper:0.8,glass:0.1,metal:0.1,aluminum:0.1,organic:0.3,electronic:1.2,textile:1.5,cardboard:0.9,default:1.0 },
 };
+
+// ── Weight lookup table ───────────────────────────────────────────────────────
+// Keys must be lowercase — calcWeight normalises classification before lookup.
+// Sub-keys match common AI detection labels (full label or last word).
+// All weights in kg per single detected object.
 const AVG_ITEM_WEIGHT = {
-  plastic:    { bottle:0.05,bag:0.01,container:0.03,default:0.03 },
-  paper:      { newspaper:0.1,magazine:0.15,office:0.05,default:0.08 },
-  glass:      { bottle:0.3,jar:0.2,default:0.25 },
-  metal:      { can:0.015,default:0.02 },
-  organic:    { food:0.2,yard:0.5,default:0.3 },
-  electronic: { small:0.5,medium:2.0,default:1.0 },
-  default:    0.1,
+  plastic: {
+    // full labels a waste-detection model might output
+    'plastic bottle': 0.05, 'plastic bag': 0.01, 'plastic container': 0.08,
+    'plastic cup': 0.03,    'plastic straw': 0.002, 'plastic wrapper': 0.01,
+    'plastic packaging': 0.04,
+    // last-word sub-keys
+    bottle: 0.05, bag: 0.01, container: 0.08, cup: 0.03,
+    straw: 0.002, wrapper: 0.01, packaging: 0.04, film: 0.01,
+    default: 0.04,
+  },
+  paper: {
+    'paper bag': 0.05, 'paper cup': 0.01, 'newspaper': 0.10,
+    'magazine': 0.15,  'office paper': 0.05, 'tissue': 0.005,
+    bag: 0.05, cup: 0.01, newspaper: 0.10, magazine: 0.15,
+    tissue: 0.005, receipt: 0.002,
+    default: 0.08,
+  },
+  glass: {
+    'glass bottle': 0.30, 'glass jar': 0.25, 'glass cup': 0.20,
+    bottle: 0.30, jar: 0.25, cup: 0.20, shard: 0.05,
+    default: 0.25,
+  },
+  metal: {
+    'metal can': 0.015, 'tin can': 0.015, 'aluminum can': 0.015,
+    'steel can': 0.03,  'metal lid': 0.01,
+    can: 0.015, tin: 0.015, lid: 0.01, scrap: 0.10,
+    default: 0.02,
+  },
+  aluminum: {
+    'aluminum can': 0.015, 'aluminium can': 0.015, 'aluminum foil': 0.005,
+    can: 0.015, foil: 0.005,
+    default: 0.015,
+  },
+  organic: {
+    'food waste': 0.25, 'fruit peel': 0.10, 'vegetable waste': 0.20,
+    'yard waste': 0.50, 'food scraps': 0.25, 'leaves': 0.30,
+    food: 0.25, fruit: 0.15, vegetable: 0.20, yard: 0.50,
+    peel: 0.10, scraps: 0.25, leaves: 0.30,
+    default: 0.25,
+  },
+  electronic: {
+    'mobile phone': 0.18, 'smartphone': 0.18, 'laptop': 2.00,
+    'tablet': 0.50,       'battery': 0.15,    'charger': 0.10,
+    'earphones': 0.03,    'cable': 0.05,      'circuit board': 0.15,
+    phone: 0.18, smartphone: 0.18, laptop: 2.00, tablet: 0.50,
+    battery: 0.15, charger: 0.10, cable: 0.05, board: 0.15,
+    default: 0.50,
+  },
+  textile: {
+    'shirt': 0.20, 'pants': 0.40, 'jeans': 0.50, 'jacket': 0.60,
+    'socks': 0.05, 'cloth': 0.25, 'fabric': 0.20,
+    shirt: 0.20, pants: 0.40, jeans: 0.50, jacket: 0.60,
+    socks: 0.05, cloth: 0.25, fabric: 0.20,
+    default: 0.25,
+  },
+  cardboard: {
+    'cardboard box': 0.50, 'cardboard sheet': 0.15, 'carton': 0.10,
+    box: 0.50, sheet: 0.15, carton: 0.10, tube: 0.05,
+    default: 0.25,
+  },
+  // flat fallback — unknown classification
+  default: 0.10,
 };
 
 // ── Animated fade-in ──────────────────────────────────────────────────────────
@@ -96,14 +156,11 @@ const ScoreRing = ({ score }) => {
     Animated.timing(anim, { toValue: score / 100, duration: 900, delay: 200, useNativeDriver: false }).start();
   }, [score]);
 
-  // Color based on score
   const color = score >= 70 ? C.green : score >= 40 ? C.amber : C.red;
 
   return (
     <View style={[s.ringWrap, { width: size, height: size }]}>
-      {/* Background ring */}
       <View style={[s.ringBg, { width: size, height: size, borderRadius: size / 2, borderWidth: stroke, borderColor: C.border }]} />
-      {/* Colored arc (approximated with border segments) */}
       <View style={[s.ringFill, {
         width: size, height: size, borderRadius: size / 2,
         borderWidth: stroke,
@@ -151,7 +208,6 @@ const formatCO2 = (v) => {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-/** Section header with teal icon pill */
 const SectionHeader = ({ icon, title, sub }) => (
   <View style={s.sectionHeader}>
     <View style={s.sectionIconWrap}>
@@ -164,7 +220,6 @@ const SectionHeader = ({ icon, title, sub }) => (
   </View>
 );
 
-/** Metric card with top accent border */
 const MetricCard = ({ title, value, sub, accentColor, icon }) => (
   <View style={[s.metricCard, { borderTopColor: accentColor }]}>
     <View style={[s.metricIconWrap, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}44` }]}>
@@ -176,7 +231,6 @@ const MetricCard = ({ title, value, sub, accentColor, icon }) => (
   </View>
 );
 
-/** Pill-style time range button */
 const TimeBtn = ({ range, active, onPress }) => {
   const icons = { week:'calendar-outline', month:'today-outline', year:'calendar-clear-outline', all:'infinite-outline' };
   return (
@@ -193,7 +247,6 @@ const TimeBtn = ({ range, active, onPress }) => {
   );
 };
 
-/** Progress bar row for CO₂ breakdown */
 const ProgressRow = ({ label, sublabel, pct, color, valueLabel, delay }) => (
   <View style={s.progressRow}>
     <View style={s.progressTop}>
@@ -208,7 +261,6 @@ const ProgressRow = ({ label, sublabel, pct, color, valueLabel, delay }) => (
   </View>
 );
 
-/** Status card in a 2-column grid */
 const StatusCard = ({ status, data }) => {
   const meta = getStatusMeta(status);
   if (!data.count) return null;
@@ -234,7 +286,6 @@ const StatusCard = ({ status, data }) => {
   );
 };
 
-/** Insight row inside the insights card */
 const InsightRow = ({ icon, label, value, last }) => (
   <View style={[s.insightRow, last && { borderBottomWidth: 0 }]}>
     <View style={s.insightLeft}>
@@ -247,14 +298,16 @@ const InsightRow = ({ icon, label, value, last }) => (
   </View>
 );
 
-/** Equiv tile in a 2x2 grid */
+// ── FIX: EquivTile now uses flex layout, not fixed pixel width ────────────────
 const EquivTile = ({ icon, color, value, label }) => (
   <View style={s.equivTile}>
     <View style={[s.equivIcon, { backgroundColor: `${color}20`, borderColor: `${color}40` }]}>
-      <Ionicons name={icon} size={22} color={color} />
+      <Ionicons name={icon} size={24} color={color} />
     </View>
-    <Text style={[s.equivValue, { color }]}>{value}</Text>
-    <Text style={s.equivLabel}>{label}</Text>
+    <Text style={[s.equivValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
+      {value}
+    </Text>
+    <Text style={s.equivLabel} numberOfLines={2}>{label}</Text>
   </View>
 );
 
@@ -287,12 +340,41 @@ const WasteAnalytics = ({ navigation }) => {
     return reps.filter(r => new Date(r.scanDate || r.createdAt) >= start);
   };
 
+  // ── calcWeight ────────────────────────────────────────────────────────────────
+  // Backend stores NO weight / quantity / itemType fields directly.
+  // Real schema fields we use:
+  //   r.classification   — "Plastic", "Organic", etc.
+  //   r.detectedObjects  — [{ label, confidence, ... }, ...]
+  //
+  // Quantity  = detectedObjects.length (how many objects the AI found), min 1
+  // Item type = first detected object's label, e.g. "plastic bottle" → try
+  //             full label then last word to hit sub-keys like "bottle"
   const calcWeight = (r) => {
-    if (r.weight) return r.weight;
-    const wt = (r.classification || 'default').toLowerCase();
-    const tw = AVG_ITEM_WEIGHT[wt] || AVG_ITEM_WEIGHT.default;
-    const w  = typeof tw === 'object' ? (tw[r.itemType || 'default'] || tw.default || AVG_ITEM_WEIGHT.default) : AVG_ITEM_WEIGHT.default;
-    return w * (r.quantity || 1);
+    // 1. Quantity from number of detected objects
+    const quantity = (r.detectedObjects && r.detectedObjects.length > 0)
+      ? r.detectedObjects.length
+      : 1;
+
+    // 2. Classification key (normalised to lowercase)
+    const classKey = (r.classification || '').toLowerCase().trim();
+
+    // 3. Item-type from the first (usually highest-confidence) detected object
+    //    e.g. label = "plastic bottle" → try "plastic bottle", then "bottle"
+    const rawLabel  = (r.detectedObjects?.[0]?.label || '').toLowerCase().trim();
+    const labelLast = rawLabel.split(' ').pop();
+
+    // 4. Resolve unit weight from table
+    const entry = AVG_ITEM_WEIGHT[classKey];
+    let unitWeight;
+    if (!entry) {
+      unitWeight = AVG_ITEM_WEIGHT.default;
+    } else if (typeof entry === 'object') {
+      unitWeight = entry[rawLabel] ?? entry[labelLast] ?? entry.default ?? AVG_ITEM_WEIGHT.default;
+    } else {
+      unitWeight = entry;
+    }
+
+    return unitWeight * quantity;
   };
 
   const calcCO2 = (r, wasteType, weight) => {
@@ -308,6 +390,8 @@ const WasteAnalytics = ({ navigation }) => {
   const calculateAnalytics = () => {
     const filtered = filterByTime(reports);
     if (!filtered.length) { setAnalytics(null); return; }
+
+
 
     const wasteDistribution = {}, statusDistribution = {}, co2ByWasteType = {};
     const co2ByStatus = {
@@ -419,7 +503,6 @@ const WasteAnalytics = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Time range tabs sit inside the header */}
           <View style={s.timeFilterRow}>
             {['week','month','year','all'].map((r) => (
               <TimeBtn key={r} range={r} active={timeRange === r} onPress={setTimeRange} />
@@ -501,12 +584,38 @@ const WasteAnalytics = ({ navigation }) => {
                 <FadeIn delay={160}>
                   <View style={s.section}>
                     <SectionHeader icon="globe-outline" title="Environmental Equivalents" sub="Your impact in real-world terms" />
+                    {/* FIX: replaced equivGrid+equivTile with a proper 2-column layout */}
                     <View style={s.card}>
-                      <View style={s.equivGrid}>
-                        <EquivTile icon="leaf-outline"          color={C.green}  value={analytics.environmentalEquivalents.treesEquivalent}           label="Trees to absorb emissions" />
-                        <EquivTile icon="car-outline"           color={C.blue}   value={analytics.environmentalEquivalents.carsEquivalent}            label="Cars off road / yr" />
-                        <EquivTile icon="flame-outline"         color={C.amber}  value={`${analytics.environmentalEquivalents.gasolineLiters}L`}      label="Gasoline equivalent" />
-                        <EquivTile icon="phone-portrait-outline" color={C.purple} value={analytics.environmentalEquivalents.smartphonesCharged}       label="Smartphones charged" />
+                      <View style={s.equivRow}>
+                        <EquivTile
+                          icon="leaf-outline"
+                          color={C.green}
+                          value={String(analytics.environmentalEquivalents.treesEquivalent)}
+                          label="Trees to absorb emissions"
+                        />
+                        <View style={s.equivDividerV} />
+                        <EquivTile
+                          icon="car-outline"
+                          color={C.blue}
+                          value={String(analytics.environmentalEquivalents.carsEquivalent)}
+                          label="Cars off road / yr"
+                        />
+                      </View>
+                      <View style={s.equivDividerH} />
+                      <View style={s.equivRow}>
+                        <EquivTile
+                          icon="flame-outline"
+                          color={C.amber}
+                          value={`${analytics.environmentalEquivalents.gasolineLiters}L`}
+                          label="Gasoline equivalent"
+                        />
+                        <View style={s.equivDividerV} />
+                        <EquivTile
+                          icon="phone-portrait-outline"
+                          color={C.purple}
+                          value={String(analytics.environmentalEquivalents.smartphonesCharged)}
+                          label="Smartphones charged"
+                        />
                       </View>
                     </View>
                   </View>
@@ -622,7 +731,6 @@ const s = StyleSheet.create({
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
-    // subtle bottom shadow
     shadowColor: C.ink,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -640,7 +748,6 @@ const s = StyleSheet.create({
   },
   headerGrid: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    // decorative: subtle vertical grid lines baked in via border approach
   },
   headerRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -663,7 +770,6 @@ const s = StyleSheet.create({
   },
   headerBadgeTxt: { fontSize: 11, color: C.teal, fontWeight: '700' },
 
-  // Time filter inside header
   timeFilterRow: {
     flexDirection: 'row', gap: 8,
     paddingBottom: 18,
@@ -719,29 +825,53 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 20,
     ...CARD_SHADOW,
   },
-  // Score ring
   ringWrap:   { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   ringBg:     { position: 'absolute' },
   ringFill:   { position: 'absolute' },
   ringCenter: { alignItems: 'center' },
   ringScore:  { fontSize: 30, fontWeight: '900' },
   ringOf:     { fontSize: 10, color: C.slateL, fontWeight: '700' },
-  // Breakdown
   scoreRight: { flex: 1, gap: 10 },
   scoreRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scoreDot:   { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   scoreRowLabel: { flex: 1, fontSize: 13, color: C.slate },
   scoreRowCount: { fontSize: 13, fontWeight: '800' },
 
-  // ── Equiv grid ────────────────────────────────────────────────────────────────
-  equivGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  equivTile: { width: (width - 92) / 2, alignItems: 'center' },
+  // ── Environmental equivalents — FIX ──────────────────────────────────────────
+  // Two rows of two tiles, each row separated by a divider.
+  // Tiles use flex:1 so they share the available width equally regardless of
+  // screen size.  No hardcoded pixel widths.
+  equivRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  equivDividerV: {
+    width: 1,
+    backgroundColor: C.border,
+    marginVertical: 4,
+  },
+  equivDividerH: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 16,
+  },
+  equivTile: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
   equivIcon: {
     width: 52, height: 52, borderRadius: 14,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  equivValue: { fontSize: 20, fontWeight: '900', marginBottom: 4 },
-  equivLabel: { fontSize: 11, color: C.slateL, textAlign: 'center', lineHeight: 16 },
+  equivValue: {
+    fontSize: 20, fontWeight: '900', marginBottom: 4,
+    maxWidth: '100%',
+  },
+  equivLabel: {
+    fontSize: 11, color: C.slateL, textAlign: 'center', lineHeight: 16,
+  },
 
   // ── Progress rows ─────────────────────────────────────────────────────────────
   progressRow:     { marginBottom: 18 },

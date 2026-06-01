@@ -158,6 +158,45 @@ const NotificationsScreen = ({ navigation }) => {
     }
   };
 
+  // ── Handle notification press based on type ─────────────────────────────────
+  const handleNotificationPress = async (item) => {
+    // Mark as read first
+    if (!item.read) {
+      await handleMarkAsRead(item._id);
+    }
+    
+    // Navigate based on notification type
+    switch (item.type) {
+      case 'report_created':
+      case 'report_processed':
+        // Navigate to report details screen
+        if (item.reportId) {
+          navigation.navigate('ReportDetail', { reportId: item.reportId });
+        } else if (item.data?.reportId) {
+          navigation.navigate('ReportDetail', { reportId: item.data.reportId });
+        } else {
+          // If no reportId found, just show the notification message
+          Alert.alert(item.title, item.message);
+        }
+        break;
+      
+      case 'recycling_tips':
+        // Navigate to recycling tips screen or show modal
+        if (item.link || item.data?.link) {
+          // If you have a webview or tips screen
+          navigation.navigate('RecyclingTipsDetail', { tip: item });
+        } else {
+          Alert.alert(item.title, item.message);
+        }
+        break;
+      
+      default:
+        // Default action - show alert with notification content
+        Alert.alert(item.title, item.message);
+        break;
+    }
+  };
+
   // ── Notification item ──────────────────────────────────────────────────────
   const renderItem = ({ item, index }) => {
     const meta = getTypeMeta(item.type);
@@ -165,7 +204,7 @@ const NotificationsScreen = ({ navigation }) => {
       <FadeIn delay={index * 40}>
         <TouchableOpacity
           style={[s.notifCard, !item.read && { borderLeftColor: meta.color, borderLeftWidth: 3 }]}
-          onPress={() => handleMarkAsRead(item._id)}
+          onPress={() => handleNotificationPress(item)}
           activeOpacity={0.8}
         >
           {/* Icon */}

@@ -8,7 +8,6 @@ const BARANGAY_KEYWORDS = {
     'south signal, taguig',
     'signal village south',
   ],
-
   central_bicutan: [
     'central bicutan',
     'central bicutan village',
@@ -18,7 +17,6 @@ const BARANGAY_KEYWORDS = {
     'air force road',
     'general paulino santos',
   ],
-
   tup_taguig: [
     'tup',
     'tup taguig',
@@ -26,12 +24,10 @@ const BARANGAY_KEYWORDS = {
     'technological university of the philippines',
     'western bicutan',
   ],
-
   upper_bicutan: [
     'upper bicutan',
     'upper bicutan taguig',
   ],
-
   lower_bicutan: [
     'lower bicutan',
     'lower bicutan taguig',
@@ -51,7 +47,6 @@ const STREET_KEYWORDS = {
     'paronas',
     'espedilla',
   ],
-
   central_bicutan: [
     'air force road',
     'k-9 extension',
@@ -68,7 +63,6 @@ const STREET_KEYWORDS = {
     'sunflower',
     'villa',
   ],
-
   tup_taguig: [
     'campus road',
     'tup campus',
@@ -77,16 +71,14 @@ const STREET_KEYWORDS = {
 };
 
 const BARANGAY_LABELS = {
-  south_signal: 'South Signal, Taguig',
+  south_signal:    'South Signal, Taguig',
   central_bicutan: 'Central Bicutan, Taguig',
-  tup_taguig: 'TUP Taguig / Western Bicutan',
-  upper_bicutan: 'Upper Bicutan, Taguig',
-  lower_bicutan: 'Lower Bicutan, Taguig',
+  tup_taguig:      'TUP Taguig / Western Bicutan',
+  upper_bicutan:   'Upper Bicutan, Taguig',
+  lower_bicutan:   'Lower Bicutan, Taguig',
 };
 
-const SOUTH_SIGNAL_ALLOWED = ['Special Waste'];
-
-const TUP_ALLOWED = ['General Waste', 'Recyclable', 'Special Waste'];
+const DEFAULT_BARANGAY = 'central_bicutan';
 
 function detectBarangayFromAddress(address) {
   if (!address || typeof address !== 'string') return null;
@@ -95,52 +87,33 @@ function detectBarangayFromAddress(address) {
   for (const [key, keywords] of Object.entries(BARANGAY_KEYWORDS)) {
     if (keywords.some((kw) => lower.includes(kw))) return key;
   }
-
   for (const [key, streets] of Object.entries(STREET_KEYWORDS)) {
     if (streets.some((st) => lower.includes(st))) return key;
   }
-
   return null;
 }
 
 function validateWasteForBarangay(barangay, classification) {
-  if (barangay === 'south_signal') {
-    if (!SOUTH_SIGNAL_ALLOWED.includes(classification)) {
-      return {
-        valid: false,
-        reason: `South Signal only accepts Special Waste reports. Detected type is "${classification}".`,
-      };
-    }
-  }
-
-  if (barangay === 'tup_taguig') {
-    if (!TUP_ALLOWED.includes(classification)) {
-      return {
-        valid: false,
-        reason: `TUP Taguig only accepts General, Recyclable, or Special Waste. Detected type is "${classification}".`,
-      };
-    }
-  }
-
-  return { valid: true };
+  return { valid: true, reason: null };
 }
 
 function routeReport(address, classification, override) {
-  const barangay =
-    override ||
-    detectBarangayFromAddress(address) ||
-    'central_bicutan';
+  let barangay = override || detectBarangayFromAddress(address);
 
-  const label =
-    BARANGAY_LABELS[barangay] ||
-    BARANGAY_LABELS.central_bicutan;
+  // ✅ Guard: unknown or missing key falls back to default
+  // This was the root cause of the 422 — an unrecognised key
+  // produced label = undefined which failed backend validation.
+  if (!barangay || !BARANGAY_LABELS[barangay]) {
+    barangay = DEFAULT_BARANGAY;
+  }
 
+  const label      = BARANGAY_LABELS[barangay];
   const validation = validateWasteForBarangay(barangay, classification);
 
   return {
     barangay,
     label,
-    valid: validation.valid,
+    valid:  validation.valid,
     reason: validation.reason || null,
   };
 }
@@ -152,6 +125,4 @@ module.exports = {
   BARANGAY_LABELS,
   BARANGAY_KEYWORDS,
   STREET_KEYWORDS,
-  SOUTH_SIGNAL_ALLOWED,
-  TUP_ALLOWED,
 };
