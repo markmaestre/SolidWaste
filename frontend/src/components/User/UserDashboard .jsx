@@ -47,6 +47,52 @@ const C = {
   amber:    '#F59E0B',
 };
 
+// Helper to get user's barangay from user object
+const getUserBarangay = (user) => {
+  // Check multiple possible locations for barangay info
+  if (user?.barangay) return user.barangay;
+  if (user?.assignedBarangay) return user.assignedBarangay;
+  if (user?.assignedBarangayLabel) return user.assignedBarangayLabel;
+  if (user?.profile?.barangay) return user.profile.barangay;
+  
+  // Default based on role if no specific barangay
+  if (user?.role === 'southadmin') return 'South Signal';
+  if (user?.role === 'centraladmin') return 'Central Bicutan';
+  
+  return null;
+};
+
+// Helper to check if user can see all posts (super admin)
+const canSeeAllPosts = (user) => {
+  return user?.role === 'superadmin';
+};
+
+// Helper to filter posts by barangay
+const filterPostsByBarangay = (posts, user) => {
+  if (!posts || posts.length === 0) return [];
+  if (canSeeAllPosts(user)) return posts;
+  
+  const userBarangay = getUserBarangay(user);
+  if (!userBarangay) return posts;
+  
+  // Filter posts where targetBarangay matches user's barangay
+  return posts.filter(post => {
+    // Check if post has targetBarangay field
+    if (post.targetBarangay) {
+      return post.targetBarangay === userBarangay;
+    }
+    // If no targetBarangay, check admin's barangay from post
+    if (post.admin?.assignedBarangayLabel) {
+      return post.admin.assignedBarangayLabel === userBarangay;
+    }
+    // Default: show only if admin role matches
+    if (post.adminRole === 'southadmin' && userBarangay === 'South Signal') return true;
+    if (post.adminRole === 'centraladmin' && userBarangay === 'Central Bicutan') return true;
+    
+    return false;
+  });
+};
+
 // ── Fade-in animation ─────────────────────────────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
   const opacity    = useRef(new Animated.Value(0)).current;
@@ -96,7 +142,6 @@ const ImageViewer = ({ visible, imageUrl, onClose }) => {
   const translateY = useRef(new Animated.Value(0)).current;
   
   const handleZoom = (event) => {
-    // Simple pinch zoom logic
     const { scale: newScale } = event.nativeEvent;
     scale.setValue(Math.min(Math.max(newScale, 1), 3));
   };
@@ -157,7 +202,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
   const [textLines, setTextLines] = useState(0);
   const textRef = useRef(null);
 
-  // Local state seeded from props — makes UI instant (optimistic updates)
   const [liked, setLiked] = useState(!!post.liked);
   const [likeCount, setLikeCount] = useState(post.likeCount ?? post.likes?.length ?? 0);
   const [comments, setComments] = useState(post.comments || []);
@@ -176,7 +220,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
     return date.toLocaleDateString();
   };
 
-  // Truncate text function
   const truncateText = (text, maxLength = 200) => {
     if (!text) return '';
     if (text.length <= maxLength || expanded) return text;
@@ -185,7 +228,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
 
   const needsTruncation = post.content?.length > 200;
 
-  // Optimistic like — flips instantly, reverts on failure
   const handleLike = async () => {
     if (isLiking) return;
     const newLiked = !liked;
@@ -195,7 +237,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
     try {
       await onLike(post._id);
     } catch (error) {
-      // Revert on failure
       setLiked(!newLiked);
       setLikeCount(prev => newLiked ? prev - 1 : prev + 1);
       Alert.alert('Error', 'Failed to like post. Please try again.');
@@ -204,7 +245,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
     }
   };
 
-  // Optimistic comment — appears instantly with real username, removed on failure
   const handleAddComment = async () => {
     if (!commentText.trim() || isCommenting) return;
     const text = commentText.trim();
@@ -225,12 +265,18 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
     try {
       await onComment(post._id, text);
     } catch (error) {
-      // Revert on failure
       setComments(prev => prev.filter(c => c._id !== optimistic._id));
       Alert.alert('Error', 'Failed to post comment. Please try again.');
     } finally {
       setIsCommenting(false);
     }
+  };
+
+  // Get barangay display info
+  const postBarangay = post.targetBarangay || post.admin?.assignedBarangayLabel;
+  const isUserBarangay = () => {
+    const userBarangay = getUserBarangay(currentUser);
+    return !userBarangay || userBarangay === postBarangay;
   };
 
   return (
@@ -261,10 +307,17 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
         )}
       </View>
 
+      {/* Barangay Badge - shows which barangay this post is for */}
+      {postBarangay && (
+        <View style={s.barangayBadge}>
+          <Ionicons name="location-outline" size={12} color={C.teal} />
+          <Text style={s.barangayBadgeText}>For: {postBarangay}</Text>
+        </View>
+      )}
+
       {/* Post Content */}
       {post.title && <Text style={s.postTitle}>{post.title}</Text>}
       
-      {/* Text content with see more/see less */}
       <Text style={s.postContent}>
         {truncateText(post.content, 200)}
       </Text>
@@ -275,7 +328,7 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
         </TouchableOpacity>
       )}
 
-      {/* Post Image with tap to view */}
+      {/* Post Image */}
       {post.image && (
         <TouchableOpacity 
           activeOpacity={0.9} 
@@ -288,7 +341,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
         </TouchableOpacity>
       )}
 
-      {/* Image Viewer Modal */}
       <ImageViewer 
         visible={imageViewerVisible}
         imageUrl={post.image}
@@ -326,7 +378,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
       {/* Comments Section */}
       {showComments && (
         <View style={s.commentsSection}>
-          {/* Comment Input */}
           <View style={s.commentInputContainer}>
             <TextInput
               style={s.commentInput}
@@ -358,7 +409,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Comments List */}
           {comments.length > 0 ? (
             <View style={s.commentsList}>
               {comments.slice(0, 5).map((comment, idx) => (
@@ -369,7 +419,6 @@ const PostCard = ({ post, onLike, onComment, currentUser }) => {
                     </Text>
                   </View>
                   <View style={s.commentContent}>
-                    {/* username field — matches backend populate */}
                     <Text style={s.commentAuthor}>
                       {comment.user?.username || 'User'}
                     </Text>
@@ -409,12 +458,14 @@ const UserDashboard = () => {
   const { unreadCount }   = useSelector((st) => st.notification || { unreadCount: 0 });
   const { conversations } = useSelector((st) => st.message || { conversations: [] });
 
-  const posts            = useSelector(selectAllPosts);
-  const postsLoading     = useSelector(selectPostsLoading);
-  const postsError       = useSelector(selectPostsError);
-  const pagination       = useSelector(selectPagination);
-  const selectedCategory = useSelector(selectSelectedCategory);
+  const allPosts          = useSelector(selectAllPosts);
+  const postsLoading      = useSelector(selectPostsLoading);
+  const postsError        = useSelector(selectPostsError);
+  const pagination        = useSelector(selectPagination);
+  const selectedCategory  = useSelector(selectSelectedCategory);
 
+  // Filtered posts based on user's barangay
+  const [filteredPosts, setFilteredPosts] = useState([]);
   const [activeTab,          setActiveTab]          = useState('Home');
   const [sidebarVisible,     setSidebarVisible]     = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -429,6 +480,16 @@ const UserDashboard = () => {
   const unreadMessages = conversations?.filter((c) => c.unread).length || 0;
 
   const categories = ['all', 'announcement', 'event', 'cleanup_drive', 'advisory', 'recycling_tip', 'news', 'alert', 'general'];
+
+  // Get user's barangay info
+  const userBarangay = getUserBarangay(user);
+  const isSuperAdmin = canSeeAllPosts(user);
+
+  // Apply barangay filtering whenever posts or user changes
+  useEffect(() => {
+    const filtered = filterPostsByBarangay(allPosts, user);
+    setFilteredPosts(filtered);
+  }, [allPosts, user]);
 
   // ── Fetch posts ─────────────────────────────────────────────────────────────
   const fetchPosts = useCallback(async (page = 1, refresh = false) => {
@@ -493,32 +554,24 @@ const UserDashboard = () => {
     }, [route.name, fetchPosts, dispatch])
   );
 
-  // ── Back handler (Shows logout confirmation when at root) ─────────────────────
+  // ── Back handler ────────────────────────────────────────────────────────────
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      // If sidebar is open, close it first
       if (sidebarVisible) { 
         toggleSidebar(); 
         return true; 
       }
-      
-      // If logout modal is visible, close it
       if (logoutModalVisible) { 
         setLogoutModalVisible(false); 
         return true; 
       }
-      
-      // Check if we can go back using React Navigation's built-in navigation
       if (navigation.canGoBack()) {
         navigation.goBack();
         return true;
       }
-      
-      // If we're at the root (cannot go back), show logout confirmation
       showLogoutConfirmation();
       return true;
     });
-    
     return () => sub.remove();
   }, [sidebarVisible, logoutModalVisible, navigation]);
 
@@ -591,7 +644,15 @@ const UserDashboard = () => {
     return null;
   };
   const getDisplayName = () => user?.username || user?.name || 'T.M.F.K User';
-  const getDisplayRole = () => user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
+  const getDisplayRole = () => {
+    if (user?.role) {
+      if (user.role === 'superadmin') return 'Super Admin';
+      if (user.role === 'southadmin') return 'South Signal Admin';
+      if (user.role === 'centraladmin') return 'Central Bicutan Admin';
+      return user.role.charAt(0).toUpperCase() + user.role.slice(1);
+    }
+    return 'User';
+  };
 
   // ── Render posts feed ───────────────────────────────────────────────────────
   const renderPostsFeed = () => (
@@ -616,6 +677,25 @@ const UserDashboard = () => {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Barangay Info Banner */}
+      {!isSuperAdmin && userBarangay && (
+        <View style={s.barangayInfoBanner}>
+          <Ionicons name="location" size={16} color={C.teal} />
+          <Text style={s.barangayInfoText}>
+            Showing posts for <Text style={s.barangayInfoHighlight}>{userBarangay}</Text>
+          </Text>
+        </View>
+      )}
+
+      {isSuperAdmin && (
+        <View style={s.barangayInfoBanner}>
+          <Ionicons name="shield-checkmark" size={16} color={C.amber} />
+          <Text style={s.barangayInfoText}>
+            Super Admin Mode: Viewing all barangay posts
+          </Text>
+        </View>
+      )}
 
       {/* Posts List */}
       <ScrollView
@@ -645,17 +725,19 @@ const UserDashboard = () => {
           </View>
         )}
 
-        {!postsLoading && posts.length === 0 && !postsError && (
+        {!postsLoading && filteredPosts.length === 0 && !postsError && (
           <View style={s.emptyContainer}>
             <Ionicons name="newspaper-outline" size={60} color={C.slateL} />
-            <Text style={s.emptyTitle}>No Posts Yet</Text>
+            <Text style={s.emptyTitle}>No Posts Available</Text>
             <Text style={s.emptyText}>
-              Check back later for announcements and updates from the admin.
+              {!isSuperAdmin && userBarangay 
+                ? `No announcements yet for ${userBarangay}. Check back later for updates from your barangay admin.`
+                : 'No posts available at the moment. Check back later for announcements.'}
             </Text>
           </View>
         )}
 
-        {posts.map((post, index) => (
+        {filteredPosts.map((post, index) => (
           <FadeIn key={post._id || index} delay={Math.min(index * 50, 300)}>
             <PostCard
               post={post}
@@ -769,6 +851,7 @@ const UserDashboard = () => {
             <Text style={s.settingsGroupTitle}>Account Information</Text>
             {[
               { label: 'Email',        value: user?.email || 'Not set' },
+              { label: 'Barangay',     value: userBarangay || 'Not assigned' },
               { label: 'Member Since', value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A' },
               { label: 'Last Login',   value: user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A' },
             ].map((row) => (
@@ -894,6 +977,12 @@ const UserDashboard = () => {
               <View style={s.sidebarRolePill}>
                 <Text style={s.sidebarRoleTxt}>{getDisplayRole()}</Text>
               </View>
+              {userBarangay && !isSuperAdmin && (
+                <View style={s.sidebarBarangayPill}>
+                  <Ionicons name="location" size={10} color={C.teal} />
+                  <Text style={s.sidebarBarangayTxt}>{userBarangay}</Text>
+                </View>
+              )}
             </View>
 
             <ScrollView style={s.sidebarMenu} showsVerticalScrollIndicator={false}>
@@ -1266,6 +1355,62 @@ const s = StyleSheet.create({
     fontWeight: '700' 
   },
 
+  // Barangay Badge Styles
+  barangayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.tealDim,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  barangayBadgeText: {
+    fontSize: 10,
+    color: C.teal,
+    fontWeight: '600',
+  },
+  barangayInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: C.tealDim,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: C.tealLine,
+  },
+  barangayInfoText: {
+    fontSize: 12,
+    color: C.slate,
+    textAlign: 'center',
+  },
+  barangayInfoHighlight: {
+    fontWeight: '700',
+    color: C.teal,
+  },
+  sidebarBarangayPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.tealDim,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  sidebarBarangayTxt: {
+    fontSize: 11,
+    color: C.teal,
+    fontWeight: '600',
+  },
+
   // Sidebar
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1579,7 +1724,7 @@ const s = StyleSheet.create({
   postHeader: {
     flexDirection: 'row', 
     alignItems: 'center',
-    marginBottom: 12, 
+    marginBottom: 8, 
     flexWrap: 'wrap', 
     gap: 8,
   },
@@ -1638,7 +1783,8 @@ const s = StyleSheet.create({
     fontSize: 16, 
     fontWeight: '700', 
     color: C.navy, 
-    marginBottom: 8 
+    marginBottom: 8, 
+    marginTop: 4,
   },
   postContent: { 
     fontSize: 14, 

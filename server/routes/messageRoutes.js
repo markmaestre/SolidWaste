@@ -5,8 +5,82 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const Admin = require('../models/admin');
 const auth = require('../middleware/auth');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const stream = require('stream');
+
+// ==================== CONFIGURE CLOUDINARY ====================
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// ==================== CONFIGURE MULTER ====================
+// Use memory storage instead of disk storage
+const storage = multer.memoryStorage();
+
+// File filter
+const fileFilter = (req, file, cb) => {
+  const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
+  const allowedDocumentTypes = /pdf|doc|docx|xls|xlsx|txt/;
+  
+  const isImage = allowedImageTypes.test(file.mimetype);
+  const isDocument = allowedDocumentTypes.test(file.mimetype);
+  
+  if (isImage || isDocument) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only images and documents are allowed'), false);
+  }
+};
+
+// Create multer instance
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 10
+  },
+  fileFilter: fileFilter
+});
 
 // ==================== HELPER FUNCTIONS ====================
+
+// Helper function to upload file to Cloudinary
+const uploadToCloudinary = (fileBuffer, originalName, mimeType) => {
+  return new Promise((resolve, reject) => {
+    const isImage = mimeType.startsWith('image/');
+    
+    const uploadOptions = {
+      folder: isImage ? 'chat_attachments/images' : 'chat_attachments/documents',
+      resource_type: isImage ? 'image' : 'raw',
+      public_id: `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9.]/g, '_')}`
+    };
+    
+    if (isImage) {
+      uploadOptions.transformation = [{ width: 2000, height: 2000, crop: 'limit' }];
+    }
+    
+    const uploadStream = cloudinary.uploader.upload_stream(
+      uploadOptions,
+      (error, result) => {
+        if (error) {
+          console.error('Cloudinary upload error:', error);
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+    
+    // Create readable stream from buffer
+    const readableStream = new stream.Readable();
+    readableStream.push(fileBuffer);
+    readableStream.push(null);
+    readableStream.pipe(uploadStream);
+  });
+};
 
 // Helper function to find user in either User or Admin collection with full details
 const findUserById = async (userId) => {
@@ -137,7 +211,7 @@ const getBarangayContext = (senderBarangay, receiverBarangay, senderRole, receiv
 
 // ==================== ROUTES ====================
 
-// 1️⃣ Get all users for messaging (FILTERED BY BARANGAY FOR ADMINS)
+// 1️⃣ Get all users for messaging
 router.get('/users', auth, async (req, res) => {
   try {
     const currentUserId = req.user.id || req.user.userId;
@@ -147,8 +221,6 @@ router.get('/users', auth, async (req, res) => {
     if (!currentUserInfo) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
-    console.log('Fetching users for:', currentUserInfo.email, 'Role:', currentUserInfo.role);
     
     let users = [];
     let admins = [];
@@ -206,7 +278,6 @@ router.get('/users', auth, async (req, res) => {
     }));
     
     const allUsersList = [...formattedUsers, ...formattedAdmins];
-    console.log(`Found ${allUsersList.length} contacts for ${currentUserInfo.role}`);
     
     res.json(allUsersList);
   } catch (err) {
@@ -215,13 +286,11 @@ router.get('/users', auth, async (req, res) => {
   }
 });
 
-// 2️⃣ Search users - with barangay filtering
+// 2️⃣ Search users
 router.get('/search', auth, async (req, res) => {
   try {
     const query = req.query.q;
     const currentUserId = req.user.id || req.user.userId;
-    
-    console.log('🔍 Searching users with query:', query, 'by user:', currentUserId);
     
     if (!query || query.trim().length === 0) {
       return res.json([]);
@@ -229,7 +298,6 @@ router.get('/search', auth, async (req, res) => {
     
     const currentUserInfo = await findUserById(currentUserId);
     
-    // Search in User collection
     let userResults = await User.find({
       _id: { $ne: currentUserId },
       $or: [
@@ -238,7 +306,6 @@ router.get('/search', auth, async (req, res) => {
       ]
     }).select('username email profile role barangay status');
     
-    // Search in Admin collection
     let adminResults = await Admin.find({
       _id: { $ne: currentUserId },
       $or: [
@@ -246,7 +313,6 @@ router.get('/search', auth, async (req, res) => {
       ]
     }).select('email profile role assignedBarangay assignedBarangayLabel');
     
-    // Format admin results
     const formattedAdminResults = adminResults.map(admin => ({
       _id: admin._id,
       username: admin.email.split('@')[0],
@@ -258,7 +324,6 @@ router.get('/search', auth, async (req, res) => {
       status: 'active'
     }));
     
-    // Format user results
     const formattedUserResults = userResults.map(user => ({
       _id: user._id,
       username: user.username,
@@ -270,10 +335,8 @@ router.get('/search', auth, async (req, res) => {
       status: user.status
     }));
     
-    // Combine results
     let allResults = [...formattedUserResults, ...formattedAdminResults];
     
-    // FILTER based on admin's barangay
     if (currentUserInfo && currentUserInfo.userType === 'Admin') {
       if (currentUserInfo.role === 'southadmin') {
         allResults = allResults.filter(user => {
@@ -295,16 +358,15 @@ router.get('/search', auth, async (req, res) => {
       }
     }
     
-    console.log(`✅ Search found ${allResults.length} results for "${query}"`);
     res.json(allResults);
     
   } catch (err) {
-    console.error('❌ Search error:', err);
+    console.error('Search error:', err);
     res.status(500).json({ message: 'Search failed', error: err.message });
   }
 });
 
-// 3️⃣ Get conversations list - IMPORTANT: This must be defined BEFORE /conversation/:otherUserId
+// 3️⃣ Get conversations list
 router.get('/conversations', auth, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId;
@@ -313,8 +375,6 @@ router.get('/conversations', auth, async (req, res) => {
     if (!currentUserInfo) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
-    console.log('Fetching conversations for user:', userId, 'Role:', currentUserInfo.role);
     
     let matchQuery = {
       $or: [
@@ -379,7 +439,9 @@ router.get('/conversations', auth, async (req, res) => {
           user: userInfo,
           lastMessage: {
             _id: conv.lastMessage._id,
-            text: conv.lastMessage.message,
+            text: conv.lastMessage.message || (conv.lastMessage.attachments?.length > 0 ? `📎 ${conv.lastMessage.attachments.length} attachment(s)` : ''),
+            hasAttachment: conv.lastMessage.attachments?.length > 0,
+            attachments: conv.lastMessage.attachments,
             timestamp: conv.lastMessage.timestamp,
             read: conv.lastMessage.read,
             sender: conv.lastMessage.sender,
@@ -393,7 +455,6 @@ router.get('/conversations', auth, async (req, res) => {
     );
     
     const validConversations = populatedConversations.filter(conv => conv !== null);
-    console.log(`Found ${validConversations.length} conversations`);
     
     res.json(validConversations);
     
@@ -403,14 +464,12 @@ router.get('/conversations', auth, async (req, res) => {
   }
 });
 
-// 4️⃣ Get conversation between users (This should come AFTER /conversations)
+// 4️⃣ Get conversation between users
 router.get('/conversation/:otherUserId', auth, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId;
     const otherUserId = req.params.otherUserId;
     const currentUserInfo = await findUserById(userId);
-    
-    console.log('Fetching conversation between:', userId, 'and', otherUserId);
     
     if (!mongoose.Types.ObjectId.isValid(otherUserId) || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Invalid user ID format' });
@@ -441,6 +500,7 @@ router.get('/conversation/:otherUserId', auth, async (req, res) => {
           senderId: msg.sender,
           receiverId: msg.receiver,
           text: msg.message,
+          attachments: msg.attachments,
           timestamp: msg.timestamp,
           read: msg.read,
           readAt: msg.readAt,
@@ -453,7 +513,6 @@ router.get('/conversation/:otherUserId', auth, async (req, res) => {
       })
     );
     
-    console.log(`Found ${populatedMessages.length} messages`);
     res.json(populatedMessages);
     
   } catch (err) {
@@ -462,31 +521,45 @@ router.get('/conversation/:otherUserId', auth, async (req, res) => {
   }
 });
 
-// 5️⃣ Send message
-router.post('/send', auth, async (req, res) => {
+// 5️⃣ Send message with file attachments - FIXED VERSION
+router.post('/send', auth, upload.array('attachments', 10), async (req, res) => {
   try {
     const { receiverId, text } = req.body;
     const senderId = req.user.id || req.user.userId;
+    const files = req.files || [];
     
     console.log('📨 SENDING MESSAGE - Sender:', senderId, 'Receiver:', receiverId);
+    console.log('Files count:', files.length);
+    console.log('Text:', text);
     
-    if (!receiverId || !text) {
-      return res.status(400).json({ message: 'receiverId and text are required' });
+    if (!receiverId) {
+      return res.status(400).json({ message: 'receiverId is required' });
+    }
+    
+    if (!text && files.length === 0) {
+      return res.status(400).json({ message: 'Either text or attachment is required' });
     }
     
     if (!mongoose.Types.ObjectId.isValid(senderId) || !mongoose.Types.ObjectId.isValid(receiverId)) {
       return res.status(400).json({ message: 'Invalid user ID format' });
     }
     
+    // Get sender details FIRST - this is critical
     const senderDetails = await getSenderDetails(senderId);
     if (!senderDetails) {
+      console.error('Sender not found:', senderId);
       return res.status(404).json({ message: 'Sender not found' });
     }
     
+    // Get receiver details FIRST - this is critical
     const receiverDetails = await getReceiverDetails(receiverId);
     if (!receiverDetails) {
+      console.error('Receiver not found:', receiverId);
       return res.status(404).json({ message: 'Receiver not found' });
     }
+    
+    console.log('Sender details:', senderDetails);
+    console.log('Receiver details:', receiverDetails);
     
     if (senderId.toString() === receiverId.toString()) {
       return res.status(400).json({ message: 'Cannot send message to yourself' });
@@ -499,23 +572,66 @@ router.post('/send', auth, async (req, res) => {
       receiverDetails.receiverRole
     );
     
+    // Process attachments
+    const attachments = [];
+    for (const file of files) {
+      try {
+        const isImage = file.mimetype.startsWith('image/');
+        const fileType = isImage ? 'image' : 
+                        file.mimetype === 'application/pdf' ? 'pdf' : 'document';
+        
+        console.log(`Uploading ${fileType}: ${file.originalname}`);
+        
+        // Upload to Cloudinary
+        const uploadResult = await uploadToCloudinary(file.buffer, file.originalname, file.mimetype);
+        
+        let thumbnailUrl = null;
+        if (isImage && uploadResult.public_id) {
+          thumbnailUrl = cloudinary.url(uploadResult.public_id, {
+            width: 200,
+            height: 200,
+            crop: 'thumb',
+            gravity: 'face'
+          });
+        }
+        
+        attachments.push({
+          filename: uploadResult.public_id,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          url: uploadResult.secure_url,
+          type: fileType,
+          thumbnailUrl: thumbnailUrl
+        });
+        
+        console.log(`✅ Uploaded ${fileType}: ${uploadResult.secure_url}`);
+      } catch (uploadError) {
+        console.error('Error uploading file:', uploadError);
+        // Continue with other files even if one fails
+      }
+    }
+    
+    // Create message with ALL required fields
     const message = new Message({
       sender: senderId,
-      senderModel: senderDetails.senderModel,
+      senderModel: senderDetails.senderModel,  // This is required!
       senderRole: senderDetails.senderRole,
       senderBarangay: senderDetails.senderBarangay,
       receiver: receiverId,
-      receiverModel: receiverDetails.receiverModel,
+      receiverModel: receiverDetails.receiverModel,  // This is required!
       receiverRole: receiverDetails.receiverRole,
       receiverBarangay: receiverDetails.receiverBarangay,
-      message: text,
+      message: text || null,
+      attachments: attachments,
       barangayContext: barangayContext,
       read: false,
       readAt: null
     });
     
     await message.save();
-    console.log('✅ Message saved with ID:', message._id, 'BarangayContext:', barangayContext);
+    console.log('✅ Message saved with ID:', message._id);
+    console.log('Attachments saved:', attachments.length);
     
     const senderInfo = await getUserDetails(senderId, senderDetails.senderModel);
     const receiverInfo = await getUserDetails(receiverId, receiverDetails.receiverModel);
@@ -525,6 +641,7 @@ router.post('/send', auth, async (req, res) => {
       senderId: message.sender,
       receiverId: message.receiver,
       text: message.message,
+      attachments: message.attachments,
       timestamp: message.timestamp,
       read: message.read,
       sender: senderInfo,
@@ -534,12 +651,10 @@ router.post('/send', auth, async (req, res) => {
       barangayContext: message.barangayContext
     };
     
-    // Emit via Socket.IO if available
+    // Emit via Socket.IO
     const io = req.app.get('io');
     if (io) {
-      // Send to receiver
       io.to(receiverId.toString()).emit('receiveMessage', responseMessage);
-      // Send back to sender
       io.to(senderId.toString()).emit('receiveMessage', responseMessage);
     }
     
@@ -557,8 +672,6 @@ router.put('/read/:senderId', auth, async (req, res) => {
     const receiverId = req.user.id || req.user.userId;
     const senderId = req.params.senderId;
     
-    console.log('Marking messages as read from:', senderId, 'to:', receiverId);
-    
     if (!mongoose.Types.ObjectId.isValid(receiverId) || !mongoose.Types.ObjectId.isValid(senderId)) {
       return res.status(400).json({ message: 'Invalid user ID format' });
     }
@@ -568,7 +681,6 @@ router.put('/read/:senderId', auth, async (req, res) => {
       { $set: { read: true, readAt: new Date() } }
     );
     
-    console.log('Marked as read:', result.modifiedCount, 'messages');
     res.json({ success: true, message: 'Messages marked as read', modifiedCount: result.modifiedCount });
     
   } catch (err) {
@@ -644,7 +756,7 @@ router.get('/health', auth, async (req, res) => {
   });
 });
 
-// 🔟 Debug route - check all users
+// 🔟 Debug route
 router.get('/debug/all-users', auth, async (req, res) => {
   try {
     const users = await User.find().select('username email barangay role');

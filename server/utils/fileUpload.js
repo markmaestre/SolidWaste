@@ -28,11 +28,13 @@ const documentStorage = new CloudinaryStorage({
     resource_type: 'raw',
     allowed_formats: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'zip', 'rar'],
     format: async (req, file) => {
-      return file.originalname.split('.').pop();
+      const ext = file.originalname.split('.').pop();
+      return ext;
     },
     public_id: (req, file) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      return uniqueSuffix + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      const name = file.originalname.split('.')[0];
+      return `${uniqueSuffix}-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
     }
   }
 });
