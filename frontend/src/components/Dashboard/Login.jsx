@@ -104,7 +104,7 @@ const Login = () => {
 
   // ── Network listener ─────────────────────────────────────────────────────────
   useEffect(() => {
-    NetInfo.fetch().then((state) => setIsOffline(!state.isConnected));
+    NetInfo.fetch().then((state) => setIsOffline(!state.isConnected)).catch(() => {});
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isConnected);
     });
@@ -123,7 +123,9 @@ const Login = () => {
       if (status !== 'granted') return;
       const token = (await Notifications.getExpoPushTokenAsync()).data;
       setPushToken(token);
-    } catch (_) {}
+    } catch (_) {
+      // Silently ignore — push token is optional
+    }
   };
 
   // ── Validation ───────────────────────────────────────────────────────────────
@@ -153,12 +155,16 @@ const Login = () => {
 
   // ── Login success handler ────────────────────────────────────────────────────
   const handleLoginSuccess = async ({ user, token }) => {
-    if (token) await AsyncStorage.setItem('userToken', token);
-    await AsyncStorage.setItem('userInfo', JSON.stringify(user));
-    if (pushToken) await AsyncStorage.setItem('userPushToken', pushToken);
+    try {
+      if (token) await AsyncStorage.setItem('userToken', token);
+      await AsyncStorage.setItem('userInfo', JSON.stringify(user));
+      if (pushToken) await AsyncStorage.setItem('userPushToken', pushToken);
+    } catch (_) {
+      // Storage errors are non-fatal — still proceed to navigate
+    }
 
-    if (user.role === 'admin')       navigation.navigate('AdminDashboard');
-    else if (user.role === 'user')   navigation.navigate('UserDashboard');
+    if (user.role === 'admin')     navigation.navigate('AdminDashboard');
+    else if (user.role === 'user') navigation.navigate('UserDashboard');
     else Alert.alert('Login failed', 'Invalid role assigned to user');
   };
 
@@ -170,14 +176,13 @@ const Login = () => {
       return;
     }
     try {
-      const resultAction = await dispatch(loginUser({
-        email: form.email, password: form.password, pushToken,
-      }));
-      if (loginUser.fulfilled.match(resultAction)) {
-        await handleLoginSuccess(resultAction.payload);
-      }
-    } catch (_) {
-      Alert.alert('Error', 'An unexpected error occurred during login');
+      const resultAction = await dispatch(
+        loginUser({ email: form.email, password: form.password, pushToken })
+      ).unwrap();
+      await handleLoginSuccess(resultAction);
+    } catch (rejectedPayload) {
+      // WALANG console.log dito - error ay nasa Redux state na at magdi-display sa UI
+      // Pero hindi lalabas sa console
     }
   };
 
@@ -252,7 +257,7 @@ const Login = () => {
               <Text style={s.cardTitle}>Welcome Back</Text>
               <Text style={s.cardSub}>Sign in to your account to continue</Text>
 
-              {/* Error banner */}
+              {/* Error banner - ITO AY LUMALABAS SA SCREEN */}
               {error && (
                 <View style={[s.errorBanner, isBanned && s.errorBannerWarn]}>
                   <Ionicons

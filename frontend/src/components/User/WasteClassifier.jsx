@@ -18,11 +18,14 @@ import {
   Ionicons, MaterialIcons, FontAwesome5,
   MaterialCommunityIcons, Entypo,
 } from "@expo/vector-icons";
+import Constants from 'expo-constants';
 
+// Get Cohere API key from environment variables
+const COHERE_API_KEY = Constants.expoConfig?.extra?.COHERE_API_KEY || process.env.COHERE_API_KEY;
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
-const API_BASE = "http://192.168.1.44:8000";
+const API_BASE = "http://192.168.1.45:8000";
 export const API_URL = `${API_BASE}/detect`;
 export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
 
@@ -34,15 +37,12 @@ const BOX_DECAY        = 5;
 
 const GOOGLE_PLACES_KEY = "YOUR_GOOGLE_PLACES_API_KEY";
 
-
-
 const BACKEND_CLASSIFICATION_MAP = {
   "Recyclable":                "Recyclable",
   "Special / Hazardous Waste": "Special Waste",           
   "Biodegradable":             "Biodegradable",
   "Residual / Non-Recyclable": "Residual / Non-Recyclable",
 };
-
 
 function toBackendClassification(frontendLabel) {
   return BACKEND_CLASSIFICATION_MAP[frontendLabel] ?? frontendLabel;
@@ -530,6 +530,122 @@ function getAllowedBarangays(userAddress, detectedBarangay = null) {
   };
 }
 
+// ── COHERE AI FUNCTIONS ──────────────────────────────────────────────────────
+
+async function callCohereWasteAPI(question, detections, location) {
+  if (!COHERE_API_KEY) {
+    console.warn('Cohere API key not found. Using fallback response.');
+    return getFallbackWasteResponse(question, detections);
+  }
+
+  try {
+    const itemList = detections.map(d => d.label).join(", ");
+    const itemTypes = [...new Set(detections.map(d => normaliseType(d.type)))].join(", ");
+
+    const response = await fetch('https://api.cohere.ai/v2/chat', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${COHERE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'command-a-plus-05-2026',
+        messages: [
+          {
+            role: 'system',
+            content: `You are T.M.F.K (Tagalog Mobile Friendly Kasambahay), a helpful waste management assistant in the Philippines.
+            
+            RULES:
+            - Answer ONLY in Tagalog language
+            - Be practical and specific to Philippine context
+            - Provide actionable advice (3-5 sentences only)
+            - Use friendly, encouraging tone
+            - Include local terms like "barangay", "junk shop", "MRF", "CENRO" when relevant
+            
+            WASTE CONTEXT:
+            - Scanned items: ${itemList}
+            - Waste categories: ${itemTypes}
+            - User location: ${location || "Philippines"}
+            
+            Respond concisely and helpfully.`
+          },
+          {
+            role: 'user',
+            content: question
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.2,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Cohere API error:', errorData);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.message?.content?.[0]?.text || getFallbackWasteResponse(question, detections);
+  } catch (error) {
+    console.error('Cohere API error:', error);
+    return getFallbackWasteResponse(question, detections);
+  }
+}
+
+function getFallbackWasteResponse(question, detections) {
+  const q = question.toLowerCase();
+  const hasPlastic = detections.some(d => d.label.toLowerCase().includes("plastic"));
+  const hasBottle = detections.some(d => d.label.toLowerCase().includes("bottle"));
+  const hasCan = detections.some(d => d.label.toLowerCase().includes("can"));
+  const hasFood = detections.some(d => d.label.toLowerCase().includes("food") || d.label.toLowerCase().includes("organic"));
+  const hasBattery = detections.some(d => d.label.toLowerCase().includes("battery"));
+  const hasElectronics = detections.some(d => d.label.toLowerCase().includes("phone") || d.label.toLowerCase().includes("electronic"));
+
+  if (q.includes("paano") || q.includes("how")) {
+    if (hasPlastic || hasBottle) {
+      return "Para sa plastik na bote: Banlawan ito nang maigi, tanggalin ang takip, at durugin para makatipid ng espasyo. Dalhin sa junkshop o sa inyong barangay MRF para sa tamang recycling. Huwag itapon sa ordinaryong basurahan!";
+    }
+    if (hasCan) {
+      return "Para sa lata: Banlawan ang lata, durugin ito para makatipid ng espasyo. Ang aluminum lata ay may mataas na halaga sa junkshop - ibenta para kumita habang tumutulong sa kalikasan. Dalhin sa kahit anong junk shop sa inyong lugar.";
+    }
+    if (hasFood) {
+      return "Para sa food waste: Ilagay sa compost bin kasama ang tuyong dahon. Haluin minsan para magkaroon ng hangin. Iwasan ang karne at mantika. Pagkatapos ng ilang buwan, magkakaroon ka ng masustansyang abono para sa halaman!";
+    }
+    if (hasBattery) {
+      return "Para sa baterya: Huwag itapon sa basurahan! Maglalaman ito ng heavy metals na nakakasama sa kalikasan. Dalhin sa SM Store, Ace Hardware, o sa Taguig City Hall na may designated battery drop-off points. Libre lang ito!";
+    }
+    if (hasElectronics) {
+      return "Para sa electronics (e-waste): Dalhin sa Robinsons e-waste bins, SM EcoHubs, o Taguig CENRO. Ang mga ito ay naglalaman ng mahahalagang metals na maaaring i-recycle. Huwag sirain o sunugin - dalhin nang buo sa tamang pasilidad.";
+    }
+    return "Ihiwalay ang inyong basura ayon sa kategorya: Recyclable (plastik, papel, metal, baso), Biodegradable (pagkain, dahon), Residual (styrofoam, diaper), at Special/Hazardous (baterya, electronics). Tanungin ang inyong barangay tungkol sa schedule ng koleksyon.";
+  }
+
+  if (q.includes("saan")) {
+    if (hasPlastic || hasBottle || hasCan) {
+      return "Maraming junkshop sa Taguig na tumatanggap ng recyclable tulad ng Alico Junk Shop sa Upper Bicutan, Trivali Trading sa Palar, at R-V Junk Shop sa ML Quezon. Tanungin din ang inyong barangay kung may MRF o recycling program.";
+    }
+    if (hasBattery || hasElectronics) {
+      return "May e-waste drop-off sa Taguig City Hall Complex. Pwede rin sa SM Aura o Market! Market! May mga e-waste bins. Maaari ring dalhin sa Robinsons Galleria. Libre ang pag-drop off ng small electronics at baterya.";
+    }
+    return "Ang inyong barangay ay may schedule ng waste collection. Para sa recyclable, dalhin sa junkshop o MRF. Para sa hazardous waste, pumunta sa Taguig City Hall. Para sa composting, meron sa Central Bicutan at TUP Taguig.";
+  }
+
+  if (q.includes("magkano") || q.includes("price") || q.includes("bili")) {
+    if (hasPlastic || hasBottle) {
+      return "Ang plastik na bote (PET) ay tinatanggap ng junkshop sa halagang ₱2-₱5 bawat kilo depende sa uri. Ang mas makapal na plastik (HDPE) ay maaaring ₱5-₱10 per kilo. Mas malaki ang kita kung malinis at naka-compress ang mga bote.";
+    }
+    if (hasCan) {
+      return "Ang aluminum lata ay mataas ang halaga sa junkshop - ₱30-₱60 per kilo! Ang steel/tin cans naman ay ₱3-₱8 per kilo. Banlawan at durugin para mas marami ang mailagay at mas malaki ang kita.";
+    }
+    return "Ang presyo ng recyclable sa junkshop ay depende sa uri at linis ng materyal. Ang aluminum lata ang may pinakamataas na halaga (₱30-₱60/kilo), susundan ng copper wire (₱200-₱400/kilo), bakal (₱3-₱8/kilo), at plastik (₱2-₱10/kilo).";
+  }
+
+  return "Magandang araw! Ako si T.M.F.K, ang inyong waste assistant. Para sa tamang pagtatapon ng basura, sundin ang 4 na kategorya: Recyclable (plastik, papel, metal, baso), Biodegradable (pagkain, dahon), Residual (styrofoam, diaper), at Special/Hazardous (baterya, electronics). Tanungin ang inyong barangay para sa schedule ng collection. May iba pa ba kayong tanong?";
+}
+
 async function callGeminiAPI(prompt) {
   if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
     return null;
@@ -658,6 +774,7 @@ const PlasticTypeBadge = ({ label }) => {
   );
 };
 
+// UPDATED: TMFKWasteAssistant with Cohere AI
 const TMFKWasteAssistant = ({ detections, overallCat, manualLoc }) => {
   const unique = [...new Map(detections.map((d) => [d.label, d])).values()];
   const [activeIdx, setActiveIdx] = useState(0);
@@ -710,22 +827,10 @@ Write the 5 Tagalog tips now:`;
     if (!q) return;
     setAskLoad(true);
     setAskAnswer("");
-    const itemList = unique.map((d) => d.label).join(", ");
-
-    const prompt = `You are a waste management assistant in the Philippines. Answer the user's question in TAGALOG language only.
-
-User location: ${manualLoc || "Philippines"}
-Scanned items: ${itemList}
-User question: "${q}"
-
-Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and specific to Philippine waste management context.`;
-
-    const answer = await callGeminiAPI(prompt);
-    if (answer) {
-      setAskAnswer(answer);
-    } else {
-      setAskAnswer("Paumanhin, hindi makuha ang sagot ngayon. Pakisubukan muli mamaya, o bisitahin ang inyong barangay para sa tamang impormasyon tungkol sa pagtatapon ng basura.");
-    }
+    
+    // Use Cohere AI for answering questions
+    const answer = await callCohereWasteAPI(q, detections, manualLoc);
+    setAskAnswer(answer);
     setAskLoad(false);
   };
 
@@ -750,8 +855,8 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
           <MaterialIcons name="psychology" size={20} color="white" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={S.aiTitle}>Waste Assistant</Text>
-          <Text style={S.aiSubtitle}>Disposal tips & guidance (Tagalog)</Text>
+          <Text style={S.aiTitle}>T.M.F.K Waste Assistant</Text>
+          <Text style={S.aiSubtitle}>Powered by Cohere AI • Disposal tips & guidance (Tagalog)</Text>
         </View>
       </View>
 
@@ -762,7 +867,7 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
         </Pressable>
         <Pressable style={[S.aiModeBtn, panelMode === "ask" && S.aiModeBtnActive]} onPress={() => setPanelMode("ask")}>
           <MaterialIcons name="chat" size={14} color={panelMode === "ask" ? "white" : "rgba(255,255,255,0.55)"} />
-          <Text style={[S.aiModeBtnTxt, panelMode === "ask" && { color: "white" }]}>Ask AI (Tagalog)</Text>
+          <Text style={[S.aiModeBtnTxt, panelMode === "ask" && { color: "white" }]}>Ask T.M.F.K (Tagalog)</Text>
         </Pressable>
       </View>
 
@@ -838,7 +943,7 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
       {panelMode === "ask" && (
         <View>
           <Text style={S.aiAskHint}>
-            Ask about your scanned waste — proper disposal, recycling, or what to do. (Answers in Tagalog)
+            Powered by Cohere AI — Ask about your scanned waste: proper disposal, recycling, or what to do. (Answers in Tagalog)
           </Text>
 
           <ScrollView
@@ -848,10 +953,10 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
             contentContainerStyle={{ flexDirection: "row", gap: 8 }}
           >
             {[
-              `How to dispose ${unique[0]?.label ?? "this item"}?`,
-              "Where is the nearest junk shop?",
-              "Is any of this worth selling?",
-              "Can I compost the food waste?",
+              `Paano itapon ang ${unique[0]?.label ?? "basura"}?`,
+              "Saan ang pinakamalapit na junk shop?",
+              "Magkano ang bentahan ng plastik at lata?",
+              "Pwede bang i-compost ang food waste?",
             ].map((q) => (
               <Pressable key={q} style={S.aiSuggestChip} onPress={() => setUserQ(q)}>
                 <Text style={S.aiSuggestChipTxt} numberOfLines={1}>{q}</Text>
@@ -862,7 +967,7 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
           <View style={S.aiAskRow}>
             <TextInput
               style={S.aiAskInput}
-              placeholder="Ask a question here… (Answers in Tagalog)"
+              placeholder="Magtanong tungkol sa basura... (Answers in Tagalog)"
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={userQ}
               onChangeText={setUserQ}
@@ -880,7 +985,7 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
           {askLoad && (
             <View style={S.aiLoadingRow}>
               <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
-              <Text style={S.aiLoadingTxt}>T.M.F.K is thinking…</Text>
+              <Text style={S.aiLoadingTxt}>T.M.F.K is thinking (Cohere AI)…</Text>
             </View>
           )}
 
@@ -888,7 +993,7 @@ Provide a helpful, detailed answer in Tagalog (3-5 sentences). Be practical and 
             <View style={S.aiAnswerBox}>
               <View style={S.aiAnswerHeader}>
                 <MaterialIcons name="psychology" size={14} color={C.highlight} />
-                <Text style={S.aiAnswerHeaderTxt}>T.M.F.K Answer (Tagalog)</Text>
+                <Text style={S.aiAnswerHeaderTxt}>T.M.F.K Answer (Tagalog • Cohere AI)</Text>
               </View>
               <ScrollView
                 style={S.aiAnswerScroll}
@@ -961,6 +1066,7 @@ const BarangaySelector = ({ selected, onSelect, classification, disabled, allowe
   );
 };
 
+// Main WasteDetection Component (continues from here)
 const WasteDetection = ({ navigation }) => {
   const [imageUri,       setImageUri]       = useState(null);
   const [imageFile,      setImageFile]      = useState(null);
@@ -1762,6 +1868,7 @@ const WasteDetection = ({ navigation }) => {
   );
 };
 
+// Styles remain the same as in your original code
 const S = StyleSheet.create({
   safeArea:        { flex: 1, backgroundColor: C.cream },
   container:       { flex: 1, backgroundColor: C.cream },

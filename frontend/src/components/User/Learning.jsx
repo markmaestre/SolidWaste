@@ -15,6 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+
+// Get API key from environment variables
+const COHERE_API_KEY = Constants.expoConfig?.extra?.COHERE_API_KEY || process.env.COHERE_API_KEY;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -215,22 +219,13 @@ const ENV_FACTS = [
 ];
 
 const SAMPLE_QUESTIONS = [
-  'How to recycle plastic?',
-  'What is e-waste?',
-  'How does WACS calculate CO₂?',
-  'Composting tips',
-  'Hazardous waste disposal',
-  'Recycling numbers guide',
+  'How to recycle plastic bottles?',
+  'What is e-waste and how to dispose of it?',
+  'How does WACS calculate carbon savings?',
+  'Best composting tips for beginners',
+  'How to safely dispose of batteries?',
+  'What do recycling numbers 1-7 mean?',
 ];
-
-const MOCK_RESPONSES = {
-  plastic:    'Plastic recycling in WACS: We classify plastics by resin codes #1–7. Most recyclable are #1 (PETE) and #2 (HDPE). Always rinse containers and remove caps. Use our waste scanner for instant classification!',
-  compost:    'Composting with WACS: Start with greens (food scraps) and browns (dry leaves). Keep moist and turn weekly. Avoid meat, dairy, and oily foods. Track your composting impact in your sustainability score!',
-  recycle:    "WACS Recycling Guide: Our AI analyzes your waste photos and provides personalized recycling instructions. We track your recycling rate and show exactly how much CO₂ you're saving!",
-  hazardous:  'Hazardous Waste in WACS: Never put batteries, paint, or chemicals in regular trash. Use our location feature to find nearby hazardous waste facilities. We flag hazardous items in your scan history.',
-  co2:        'CO₂ Tracking in WACS: We calculate your carbon impact using EPA factors. Each recycled item shows kg of CO₂ saved. Watch your sustainability score grow as you recycle more!',
-  electronic: 'E-Waste in WACS: Our system identifies electronics from photos and provides proper disposal instructions. We partner with certified e-waste recyclers. Track your e-waste diversion in analytics!',
-};
 
 const TABS = [
   { key: 'WasteEducation', label: 'Waste Types',    icon: 'layers-outline' },
@@ -249,6 +244,86 @@ const SectionHeader = ({ icon, title }) => (
   </View>
 );
 
+// ── Cohere AI Integration (Updated to Chat API) ──────────────────────────────
+// ── Cohere AI Integration (2026 Updated - Command A+ Models) ──────────────────
+const callCohereAPI = async (question) => {
+  if (!COHERE_API_KEY) {
+    console.warn('Cohere API key not found. Using fallback response.');
+    return getFallbackResponse(question);
+  }
+
+  try {
+    // Use the latest 2026 model
+    const response = await fetch('https://api.cohere.ai/v2/chat', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${COHERE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'command-a-plus-05-2026', // ✅ Latest 2026 model
+        messages: [
+          {
+            role: 'system',
+            content: `You are WACS AI, a helpful waste management and recycling assistant. 
+            Provide clear, concise, and actionable advice about waste management, recycling, composting, 
+            and environmental sustainability. Keep responses friendly and educational.
+            
+            Format your responses with emojis and bullet points where appropriate.
+            Keep responses under 300 words.
+            
+            Important information about WACS:
+            - WACS uses AI to classify waste from photos
+            - It tracks CO₂ savings and sustainability scores
+            - The app has scanning, learning, and analytics features`
+          },
+          {
+            role: 'user',
+            content: question
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.2,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Cohere API error:', errorData);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiResponse = data.message?.content?.[0]?.text || getFallbackResponse(question);
+    return aiResponse;
+  } catch (error) {
+    console.error('Error calling Cohere API:', error);
+    return getFallbackResponse(question);
+  }
+};
+
+const getFallbackResponse = (question) => {
+  const q = question.toLowerCase();
+  
+  if (q.includes('plastic')) {
+    return "♻️ **Plastic Recycling Guide**\n\n• Check the resin code (#1-7)\n• #1 (PETE) and #2 (HDPE) are widely recyclable\n• Always rinse containers and remove caps\n• Avoid putting plastic bags in recycling bins\n\nUse WACS Scanner to identify plastic types instantly!";
+  } else if (q.includes('e-waste') || q.includes('electronic')) {
+    return "📱 **E-Waste Disposal**\n\n• Never throw electronics in regular trash\n• Find certified e-waste recyclers in your area\n• Remove batteries before recycling\n• Consider donating working devices\n\nTrack your e-waste recycling in WACS analytics!";
+  } else if (q.includes('co2') || q.includes('carbon')) {
+    return "🌍 **CO₂ Savings in WACS**\n\nWe calculate carbon savings using EPA factors:\n• Plastic: 1.5 kg CO₂ saved/kg\n• Metal: 3-8 kg CO₂ saved/kg\n• Glass: 0.6 kg CO₂ saved/kg\n• Paper: 0.9 kg CO₂ saved/kg\n\nScan items to see your personal impact!";
+  } else if (q.includes('compost')) {
+    return "🌱 **Composting Tips**\n\n• Mix 'greens' (food scraps) with 'browns' (dry leaves)\n• Keep pile moist but not wet\n• Turn weekly for oxygen\n• Avoid meat, dairy, and oils\n\nStart small with a kitchen compost bin!";
+  } else if (q.includes('battery')) {
+    return "🔋 **Battery Disposal**\n\n• Never throw batteries in trash\n• Use designated battery recycling drop-offs\n• Tape terminals on lithium batteries\n• Store in cool, dry place before recycling\n\nMany electronics stores offer free battery recycling!";
+  } else if (q.includes('number') || q.includes('recycling number')) {
+    return "🔢 **Recycling Numbers 1-7**\n\n• #1 PETE: Widely recyclable\n• #2 HDPE: Widely recyclable  \n• #3 PVC: Difficult to recycle\n• #4 LDPE: Check locally\n• #5 PP: Recyclable\n• #6 PS: Not recyclable\n• #7 Other: Rarely recyclable";
+  }
+  
+  return "💚 **WACS AI Assistant**\n\nI can help you with:\n• Waste sorting and recycling\n• Environmental impact calculations\n• Composting techniques\n• Proper disposal of hazardous materials\n\nAsk me anything about sustainable waste management!";
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 const Learning = ({ navigation }) => {
   const [activeTab,          setActiveTab]          = useState('WasteEducation');
@@ -261,19 +336,23 @@ const Learning = ({ navigation }) => {
 
   const askAI = async (question) => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1400));
-    const q = question.toLowerCase();
-    let response = `Based on your question about "${question}", WACS recommends:\n\n1. Use our waste scanner for instant classification.\n2. Check your analytics for personalized insights.\n3. Visit local recycling guidelines in your area.\n4. Track your progress in the sustainability dashboard.\n\nEvery item properly recycled makes a difference!`;
-    for (const [key, val] of Object.entries(MOCK_RESPONSES)) {
-      if (q.includes(key)) { response = val; break; }
+    try {
+      const response = await callCohereAPI(question);
+      setAiResponse(response);
+    } catch (error) {
+      console.error('AI response error:', error);
+      setAiResponse("I'm having trouble connecting right now. Please try again in a moment. In the meantime, check out our waste guides for helpful information!");
+    } finally {
+      setLoading(false);
+      setAiModalVisible(true);
     }
-    setAiResponse(response);
-    setLoading(false);
-    setAiModalVisible(true);
   };
 
   const handleAsk = () => {
-    if (!userQuestion.trim()) { Alert.alert('Empty Question', 'Please enter a question about waste management.'); return; }
+    if (!userQuestion.trim()) { 
+      Alert.alert('Empty Question', 'Please enter a question about waste management.'); 
+      return; 
+    }
     askAI(userQuestion);
   };
 
@@ -341,7 +420,6 @@ const Learning = ({ navigation }) => {
                     onPress={() => openDetail(waste)}
                     activeOpacity={0.8}
                   >
-                    {/* card top row */}
                     <View style={s.wasteCardTop}>
                       <View style={[s.wasteIconWrap, { backgroundColor: `${waste.color}22`, borderColor: `${waste.color}44` }]}>
                         <Ionicons name={waste.icon} size={22} color={waste.color} />
@@ -365,7 +443,6 @@ const Learning = ({ navigation }) => {
                 </FadeIn>
               ))}
 
-              {/* Environmental Facts */}
               <FadeIn delay={400}>
                 <View style={s.factsSection}>
                   <SectionHeader icon="bulb-outline" title="Environmental Facts" />
@@ -471,7 +548,6 @@ const Learning = ({ navigation }) => {
 
               <FadeIn delay={60}>
                 <View style={s.aiCard}>
-                  {/* Avatar row */}
                   <View style={s.aiAvatarRow}>
                     <View style={s.aiAvatar}>
                       <Ionicons name="hardware-chip-outline" size={28} color={C.teal} />
@@ -479,12 +555,11 @@ const Learning = ({ navigation }) => {
                     <View style={{ flex: 1 }}>
                       <Text style={s.aiGreeting}>Hi! I'm your WACS Guide</Text>
                       <Text style={s.aiSubtext}>
-                        Ask me anything about waste management, recycling, or how to use WACS features.
+                        Powered by Cohere AI — Ask me anything about waste management, recycling, or how to use WACS features.
                       </Text>
                     </View>
                   </View>
 
-                  {/* Input */}
                   <TextInput
                     style={s.aiInput}
                     placeholder="Type your question here…"
@@ -496,7 +571,6 @@ const Learning = ({ navigation }) => {
                     textAlignVertical="top"
                   />
 
-                  {/* Send button */}
                   <TouchableOpacity
                     style={[s.askBtn, loading && { opacity: 0.6 }]}
                     onPress={handleAsk}
@@ -513,7 +587,6 @@ const Learning = ({ navigation }) => {
                     )}
                   </TouchableOpacity>
 
-                  {/* Sample questions */}
                   <View style={s.samplesWrap}>
                     <Text style={s.samplesLabel}>Try asking about:</Text>
                     <View style={s.samplesGrid}>
@@ -542,7 +615,6 @@ const Learning = ({ navigation }) => {
             <View style={s.modalSheet}>
               {selectedWaste && (
                 <>
-                  {/* Modal header */}
                   <View style={s.modalHeader}>
                     <View style={[s.modalHeaderIconWrap, { backgroundColor: `${selectedWaste.color}22`, borderColor: `${selectedWaste.color}44` }]}>
                       <Ionicons name={selectedWaste.icon} size={20} color={selectedWaste.color} />
@@ -576,7 +648,6 @@ const Learning = ({ navigation }) => {
                       </View>
                     ))}
 
-                    {/* Examples */}
                     <View style={s.detailSection}>
                       <View style={s.detailSectionHeader}>
                         <Ionicons name="list-outline" size={13} color={C.teal} />
@@ -633,7 +704,6 @@ const s = StyleSheet.create({
   rootSafe: { flex: 1, backgroundColor: C.ink },
   root: { flex: 1, backgroundColor: C.offWhite },
 
-  // ── Header ───────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
@@ -656,7 +726,6 @@ const s = StyleSheet.create({
   headerTitle:   { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
   headerSub:     { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2 },
 
-  // ── Tab bar (same dark panel as time filter in WasteAnalytics) ───────────────
   tabBar: {
     flexDirection: 'row', gap: 6,
     backgroundColor: C.ink,
@@ -674,10 +743,8 @@ const s = StyleSheet.create({
   tabTxt:       { fontSize: 10, fontWeight: '700', color: C.teal, textAlign: 'center' },
   tabTxtActive: { color: C.navy },
 
-  // ── Scroll content ────────────────────────────────────────────────────────────
   scrollContent: { paddingHorizontal: 20, paddingBottom: 48 },
 
-  // ── Section header ────────────────────────────────────────────────────────────
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   sectionIconWrap: {
     width: 32, height: 32, borderRadius: 9,
@@ -687,7 +754,6 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: '800', color: C.navy },
   tabDesc:      { fontSize: 13, color: C.slate, lineHeight: 20, marginBottom: 16, marginTop: -4 },
 
-  // ── Waste cards ───────────────────────────────────────────────────────────────
   wasteCard: {
     backgroundColor: C.white, borderRadius: 16, padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: C.border, borderLeftWidth: 4,
@@ -704,7 +770,6 @@ const s = StyleSheet.create({
   wasteCardFooter:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   wasteCardExamples:{ fontSize: 12, color: C.slateL, flex: 1 },
 
-  // ── Facts ─────────────────────────────────────────────────────────────────────
   factsSection: { marginTop: 8, marginBottom: 4 },
   factCard: {
     backgroundColor: C.white, borderRadius: 16, padding: 16,
@@ -718,14 +783,12 @@ const s = StyleSheet.create({
   factChip:     { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   factChipTxt:  { fontSize: 10, fontWeight: '700' },
 
-  // ── Shared icon wrap (formCard style) ─────────────────────────────────────────
   formCardIconWrap: {
     width: 32, height: 32, borderRadius: 9,
     backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // ── Guide cards ───────────────────────────────────────────────────────────────
   guideCard: {
     backgroundColor: C.white, borderRadius: 16, padding: 18, marginBottom: 14,
     borderWidth: 1, borderColor: C.border,
@@ -739,7 +802,6 @@ const s = StyleSheet.create({
   guideLineDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal, marginTop: 7, flexShrink: 0 },
   guideLineTxt:    { fontSize: 13, color: C.slate, lineHeight: 20, flex: 1 },
 
-  // ── Tip box ───────────────────────────────────────────────────────────────────
   tipBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: C.amberDim, borderWidth: 1, borderColor: C.amberLine,
@@ -749,7 +811,6 @@ const s = StyleSheet.create({
   tipBoxTitle: { fontSize: 13, fontWeight: '800', color: C.amber, marginBottom: 4 },
   tipBoxTxt:   { fontSize: 13, color: C.slate, lineHeight: 19 },
 
-  // ── Feature cards ─────────────────────────────────────────────────────────────
   featureCard: {
     backgroundColor: C.white, borderRadius: 16, padding: 18, marginBottom: 14,
     borderWidth: 1, borderColor: C.border,
@@ -765,7 +826,6 @@ const s = StyleSheet.create({
   },
   featureTxt:  { fontSize: 13, color: C.slate, flex: 1, lineHeight: 20 },
 
-  // ── AI card ───────────────────────────────────────────────────────────────────
   aiCard: {
     backgroundColor: C.white, borderRadius: 20, padding: 20,
     borderWidth: 1, borderColor: C.border,
@@ -806,7 +866,6 @@ const s = StyleSheet.create({
   },
   sampleChipTxt: { fontSize: 12, color: C.tealDark, fontWeight: '600' },
 
-  // ── Modals ────────────────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(7,27,46,0.7)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
@@ -829,7 +888,6 @@ const s = StyleSheet.create({
   modalChip:    { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
   modalChipTxt: { fontSize: 10, fontWeight: '700' },
 
-  // detail sections
   detailSection:       { marginBottom: 18 },
   detailSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   detailSectionTitle:  { fontSize: 11, fontWeight: '700', color: C.slateL, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -838,10 +896,8 @@ const s = StyleSheet.create({
   exampleDot:          { width: 6, height: 6, borderRadius: 3 },
   exampleTxt:          { fontSize: 13, color: C.slate },
 
-  // AI response
   aiResponseTxt: { fontSize: 14, color: C.slate, lineHeight: 23 },
 
-  // shared save button
   btnSave: {
     height: 52, borderRadius: 12, backgroundColor: C.teal,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

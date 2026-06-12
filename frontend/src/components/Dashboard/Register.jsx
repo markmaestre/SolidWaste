@@ -39,6 +39,12 @@ const barangayOptions = [
   { label: 'Central Bicutan', value: 'Central Bicutan', icon: 'location' },
 ];
 
+const getMaxDOBDate = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 10);
+  return d;
+};
+
 const Register = () => {
   const [form, setForm] = useState({
     username: '', email: '', password: '',
@@ -48,7 +54,7 @@ const Register = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showBarangayPicker, setShowBarangayPicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(getMaxDOBDate());
   const [emailError, setEmailError] = useState('');
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -61,22 +67,24 @@ const Register = () => {
   const [isOffline, setIsOffline] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [canResend, setCanResend] = useState(true);
-  const [isUnderMaintenance, setIsUnderMaintenance] = useState(false); // Added maintenance state
+  const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
+
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { loading, error } = useSelector((s) => s.auth);
 
-  // Network listener
   useEffect(() => {
-    NetInfo.fetch().then((state) => setIsOffline(!state.isConnected));
+    NetInfo.fetch().then((state) => setIsOffline(!state.isConnected)).catch(() => {});
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isConnected);
     });
     return unsubscribe;
   }, []);
 
-  // Resend timer effect
   useEffect(() => {
     let interval;
     if (resendTimer > 0) {
@@ -94,7 +102,6 @@ const Register = () => {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // Validation
   const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   const validateField = (field, value) => {
@@ -126,16 +133,12 @@ const Register = () => {
     if (!validateEmail(email)) { setEmailError('Please enter a valid email'); return false; }
     setIsCheckingEmail(true);
     try {
-      const result = await dispatch(checkEmail(email));
-      if (result?.payload?.message === 'Email already registered' || result?.payload?.message === 'Email already registered but not verified') {
-        const msg = 'This email is already registered';
-        setEmailError(msg);
-        setFieldErrors((p) => ({ ...p, email: msg }));
-        return false;
-      }
+      const result = await dispatch(checkEmail(email)).unwrap();
       return true;
-    } catch (_) {
-      setEmailError('Error checking email. Please try again.');
+    } catch (rejectedPayload) {
+      const msg = 'This email is already registered';
+      setEmailError(msg);
+      setFieldErrors((p) => ({ ...p, email: msg }));
       return false;
     } finally {
       setIsCheckingEmail(false);
@@ -148,10 +151,14 @@ const Register = () => {
     if (field === 'email' && value) checkEmailAvailability(value);
   };
 
-  // Date handling
   const handleDateChange = (_, date) => {
     setShowDatePicker(false);
     if (date) {
+      const maxAllowed = getMaxDOBDate();
+      if (date > maxAllowed) {
+        Alert.alert('Age Requirement', 'You must be at least 10 years old to register.', [{ text: 'OK' }]);
+        return;
+      }
       setSelectedDate(date);
       const formatted = date.toISOString().split('T')[0];
       handleChange('bod', formatted);
@@ -164,87 +171,55 @@ const Register = () => {
     return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
-  // Register flow - Combines barangay and fullAddress
   const handleRegisterClick = async () => {
-    console.log('🔘 Register button clicked');
-    console.log('Form data:', form);
-    
-    // Combine barangay and full address for submission
-    const combinedAddress = `${form.fullAddress}, ${form.barangay}`;
-    const submissionData = {
-      ...form,
-      address: combinedAddress, // Send combined address to backend
-      barangay: form.barangay,  // Keep barangay separately if needed
-      fullAddress: form.fullAddress // Keep full address separately if needed
-    };
-    
-    console.log('Combined address:', combinedAddress);
-    
     if (isOffline) {
       Alert.alert('No Connection', 'Please check your internet connection');
       return;
     }
-
-    if (!validateAll()) { 
-      Alert.alert('Incomplete', 'Please fill in all required fields correctly.'); 
-      return; 
+    if (!validateAll()) {
+      Alert.alert('Incomplete', 'Please fill in all required fields correctly.');
+      return;
     }
-    
-    if (!validateEmail(form.email)) { 
-      setEmailError('Please enter a valid email'); 
-      return; 
+    if (!validateEmail(form.email)) {
+      setEmailError('Please enter a valid email');
+      return;
     }
-    
+    if (!termsAccepted) {
+      setTermsError('You must agree to the Terms & Conditions to continue.');
+      Alert.alert('Terms & Conditions', 'Please read and accept the Terms & Conditions before creating your account.');
+      return;
+    }
     const ok = await checkEmailAvailability(form.email);
     if (!ok) return;
-    
-    // Store the combined address in form for submission
+    const combinedAddress = `${form.fullAddress}, ${form.barangay}`;
     setForm(prev => ({ ...prev, address: combinedAddress }));
-    
-    // Show verification modal FIRST
     setShowVerificationModal(true);
   };
 
-  // Send verification code - called when modal opens
   const sendVerificationCode = async () => {
-    console.log('📤 Sending registration request to backend...');
-    
-    // Prepare data with combined address
     const submissionData = {
       username: form.username,
       email: form.email,
       password: form.password,
       bod: form.bod,
       gender: form.gender,
-      address: `${form.fullAddress}, ${form.barangay}`, // Combined address
-      role: form.role
+      address: `${form.fullAddress}, ${form.barangay}`,
+      role: form.role,
     };
-    
-    console.log('Submitting with address:', submissionData.address);
-    
     try {
-      const result = await dispatch(registerUser(submissionData));
-      console.log('📥 Registration response:', result);
-      
-      if (result.payload?.message?.includes('Verification code sent')) {
-        Alert.alert(
-          'Verification Code Sent',
-          `We've sent a 6-digit verification code to ${form.email}. Please check your inbox.`,
-          [{ text: 'OK' }]
-        );
-      } else if (result.error) {
-        console.error('Registration error:', result.payload);
-        Alert.alert('Registration Failed', result.payload || 'Failed to send verification code');
-        setShowVerificationModal(false);
-      }
-    } catch (error) {
-      console.error('Registration exception:', error);
-      Alert.alert('Error', 'An error occurred. Please try again.');
+      const result = await dispatch(registerUser(submissionData)).unwrap();
+      // unwrap succeeded — code was sent
+      Alert.alert(
+        'Verification Code Sent',
+        `We've sent a 6-digit verification code to ${form.email}. Please check your inbox.`,
+        [{ text: 'OK' }]
+      );
+    } catch (_) {
+      // Error already in Redux state; hide modal silently
       setShowVerificationModal(false);
     }
   };
 
-  // Call this when modal opens
   useEffect(() => {
     if (showVerificationModal) {
       sendVerificationCode();
@@ -256,64 +231,34 @@ const Register = () => {
       Alert.alert('Invalid Code', 'Please enter the 6-digit verification code');
       return;
     }
-
     setIsVerifying(true);
     try {
-      const result = await dispatch(verifyEmail({ 
-        email: form.email, 
-        verificationCode 
-      }));
-      
-      console.log('Verification result:', result);
-      
-      if (result.payload?.message?.includes('verified successfully')) {
-        setShowVerificationModal(false);
-        Alert.alert(
-          'Registration Successful!',
-          'Your email has been verified. Please login to continue.',
-          [
-            { 
-              text: 'Go to Login', 
-              onPress: () => navigation.navigate('Login') 
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Verification Failed', result.payload || 'Invalid verification code');
-      }
-    } catch (error) {
-      console.error('Verification error:', error);
-      Alert.alert('Error', 'Verification failed. Please try again.');
+      await dispatch(verifyEmail({ email: form.email, verificationCode })).unwrap();
+      setShowVerificationModal(false);
+      Alert.alert(
+        'Registration Successful!',
+        'Your email has been verified. Please login to continue.',
+        [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
+      );
+    } catch (_) {
+      Alert.alert('Verification Failed', 'Invalid or expired verification code. Please try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleResendCode = async () => {
-    // Check if under maintenance
     if (isUnderMaintenance) {
       Alert.alert('Under Maintenance', 'The resend verification feature is currently under maintenance. Please try again later.');
       return;
     }
-    
     if (!canResend) return;
-
     setCanResend(false);
     setResendTimer(60);
-    
     try {
-      const result = await dispatch(resendVerificationCode({ email: form.email }));
-      console.log('Resend result:', result);
-      
-      if (result.payload?.message) {
-        Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
-      } else {
-        Alert.alert('Error', 'Failed to resend code. Please try again.');
-        setCanResend(true);
-        setResendTimer(0);
-      }
-    } catch (error) {
-      console.error('Resend error:', error);
+      await dispatch(resendVerificationCode({ email: form.email })).unwrap();
+      Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
+    } catch (_) {
       Alert.alert('Error', 'Failed to resend code. Please try again.');
       setCanResend(true);
       setResendTimer(0);
@@ -343,7 +288,6 @@ const Register = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <View style={s.header}>
             <View style={s.logoRing}>
               <Image source={require('../assets/TMFK.png')} style={s.logoImg} resizeMode="contain" />
@@ -359,7 +303,6 @@ const Register = () => {
             </View>
           </View>
 
-          {/* Form card */}
           <View style={s.card}>
             <Text style={s.cardTitle}>Join SolidWaste</Text>
             <Text style={s.cardSub}>Fill in all required fields to get started</Text>
@@ -371,7 +314,6 @@ const Register = () => {
               </View>
             )}
 
-            {/* Full Name */}
             <View style={s.fieldWrap}>
               <View style={s.labelRow}>
                 <Ionicons name="person-outline" size={13} color={C.slateL} />
@@ -390,7 +332,6 @@ const Register = () => {
               {fieldErrors.username ? <Text style={s.errorText}>{fieldErrors.username}</Text> : null}
             </View>
 
-            {/* Email */}
             <View style={s.fieldWrap}>
               <View style={s.labelRow}>
                 <Ionicons name="mail-outline" size={13} color={C.slateL} />
@@ -412,7 +353,6 @@ const Register = () => {
               {(fieldErrors.email || emailError) ? <Text style={s.errorText}>{fieldErrors.email || emailError}</Text> : null}
             </View>
 
-            {/* Password */}
             <View style={s.fieldWrap}>
               <View style={s.labelRow}>
                 <Ionicons name="lock-closed-outline" size={13} color={C.slateL} />
@@ -438,7 +378,6 @@ const Register = () => {
               {fieldErrors.password ? <Text style={s.errorText}>{fieldErrors.password}</Text> : null}
             </View>
 
-            {/* DOB + Gender row */}
             <View style={s.row}>
               <View style={[s.fieldWrap, { flex: 1 }]}>
                 <View style={s.labelRow}>
@@ -477,7 +416,6 @@ const Register = () => {
               </View>
             </View>
 
-            {/* Complete Address Field - Full Address First */}
             <View style={s.fieldWrap}>
               <View style={s.labelRow}>
                 <Ionicons name="home-outline" size={13} color={C.slateL} />
@@ -497,7 +435,6 @@ const Register = () => {
               {fieldErrors.fullAddress ? <Text style={s.errorText}>{fieldErrors.fullAddress}</Text> : null}
             </View>
 
-            {/* Barangay Selection Field */}
             <View style={s.fieldWrap}>
               <View style={s.labelRow}>
                 <Ionicons name="location-outline" size={13} color={C.slateL} />
@@ -519,9 +456,23 @@ const Register = () => {
             <Text style={s.addressNote}>Your complete address will be: {form.fullAddress ? form.fullAddress : '[Your address]'}, {form.barangay ? form.barangay : '[Barangay]'}</Text>
             <Text style={s.requiredNote}>* Required fields</Text>
 
-            {/* Create Account button */}
+            <View style={s.termsRow}>
+              <TouchableOpacity
+                style={[s.checkbox, termsAccepted && s.checkboxChecked]}
+                onPress={() => { setTermsAccepted((p) => !p); if (termsError) setTermsError(''); }}
+                activeOpacity={0.7}
+              >
+                {termsAccepted && <Ionicons name="checkmark" size={14} color={C.navy} />}
+              </TouchableOpacity>
+              <Text style={s.termsTxt}>I have read and agree to the </Text>
+              <TouchableOpacity onPress={() => setShowTermsModal(true)} activeOpacity={0.7}>
+                <Text style={s.termsLink}>Terms & Conditions</Text>
+              </TouchableOpacity>
+            </View>
+            {termsError ? <Text style={s.errorText}>{termsError}</Text> : null}
+
             <TouchableOpacity
-              style={[s.btnPrimary, (loading || isCheckingEmail || isOffline) && { opacity: 0.5 }]}
+              style={[s.btnPrimary, (loading || isCheckingEmail || isOffline) && { opacity: 0.5 }, { marginTop: 16 }]}
               onPress={handleRegisterClick}
               disabled={loading || isCheckingEmail || isOffline}
               activeOpacity={0.85}
@@ -539,14 +490,9 @@ const Register = () => {
               )}
             </TouchableOpacity>
 
-            {/* Sign In link */}
             <View style={s.loginRow}>
               <Text style={s.loginTxt}>Already have an account?</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Login')}
-                style={s.loginBtn}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity onPress={() => navigation.navigate('Login')} style={s.loginBtn} activeOpacity={0.7}>
                 <Text style={s.loginLink}>Sign In</Text>
                 <Ionicons name="arrow-forward" size={14} color={C.teal} />
               </TouchableOpacity>
@@ -554,19 +500,17 @@ const Register = () => {
           </View>
         </ScrollView>
 
-        {/* Date Picker */}
         {showDatePicker && (
           <DateTimePicker
             value={selectedDate}
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             onChange={handleDateChange}
-            maximumDate={new Date()}
+            maximumDate={getMaxDOBDate()}
             minimumDate={new Date(1950, 0, 1)}
           />
         )}
 
-        {/* Gender Modal */}
         <Modal visible={showGenderPicker} transparent animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
           <View style={s.modalOverlay}>
             <View style={s.genderSheet}>
@@ -587,9 +531,7 @@ const Register = () => {
                   <View style={[s.genderOptIcon, form.gender === opt.value && s.genderOptIconActive]}>
                     <Ionicons name={opt.icon} size={18} color={form.gender === opt.value ? C.teal : C.slateL} />
                   </View>
-                  <Text style={[s.genderOptTxt, form.gender === opt.value && s.genderOptTxtActive]}>
-                    {opt.label}
-                  </Text>
+                  <Text style={[s.genderOptTxt, form.gender === opt.value && s.genderOptTxtActive]}>{opt.label}</Text>
                   {form.gender === opt.value && (
                     <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
                   )}
@@ -599,7 +541,6 @@ const Register = () => {
           </View>
         </Modal>
 
-        {/* Barangay Modal */}
         <Modal visible={showBarangayPicker} transparent animationType="slide" onRequestClose={() => setShowBarangayPicker(false)}>
           <View style={s.modalOverlay}>
             <View style={s.genderSheet}>
@@ -620,9 +561,7 @@ const Register = () => {
                   <View style={[s.genderOptIcon, form.barangay === opt.value && s.genderOptIconActive]}>
                     <Ionicons name={opt.icon} size={18} color={form.barangay === opt.value ? C.teal : C.slateL} />
                   </View>
-                  <Text style={[s.genderOptTxt, form.barangay === opt.value && s.genderOptTxtActive]}>
-                    {opt.label}
-                  </Text>
+                  <Text style={[s.genderOptTxt, form.barangay === opt.value && s.genderOptTxtActive]}>{opt.label}</Text>
                   {form.barangay === opt.value && (
                     <Ionicons name="checkmark-circle" size={20} color={C.teal} style={{ marginLeft: 'auto' }} />
                   )}
@@ -632,7 +571,6 @@ const Register = () => {
           </View>
         </Modal>
 
-        {/* Verification Modal */}
         <Modal visible={showVerificationModal} transparent animationType="fade" onRequestClose={() => setShowVerificationModal(false)}>
           <View style={s.verifyOverlay}>
             <View style={s.verifyCard}>
@@ -644,7 +582,6 @@ const Register = () => {
                 We've sent a 6-digit code to{'\n'}
                 <Text style={{ color: C.teal, fontWeight: 'bold' }}>{form.email}</Text>
               </Text>
-
               <View style={s.verificationCodeInput}>
                 <TextInput
                   style={s.codeInput}
@@ -657,46 +594,89 @@ const Register = () => {
                   textAlign="center"
                 />
               </View>
-
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[s.verifyConfirm, isVerifying && { opacity: 0.5 }]}
                 onPress={handleVerifyCode}
                 disabled={isVerifying}
               >
-                <Text style={s.verifyConfirmTxt}>
-                  {isVerifying ? 'Verifying...' : 'Verify & Complete Registration'}
-                </Text>
+                <Text style={s.verifyConfirmTxt}>{isVerifying ? 'Verifying...' : 'Verify & Complete Registration'}</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={s.resendButton}
                 onPress={handleResendCode}
                 disabled={!canResend || isUnderMaintenance}
               >
-                <Text style={[
-                  s.resendText, 
-                  (!canResend || isUnderMaintenance) && { opacity: 0.5 }
-                ]}>
-                  {isUnderMaintenance 
-                    ? 'Under Maintenance' 
-                    : canResend 
-                      ? 'Resend Code' 
-                      : `Resend in ${resendTimer}s`}
+                <Text style={[s.resendText, (!canResend || isUnderMaintenance) && { opacity: 0.5 }]}>
+                  {isUnderMaintenance ? 'Under Maintenance' : canResend ? 'Resend Code' : `Resend in ${resendTimer}s`}
                 </Text>
               </TouchableOpacity>
-
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={s.verifyCancel}
-                onPress={() => {
-                  setShowVerificationModal(false);
-                  setVerificationCode('');
-                }}
+                onPress={() => { setShowVerificationModal(false); setVerificationCode(''); }}
               >
                 <Text style={s.verifyCancelTxt}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
+
+        <Modal visible={showTermsModal} transparent animationType="fade" onRequestClose={() => setShowTermsModal(false)}>
+          <View style={s.termsOverlay}>
+            <View style={s.termsCard}>
+              <View style={s.termsHeader}>
+                <View style={s.termsIconRing}>
+                  <Ionicons name="document-text-outline" size={22} color={C.teal} />
+                </View>
+                <Text style={s.termsTitle}>Terms & Conditions</Text>
+                <TouchableOpacity style={s.termsCloseBtn} onPress={() => setShowTermsModal(false)}>
+                  <Ionicons name="close" size={20} color={C.slateL} />
+                </TouchableOpacity>
+              </View>
+              <Text style={s.termsEffective}>Effective Date: January 1, 2026</Text>
+              <ScrollView style={s.termsScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
+                <Text style={s.termsSectionTitle}>1. Acceptance of Terms</Text>
+                <Text style={s.termsBody}>By creating an account and using the SolidWaste application operated by T.M.F.K Waste Innovations, you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not register or use the application.</Text>
+                <Text style={s.termsSectionTitle}>2. Eligibility</Text>
+                <Text style={s.termsBody}>You must be at least 10 years old to register and use this application. By registering, you confirm that you meet this minimum age requirement. Parents or guardians are responsible for supervising minor users between 10–17 years of age.</Text>
+                <Text style={s.termsSectionTitle}>3. User Responsibilities</Text>
+                <Text style={s.termsBody}>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate, complete, and current information during registration, including your full name, email address, date of birth, and barangay address. You must not share your account with others or use another person's account.</Text>
+                <Text style={s.termsSectionTitle}>4. Use of the Application</Text>
+                <Text style={s.termsBody}>The SolidWaste application is designed to facilitate waste management scheduling, reporting, and communication within participating barangays (South Signal and Central Bicutan). You agree to use the app only for its intended purposes and in compliance with all applicable local laws and regulations.</Text>
+                <Text style={s.termsSectionTitle}>5. Data Privacy</Text>
+                <Text style={s.termsBody}>We collect personal information including your name, email, address, date of birth, and gender for the purpose of providing waste management services. Your data will not be sold to third parties. We implement reasonable security measures to protect your information. By registering, you consent to the collection and use of your data as described herein.</Text>
+                <Text style={s.termsSectionTitle}>6. Prohibited Conduct</Text>
+                <Text style={s.termsBody}>You agree not to: (a) submit false or misleading information; (b) attempt to access accounts belonging to other users; (c) use the application to harass, threaten, or harm others; (d) engage in any activity that disrupts or interferes with the application's functionality; (e) attempt to reverse-engineer or exploit any part of the system.</Text>
+                <Text style={s.termsSectionTitle}>7. Account Suspension</Text>
+                <Text style={s.termsBody}>T.M.F.K Waste Innovations reserves the right to suspend or terminate your account if you violate these Terms and Conditions or engage in any conduct deemed harmful to other users or the integrity of the system.</Text>
+                <Text style={s.termsSectionTitle}>8. Modifications</Text>
+                <Text style={s.termsBody}>We reserve the right to modify these Terms and Conditions at any time. Continued use of the application after changes are posted constitutes acceptance of the updated terms. We will make reasonable efforts to notify registered users of significant changes.</Text>
+                <Text style={s.termsSectionTitle}>9. Limitation of Liability</Text>
+                <Text style={s.termsBody}>T.M.F.K Waste Innovations shall not be liable for any indirect, incidental, or consequential damages arising from your use of the application. The application is provided "as is" without warranties of any kind, express or implied.</Text>
+                <Text style={s.termsSectionTitle}>10. Contact</Text>
+                <Text style={s.termsBody}>If you have questions about these Terms and Conditions, please contact us through the official T.M.F.K Waste Innovations support channels within the application.</Text>
+                <View style={{ height: 12 }} />
+              </ScrollView>
+              <View style={s.termsFooter}>
+                <TouchableOpacity
+                  style={s.termsDeclineBtn}
+                  onPress={() => { setTermsAccepted(false); setShowTermsModal(false); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.termsDeclineTxt}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.termsAcceptBtn}
+                  onPress={() => { setTermsAccepted(true); setTermsError(''); setShowTermsModal(false); }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={16} color={C.navy} style={{ marginRight: 6 }} />
+                  <Text style={s.termsAcceptTxt}>I Agree</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -707,47 +687,25 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ink },
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 48 },
   header: { alignItems: 'center', paddingTop: 32, marginBottom: 24 },
-  logoRing: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-  },
+  logoRing: { width: 72, height: 72, borderRadius: 20, backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.borderDk, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   logoImg: { width: 46, height: 46 },
   brandName: { fontSize: 20, fontWeight: '900', color: C.white, letterSpacing: 1.5, marginBottom: 4 },
   brandSub: { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 0.8, textTransform: 'uppercase' },
   badgeWrap: { alignItems: 'center', marginBottom: 20 },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.tealDim, borderRadius: 20,
-    paddingVertical: 5, paddingHorizontal: 14,
-  },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.tealDim, borderRadius: 20, paddingVertical: 5, paddingHorizontal: 14 },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal },
   badgeText: { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 1, textTransform: 'uppercase' },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: C.borderDk,
-    borderRadius: 22, padding: 28, marginBottom: 8,
-  },
+  card: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: C.borderDk, borderRadius: 22, padding: 28, marginBottom: 8 },
   cardTitle: { fontSize: 24, fontWeight: '900', color: C.white, letterSpacing: -0.4, marginBottom: 4 },
   cardSub: { fontSize: 13, color: C.ghost, marginBottom: 28 },
-  errorBanner: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.12)',
-    borderLeftWidth: 3, borderLeftColor: C.red,
-    borderRadius: 10, padding: 14, marginBottom: 18,
-  },
+  errorBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(239,68,68,0.12)', borderLeftWidth: 3, borderLeftColor: C.red, borderRadius: 10, padding: 14, marginBottom: 18 },
   errorBannerTxt: { fontSize: 13, color: C.red, fontWeight: '600', flex: 1 },
   fieldWrap: { marginBottom: 18 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
   label: { fontSize: 11, fontWeight: '700', color: C.slateL, letterSpacing: 0.5, textTransform: 'uppercase' },
   req: { color: C.teal },
   checkingTxt: { fontSize: 11, color: C.teal, fontStyle: 'italic' },
-  input: {
-    height: 50, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1.5, borderColor: C.borderDk,
-    borderRadius: 12, paddingHorizontal: 16,
-    fontSize: 15, color: C.white,
-  },
+  input: { height: 50, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1.5, borderColor: C.borderDk, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, color: C.white },
   inputFocused: { borderColor: C.tealLine, backgroundColor: 'rgba(0,201,167,0.07)' },
   inputError: { borderColor: C.red, backgroundColor: 'rgba(239,68,68,0.08)' },
   selectInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -757,69 +715,36 @@ const s = StyleSheet.create({
   eyeBtn: { position: 'absolute', right: 14, top: 14 },
   addressNote: { fontSize: 11, color: C.teal, fontStyle: 'italic', marginBottom: 12, marginTop: -6 },
   requiredNote: { fontSize: 12, color: C.slateL, fontStyle: 'italic', marginBottom: 20 },
-  btnPrimary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.teal, height: 52, borderRadius: 12, marginBottom: 20,
-    shadowColor: C.teal, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
-  },
+  termsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: C.slateL, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  checkboxChecked: { backgroundColor: C.teal, borderColor: C.teal },
+  termsTxt: { fontSize: 13, color: C.ghost },
+  termsLink: { fontSize: 13, color: C.teal, fontWeight: '700', textDecorationLine: 'underline' },
+  btnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: C.teal, height: 52, borderRadius: 12, marginBottom: 20, shadowColor: C.teal, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
   btnPrimaryTxt: { color: C.navy, fontSize: 15, fontWeight: '800' },
   loginRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   loginTxt: { fontSize: 13, color: C.ghost },
   loginBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   loginLink: { fontSize: 13, color: C.teal, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  genderSheet: {
-    backgroundColor: C.navy, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 24, paddingBottom: 36, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: C.borderDk,
-  },
-  sheetHandle: {
-    width: 36, height: 4, borderRadius: 2,
-    backgroundColor: C.borderDk, alignSelf: 'center', marginBottom: 20,
-  },
+  genderSheet: { backgroundColor: C.navy, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 36, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.borderDk },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.borderDk, alignSelf: 'center', marginBottom: 20 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: C.white },
-  sheetClose: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  genderOpt: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: C.borderDk,
-    borderRadius: 14, padding: 16, marginBottom: 10,
-  },
+  sheetClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  genderOpt: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: C.borderDk, borderRadius: 14, padding: 16, marginBottom: 10 },
   genderOptActive: { borderColor: C.tealLine, backgroundColor: C.tealDim },
   genderOptIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
   genderOptIconActive: { backgroundColor: C.tealDim },
   genderOptTxt: { fontSize: 15, color: C.ghost, fontWeight: '500' },
   genderOptTxtActive: { color: C.teal, fontWeight: '700' },
-  verifyOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center', alignItems: 'center', padding: 24,
-  },
-  verifyCard: {
-    backgroundColor: C.navy, borderRadius: 22, padding: 28,
-    width: '100%', maxWidth: 400,
-    borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center',
-  },
-  verifyIconRing: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-  },
+  verifyOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  verifyCard: { backgroundColor: C.navy, borderRadius: 22, padding: 28, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: C.borderDk, alignItems: 'center' },
+  verifyIconRing: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   verifyTitle: { fontSize: 20, fontWeight: '900', color: C.white, marginBottom: 6 },
   verifySub: { fontSize: 13, color: C.ghost, textAlign: 'center', marginBottom: 28 },
   verificationCodeInput: { width: '100%', marginBottom: 20 },
-  codeInput: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1.5, borderColor: C.borderDk,
-    borderRadius: 12, padding: 15, fontSize: 18,
-    color: C.white, textAlign: 'center', letterSpacing: 4,
-  },
+  codeInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1.5, borderColor: C.borderDk, borderRadius: 12, padding: 15, fontSize: 18, color: C.white, textAlign: 'center', letterSpacing: 4 },
   resendButton: { marginTop: 15, padding: 10 },
   resendText: { color: C.teal, fontSize: 14, textAlign: 'center' },
   verifyConfirm: { width: '100%', height: 48, borderRadius: 12, backgroundColor: C.teal, alignItems: 'center', justifyContent: 'center' },
@@ -827,6 +752,21 @@ const s = StyleSheet.create({
   verifyCancel: { marginTop: 12, padding: 10 },
   verifyCancelTxt: { color: C.ghost, fontSize: 14, fontWeight: '600' },
   errorText: { fontSize: 12, color: C.red, marginTop: 6 },
+  termsOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.82)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  termsCard: { backgroundColor: C.navy, borderRadius: 22, width: '100%', maxWidth: 420, maxHeight: '88%', borderWidth: 1, borderColor: C.borderDk, overflow: 'hidden' },
+  termsHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.borderDk, gap: 10 },
+  termsIconRing: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine, alignItems: 'center', justifyContent: 'center' },
+  termsTitle: { fontSize: 17, fontWeight: '900', color: C.white, flex: 1 },
+  termsCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  termsEffective: { fontSize: 11, color: C.slateL, fontStyle: 'italic', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  termsScroll: { paddingHorizontal: 20, paddingTop: 8, maxHeight: 400 },
+  termsSectionTitle: { fontSize: 13, fontWeight: '800', color: C.teal, marginTop: 16, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  termsBody: { fontSize: 13, color: C.ghost, lineHeight: 20 },
+  termsFooter: { flexDirection: 'row', gap: 12, padding: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.borderDk },
+  termsDeclineBtn: { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: C.borderDk, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.04)' },
+  termsDeclineTxt: { color: C.ghost, fontSize: 14, fontWeight: '700' },
+  termsAcceptBtn: { flex: 2, height: 46, borderRadius: 12, backgroundColor: C.teal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: C.teal, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  termsAcceptTxt: { color: C.navy, fontSize: 14, fontWeight: '900' },
 });
 
 export default Register;
