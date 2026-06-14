@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { editProfile } from '../../redux/slices/authSlice';
 import { Ionicons } from '@expo/vector-icons';
+import axiosInstance from '../../utils/axiosInstance';
 
 const C = {
   ink:      '#071B2E',
@@ -32,13 +33,12 @@ const C = {
   green:    '#22C55E',
 };
 
-// ── Fade-in animation ─────────────────────────────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
-  const opacity    = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity,    { toValue: 1, duration: 420, delay, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 420, delay, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
     ]).start();
   }, []);
@@ -51,106 +51,187 @@ const FadeIn = ({ children, delay = 0 }) => {
 
 const EditProfile = () => {
   const navigation = useNavigation();
-  const { user, profileUpdateLoading } = useSelector((st) => st.auth);
+  const { user, token, profileUpdateLoading } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
 
   const [formData, setFormData] = useState({
     username: user?.username || '',
-    email:    user?.email    || '',
-    bod:      user?.bod ? new Date(user.bod).toISOString().split('T')[0] : '',
-    gender:   user?.gender   || '',
-    address:  user?.address  || '',
+    email: user?.email || '',
+    bod: user?.bod ? new Date(user.bod).toISOString().split('T')[0] : '',
+    gender: user?.gender || '',
+    address: user?.address || '',
   });
 
-  const [profileImage, setProfileImage] = useState(
-    user?.profile
-      ? typeof user.profile === 'string' ? user.profile
-        : user.profile.url || user.profile.uri || null
-      : null
-  );
-  const [imageBase64,   setImageBase64]   = useState(null);
-  const [imageChanged,  setImageChanged]  = useState(false);
-  const [focusedField,  setFocusedField]  = useState(null);
+  const [profileImage, setProfileImage] = useState(user?.profile || null);
+  const [imageUri, setImageUri] = useState(null);
+  const [imageChanged, setImageChanged] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
 
-  // ── Image picker ─────────────────────────────────────────────────────────────
+  const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+
+  // Image Picker
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission Required', 'We need access to your photos.'); return; }
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'We need access to your photos.');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.8, base64: true,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
     });
-    if (!result.canceled && result.assets?.[0]?.base64) {
+
+    if (!result.canceled && result.assets?.[0]) {
       setProfileImage(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64);
+      setImageUri(result.assets[0].uri);
       setImageChanged(true);
     }
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission Required', 'We need camera access.'); return; }
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'We need camera access.');
+      return;
+    }
+
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true, aspect: [1, 1], quality: 0.8, base64: true,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
     });
-    if (!result.canceled && result.assets?.[0]?.base64) {
+
+    if (!result.canceled && result.assets?.[0]) {
       setProfileImage(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64);
+      setImageUri(result.assets[0].uri);
       setImageChanged(true);
     }
   };
 
   const showImageOptions = () => {
-    Alert.alert('Update Profile Photo', 'Choose how you want to update your photo', [
-      { text: 'Take Photo',            onPress: takePhoto },
-      { text: 'Choose from Gallery',   onPress: pickImage },
+    Alert.alert('Update Profile Photo', 'Choose how to update your photo', [
+      { text: 'Take Photo', onPress: takePhoto },
+      { text: 'Choose from Gallery', onPress: pickImage },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
   const removePhoto = () => {
-    Alert.alert('Remove Photo', 'Are you sure you want to remove your profile picture?', [
+    Alert.alert('Remove Photo', 'Remove your profile picture?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => {
-        setProfileImage(null); setImageBase64(null); setImageChanged(true);
-      }},
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          setProfileImage(null);
+          setImageUri(null);
+          setImageChanged(true);
+        },
+      },
     ]);
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!formData.username.trim()) { Alert.alert('Validation Error', 'Username is required'); return; }
-    if (!formData.email.trim())    { Alert.alert('Validation Error', 'Email is required');    return; }
+  // Upload image separately
+  const uploadProfileImage = async () => {
+    if (!imageUri) return null;
+
+    setUploadingImage(true);
+
     try {
-      const data = new FormData();
-      data.append('username', formData.username.trim());
-      data.append('email',    formData.email.trim());
-      if (formData.bod)     data.append('bod',     formData.bod);
-      if (formData.gender)  data.append('gender',  formData.gender.trim());
-      if (formData.address) data.append('address', formData.address.trim());
-      if (imageChanged) {
-        data.append('profile', profileImage && imageBase64
-          ? `data:image/jpeg;base64,${imageBase64}` : '');
-      }
-      await dispatch(editProfile(data)).unwrap();
-      Alert.alert('Success!', 'Your profile has been updated successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (err) {
-      Alert.alert('Update Failed', err || 'Failed to update profile. Please try again.');
+      const formData = new FormData();
+      formData.append('profile', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: `profile_${Date.now()}.jpg`,
+      });
+
+      console.log('📤 Uploading image...');
+      
+      const response = await axiosInstance.post('/users/upload-profile-image', formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('✅ Image uploaded:', response.data);
+      return response.data.profileUrl;
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
+      return null;
+    } finally {
+      setUploadingImage(false);
     }
   };
 
-  const hasChanges = () =>
-    formData.username !== user?.username ||
-    formData.email    !== user?.email    ||
-    formData.bod      !== (user?.bod ? new Date(user.bod).toISOString().split('T')[0] : '') ||
-    formData.gender   !== user?.gender   ||
-    formData.address  !== user?.address  ||
-    imageChanged;
+  // Save profile
+  const handleSave = async () => {
+    if (!formData.username.trim()) {
+      Alert.alert('Validation Error', 'Username is required');
+      return;
+    }
+    if (!formData.email.trim()) {
+      Alert.alert('Validation Error', 'Email is required');
+      return;
+    }
 
-  const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+    try {
+      let profileUrl = null;
+
+      // Upload image if changed
+      if (imageChanged) {
+        if (imageUri) {
+          profileUrl = await uploadProfileImage();
+          if (!profileUrl && imageUri) {
+            return; // Upload failed
+          }
+        } else {
+          profileUrl = ''; // Remove photo
+        }
+      }
+
+      // Prepare form data for profile update
+      const updateData = new FormData();
+      updateData.append('username', formData.username.trim());
+      updateData.append('email', formData.email.trim());
+      if (formData.bod) updateData.append('bod', formData.bod);
+      if (formData.gender) updateData.append('gender', formData.gender.trim());
+      if (formData.address) updateData.append('address', formData.address.trim());
+      if (profileUrl !== null) updateData.append('profile', profileUrl);
+
+      console.log('📤 Saving profile...');
+      console.log('Profile URL:', profileUrl);
+
+      // Dispatch editProfile
+      const result = await dispatch(editProfile(updateData)).unwrap();
+      
+      console.log('✅ Profile saved:', result);
+
+      Alert.alert('Success!', 'Profile updated successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      console.error('❌ Save error:', error);
+      Alert.alert('Update Failed', error || 'Failed to update profile. Please try again.');
+    }
+  };
+
+  const hasChanges = () => {
+    return (
+      formData.username !== user?.username ||
+      formData.email !== user?.email ||
+      formData.bod !== (user?.bod ? new Date(user.bod).toISOString().split('T')[0] : '') ||
+      formData.gender !== user?.gender ||
+      formData.address !== user?.address ||
+      imageChanged
+    );
+  };
 
   const inputStyle = (field) => [
     s.input,
@@ -160,12 +241,12 @@ const EditProfile = () => {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar style="light" backgroundColor={C.ink} />
-      
-      <KeyboardAvoidingView 
-        style={s.keyboardView} 
+
+      <KeyboardAvoidingView
+        style={s.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={s.header}>
           <View style={s.headerBlob} />
           <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -184,7 +265,7 @@ const EditProfile = () => {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: 48 }}
         >
-          {/* ── Avatar section ── */}
+          {/* Avatar Section */}
           <FadeIn delay={0}>
             <View style={s.avatarSection}>
               <TouchableOpacity style={s.avatarWrap} onPress={showImageOptions} activeOpacity={0.85}>
@@ -217,10 +298,17 @@ const EditProfile = () => {
                   <Text style={s.removePhotoTxt}>Remove Photo</Text>
                 </TouchableOpacity>
               )}
+
+              {uploadingImage && (
+                <View style={s.uploadingIndicator}>
+                  <ActivityIndicator size="small" color={C.teal} />
+                  <Text style={s.uploadingText}>Uploading image...</Text>
+                </View>
+              )}
             </View>
           </FadeIn>
 
-          {/* ── Form card ── */}
+          {/* Form Card */}
           <FadeIn delay={80}>
             <View style={s.formCard}>
               <View style={s.formCardHeader}>
@@ -228,14 +316,18 @@ const EditProfile = () => {
                   <Ionicons name="person-outline" size={16} color={C.teal} />
                 </View>
                 <Text style={s.formCardTitle}>Personal Information</Text>
-                <View style={s.reqBadge}><Text style={s.reqBadgeTxt}>* Required</Text></View>
+                <View style={s.reqBadge}>
+                  <Text style={s.reqBadgeTxt}>* Required</Text>
+                </View>
               </View>
 
               {/* Username */}
               <View style={s.fieldWrap}>
                 <View style={s.labelRow}>
                   <Ionicons name="person-outline" size={12} color={C.slateL} />
-                  <Text style={s.label}>Username <Text style={s.req}>*</Text></Text>
+                  <Text style={s.label}>
+                    Username <Text style={s.req}>*</Text>
+                  </Text>
                 </View>
                 <TextInput
                   style={inputStyle('username')}
@@ -253,7 +345,9 @@ const EditProfile = () => {
               <View style={s.fieldWrap}>
                 <View style={s.labelRow}>
                   <Ionicons name="mail-outline" size={12} color={C.slateL} />
-                  <Text style={s.label}>Email Address <Text style={s.req}>*</Text></Text>
+                  <Text style={s.label}>
+                    Email Address <Text style={s.req}>*</Text>
+                  </Text>
                 </View>
                 <TextInput
                   style={inputStyle('email')}
@@ -303,7 +397,6 @@ const EditProfile = () => {
                   <Ionicons name="chevron-down" size={16} color={C.slateL} />
                 </TouchableOpacity>
 
-                {/* Inline gender options */}
                 {showGenderPicker && (
                   <View style={s.genderDropdown}>
                     {GENDER_OPTIONS.map((opt) => (
@@ -319,9 +412,7 @@ const EditProfile = () => {
                         <Text style={[s.genderOptTxt, formData.gender === opt && s.genderOptTxtActive]}>
                           {opt}
                         </Text>
-                        {formData.gender === opt && (
-                          <Ionicons name="checkmark" size={16} color={C.teal} />
-                        )}
+                        {formData.gender === opt && <Ionicons name="checkmark" size={16} color={C.teal} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -350,8 +441,8 @@ const EditProfile = () => {
             </View>
           </FadeIn>
 
-          {/* Unsaved changes indicator */}
-          {hasChanges() && (
+          {/* Unsaved Changes Indicator */}
+          {hasChanges() && !uploadingImage && (
             <FadeIn delay={0}>
               <View style={s.changesBar}>
                 <View style={s.changesDot} />
@@ -360,25 +451,25 @@ const EditProfile = () => {
             </FadeIn>
           )}
 
-          {/* ── Action buttons ── */}
+          {/* Action Buttons */}
           <FadeIn delay={120}>
             <View style={s.btnRow}>
               <TouchableOpacity
                 style={s.btnCancel}
                 onPress={() => navigation.goBack()}
-                disabled={profileUpdateLoading}
+                disabled={profileUpdateLoading || uploadingImage}
                 activeOpacity={0.7}
               >
                 <Text style={s.btnCancelTxt}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[s.btnSave, (!hasChanges() || profileUpdateLoading) && { opacity: 0.5 }]}
+                style={[s.btnSave, (!hasChanges() || profileUpdateLoading || uploadingImage) && { opacity: 0.5 }]}
                 onPress={handleSave}
-                disabled={!hasChanges() || profileUpdateLoading}
+                disabled={!hasChanges() || profileUpdateLoading || uploadingImage}
                 activeOpacity={0.85}
               >
-                {profileUpdateLoading ? (
+                {profileUpdateLoading || uploadingImage ? (
                   <ActivityIndicator color={C.navy} size="small" />
                 ) : (
                   <>
@@ -397,365 +488,247 @@ const EditProfile = () => {
   );
 };
 
-export default EditProfile;
-
-// ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: C.offWhite 
-  },
-  keyboardView: {
-    flex: 1,
-  },
-
-  // ── Header ──────────────────────────────────────────────────────────────────
+  root: { flex: 1, backgroundColor: C.offWhite },
+  keyboardView: { flex: 1 },
   header: {
     backgroundColor: C.ink,
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 8 : 14,
-    paddingBottom: 18, 
+    paddingBottom: 18,
     paddingHorizontal: 20,
-    borderBottomWidth: 1, 
+    borderBottomWidth: 1,
     borderBottomColor: C.borderDk,
     overflow: 'hidden',
   },
   headerBlob: {
-    position: 'absolute', 
-    width: 200, 
-    height: 200, 
+    position: 'absolute',
+    width: 200,
+    height: 200,
     borderRadius: 100,
-    backgroundColor: C.tealGlow, 
-    top: -80, 
+    backgroundColor: C.tealGlow,
+    top: -80,
     right: -70,
   },
   backBtn: {
-    width: 38, 
-    height: 38, 
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: C.borderDk,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCenter:  { 
-    flex: 1, 
-    alignItems: 'center' 
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
+  headerSub: {
+    fontSize: 10,
+    color: C.teal,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
-  headerTitle:   { 
-    fontSize: 17, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: -0.2 
-  },
-  headerSub:     { 
-    fontSize: 10, 
-    color: C.teal, 
-    fontWeight: '700', 
-    letterSpacing: 0.6, 
-    textTransform: 'uppercase', 
-    marginTop: 2 
-  },
-
-  scroll: { 
-    flex: 1 
-  },
-
-  // ── Avatar ───────────────────────────────────────────────────────────────────
+  scroll: { flex: 1 },
   avatarSection: {
-    backgroundColor: C.ink, 
+    backgroundColor: C.ink,
     alignItems: 'center',
-    paddingTop: 28, 
-    paddingBottom: 36, 
+    paddingTop: 28,
+    paddingBottom: 36,
     paddingHorizontal: 24,
-    borderBottomLeftRadius: 28, 
+    borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     marginBottom: 24,
   },
   avatarWrap: {
-    width: 100, 
-    height: 100, 
+    width: 100,
+    height: 100,
     borderRadius: 28,
-    marginBottom: 14, 
+    marginBottom: 14,
     position: 'relative',
-    borderWidth: 2, 
+    borderWidth: 2,
     borderColor: C.tealLine,
   },
-  avatarImg: { 
-    width: '100%', 
-    height: '100%', 
-    borderRadius: 26 
-  },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 26 },
   avatarOverlay: {
-    ...StyleSheet.absoluteFillObject, 
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 26,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center', 
-    justifyContent: 'center', 
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
   },
-  avatarOverlayTxt: { 
-    fontSize: 11, 
-    color: C.white, 
-    fontWeight: '700' 
-  },
+  avatarOverlayTxt: { fontSize: 11, color: C.white, fontWeight: '700' },
   avatarPlaceholder: {
-    width: '100%', 
-    height: '100%', 
+    width: '100%',
+    height: '100%',
     borderRadius: 26,
     backgroundColor: C.navyMid,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: { 
-    fontSize: 38, 
-    fontWeight: '900', 
-    color: C.teal 
-  },
+  avatarInitial: { fontSize: 38, fontWeight: '900', color: C.teal },
   avatarCameraChip: {
-    position: 'absolute', 
-    bottom: -6, 
+    position: 'absolute',
+    bottom: -6,
     right: -6,
-    width: 28, 
-    height: 28, 
+    width: 28,
+    height: 28,
     borderRadius: 8,
-    backgroundColor: C.teal, 
-    alignItems: 'center', 
+    backgroundColor: C.teal,
+    alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2, 
+    borderWidth: 2,
     borderColor: C.ink,
   },
-  avatarName:  { 
-    fontSize: 18, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: -0.2, 
-    marginBottom: 4 
-  },
-  avatarEmail: { 
-    fontSize: 12, 
-    color: C.ghost, 
-    marginBottom: 14 
-  },
+  avatarName: { fontSize: 18, fontWeight: '900', color: C.white, letterSpacing: -0.2, marginBottom: 4 },
+  avatarEmail: { fontSize: 12, color: C.ghost, marginBottom: 14 },
   removePhotoBtn: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 5,
     backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.25)',
-    borderRadius: 20, 
-    paddingVertical: 6, 
+    borderRadius: 20,
+    paddingVertical: 6,
     paddingHorizontal: 14,
   },
-  removePhotoTxt: { 
-    fontSize: 12, 
-    color: C.red, 
-    fontWeight: '600' 
+  removePhotoTxt: { fontSize: 12, color: C.red, fontWeight: '600' },
+  uploadingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    backgroundColor: C.tealDim,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
   },
-
-  // ── Form card ────────────────────────────────────────────────────────────────
+  uploadingText: { fontSize: 12, color: C.teal, fontWeight: '600' },
   formCard: {
-    backgroundColor: C.white, 
-    borderRadius: 20, 
+    backgroundColor: C.white,
+    borderRadius: 20,
     marginHorizontal: 20,
-    padding: 24, 
+    padding: 24,
     marginBottom: 16,
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.08)',
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 1, 
-    shadowRadius: 12, 
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
     elevation: 3,
   },
-  formCardHeader: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 10, 
-    marginBottom: 22,
-  },
+  formCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 22 },
   formCardIconWrap: {
-    width: 32, 
-    height: 32, 
+    width: 32,
+    height: 32,
     borderRadius: 9,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
+    backgroundColor: C.tealDim,
+    borderWidth: 1,
     borderColor: C.tealLine,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  formCardTitle: { 
-    flex: 1, 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: C.navy 
-  },
-  reqBadge: {
-    backgroundColor: C.tealDim, 
-    borderRadius: 8,
-    paddingVertical: 3, 
-    paddingHorizontal: 8,
-  },
-  reqBadgeTxt: { 
-    fontSize: 10, 
-    color: C.teal, 
-    fontWeight: '700' 
-  },
-
-  fieldWrap: { 
-    marginBottom: 18 
-  },
-  labelRow:  { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5, 
-    marginBottom: 8 
-  },
-  label:     { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    color: C.slateL, 
-    letterSpacing: 0.5, 
-    textTransform: 'uppercase' 
-  },
-  req:       { 
-    color: C.teal 
-  },
-
+  formCardTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: C.navy },
+  reqBadge: { backgroundColor: C.tealDim, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
+  reqBadgeTxt: { fontSize: 10, color: C.teal, fontWeight: '700' },
+  fieldWrap: { marginBottom: 18 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  label: { fontSize: 11, fontWeight: '700', color: C.slateL, letterSpacing: 0.5, textTransform: 'uppercase' },
+  req: { color: C.teal },
   input: {
-    height: 50, 
+    height: 50,
     backgroundColor: C.offWhite,
-    borderWidth: 1.5, 
+    borderWidth: 1.5,
     borderColor: C.border,
-    borderRadius: 12, 
+    borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 15, 
+    fontSize: 15,
     color: C.navy,
   },
-  inputFocused: { 
-    borderColor: C.tealLine, 
+  inputFocused: {
+    borderColor: C.tealLine,
     backgroundColor: C.white,
-    shadowColor: C.teal, 
-    shadowOffset: { width: 0, height: 0 }, 
-    shadowOpacity: 0.15, 
-    shadowRadius: 6, 
+    shadowColor: C.teal,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 2,
   },
-  selectInput:  { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between' 
-  },
-  selectTxt:    { 
-    fontSize: 15, 
-    color: C.navy 
-  },
-  textArea:     { 
-    height: 90, 
-    paddingTop: 14 
-  },
-
+  selectInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectTxt: { fontSize: 15, color: C.navy },
+  textArea: { height: 90, paddingTop: 14 },
   genderDropdown: {
-    marginTop: 6, 
+    marginTop: 6,
     backgroundColor: C.white,
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: C.border, 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
     overflow: 'hidden',
     shadowColor: 'rgba(7,27,46,0.1)',
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 1, 
-    shadowRadius: 10, 
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
     elevation: 4,
   },
   genderOpt: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16, 
+    paddingHorizontal: 16,
     paddingVertical: 13,
-    borderBottomWidth: 1, 
+    borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  genderOptActive:   { 
-    backgroundColor: C.tealDim 
-  },
-  genderOptTxt:      { 
-    fontSize: 14, 
-    color: C.navy 
-  },
-  genderOptTxtActive: { 
-    color: C.teal, 
-    fontWeight: '700' 
-  },
-
-  // ── Changes bar ──────────────────────────────────────────────────────────────
+  genderOptActive: { backgroundColor: C.tealDim },
+  genderOptTxt: { fontSize: 14, color: C.navy },
+  genderOptTxtActive: { color: C.teal, fontWeight: '700' },
   changesBar: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    marginHorizontal: 20, 
+    marginHorizontal: 20,
     marginBottom: 16,
     backgroundColor: 'rgba(0,201,167,0.1)',
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: C.tealLine,
-    borderRadius: 10, 
-    paddingVertical: 10, 
+    borderRadius: 10,
+    paddingVertical: 10,
     paddingHorizontal: 14,
   },
-  changesDot: { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4, 
-    backgroundColor: C.teal 
-  },
-  changesTxt: { 
-    fontSize: 12, 
-    color: C.tealDark, 
-    fontWeight: '600' 
-  },
-
-  // ── Buttons ──────────────────────────────────────────────────────────────────
-  btnRow: {
-    flexDirection: 'row', 
-    gap: 12,
-    marginHorizontal: 20, 
-    marginTop: 4,
-  },
+  changesDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.teal },
+  changesTxt: { fontSize: 12, color: C.tealDark, fontWeight: '600' },
+  btnRow: { flexDirection: 'row', gap: 12, marginHorizontal: 20, marginTop: 4 },
   btnCancel: {
-    flex: 1, 
-    height: 52, 
+    flex: 1,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: C.white, 
-    borderWidth: 1.5, 
+    backgroundColor: C.white,
+    borderWidth: 1.5,
     borderColor: C.border,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  btnCancelTxt: { 
-    fontSize: 14, 
-    color: C.slate, 
-    fontWeight: '600' 
-  },
+  btnCancelTxt: { fontSize: 14, color: C.slate, fontWeight: '600' },
   btnSave: {
-    flex: 2, 
-    height: 52, 
+    flex: 2,
+    height: 52,
     borderRadius: 12,
     backgroundColor: C.teal,
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: C.teal, 
+    shadowColor: C.teal,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, 
-    shadowRadius: 12, 
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 6,
   },
-  btnSaveTxt: { 
-    fontSize: 15, 
-    fontWeight: '800', 
-    color: C.navy 
-  },
+  btnSaveTxt: { fontSize: 15, fontWeight: '800', color: C.navy },
 });
+
+export default EditProfile;

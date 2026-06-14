@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Animated,
   Platform,
 } from "react-native";
+import { useState } from "react";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from "react-redux";
@@ -52,16 +53,19 @@ const C = {
   green:    '#22C55E',
   orange:   '#F97316',
   amber:    '#F59E0B',
+  indigo:   '#818CF8',
+  violet:   '#A78BFA',
+  blue:     '#60A5FA',
 };
 
 // ── Fade-in animation (mirrors EditProfile) ───────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
   const opacity    = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(18)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity,    { toValue: 1, duration: 420, delay, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
+      Animated.timing(opacity,    { toValue: 1, duration: 380, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 380, delay, useNativeDriver: true }),
     ]).start();
   }, []);
   return (
@@ -71,36 +75,67 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
-// ── Status / classification helpers ──────────────────────────────────────────
+// ── Status meta — covers the full report lifecycle ────────────────────────────
+// pending → scheduled → processed → recycled / completed / disposed / rejected
 const STATUS_META = {
-  pending:   { color: C.amber,  bg: 'rgba(245,158,11,0.13)',  border: 'rgba(245,158,11,0.35)',  icon: 'time-outline' },
-  processed: { color: '#60A5FA', bg: 'rgba(96,165,250,0.13)', border: 'rgba(96,165,250,0.35)',  icon: 'checkmark-circle-outline' },
-  recycled:  { color: C.green,  bg: 'rgba(34,197,94,0.13)',   border: 'rgba(34,197,94,0.35)',   icon: 'refresh-circle-outline' },
-  disposed:  { color: C.red,    bg: 'rgba(239,68,68,0.13)',   border: 'rgba(239,68,68,0.35)',   icon: 'trash-outline' },
-  rejected:  { color: '#A78BFA', bg: 'rgba(167,139,250,0.13)',border: 'rgba(167,139,250,0.35)', icon: 'close-circle-outline' },
+  pending:   { label: 'Pending',   color: C.amber,  bg: 'rgba(245,158,11,0.13)',  border: 'rgba(245,158,11,0.35)',  icon: 'time-outline' },
+  scheduled: { label: 'Scheduled', color: C.indigo, bg: 'rgba(129,140,248,0.13)', border: 'rgba(129,140,248,0.35)', icon: 'calendar-outline' },
+  processed: { label: 'Processed', color: C.blue,   bg: 'rgba(96,165,250,0.13)',  border: 'rgba(96,165,250,0.35)',  icon: 'sync-outline' },
+  recycled:  { label: 'Recycled',  color: C.green,  bg: 'rgba(34,197,94,0.13)',   border: 'rgba(34,197,94,0.35)',   icon: 'refresh-circle-outline' },
+  completed: { label: 'Completed', color: C.teal,   bg: C.tealDim,                border: C.tealLine,                icon: 'checkmark-done-circle-outline' },
+  disposed:  { label: 'Disposed',  color: C.red,    bg: 'rgba(239,68,68,0.13)',   border: 'rgba(239,68,68,0.35)',   icon: 'trash-outline' },
+  rejected:  { label: 'Rejected',  color: C.violet, bg: 'rgba(167,139,250,0.13)', border: 'rgba(167,139,250,0.35)', icon: 'close-circle-outline' },
 };
 
+const getStatusMeta = (s) =>
+  STATUS_META[s] || {
+    label: s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Unknown',
+    color: C.slateL,
+    bg: 'rgba(139,165,188,0.13)',
+    border: 'rgba(139,165,188,0.35)',
+    icon: 'help-circle-outline',
+  };
+
+// ── Status filter chips for the list — "All" plus every individual status ─────
+const STATUS_FILTERS = ['all', 'pending', 'scheduled', 'processed', 'recycled', 'completed', 'disposed', 'rejected'];
+
+const getFilterMeta = (key) =>
+  key === 'all'
+    ? { label: 'All', icon: 'layers-outline', color: C.navy, bg: 'rgba(10,37,64,0.06)', border: C.border }
+    : STATUS_META[key];
+
+// ── Waste classification meta (icon-based, no emoji) ───────────────────────────
 const CLASS_META = {
-  Recyclable:    { color: C.green,  icon: '♻️' },
-  recyclable:    { color: C.green,  icon: '♻️' },
-  Organic:       { color: C.orange, icon: '🌿' },
-  organic:       { color: C.orange, icon: '🌿' },
-  'Special Waste':{ color: C.red,   icon: '⚠️' },
-  special_waste: { color: C.red,    icon: '⚠️' },
-  Hazardous:     { color: C.red,    icon: '☢️' },
-  hazardous:     { color: C.red,    icon: '☢️' },
-  General:       { color: C.slate,  icon: '🗑️' },
-  general_waste: { color: C.slate,  icon: '🗑️' },
+  Recyclable:      { color: C.green,  icon: 'leaf-outline' },
+  recyclable:      { color: C.green,  icon: 'leaf-outline' },
+  Organic:         { color: C.orange, icon: 'nutrition-outline' },
+  organic:         { color: C.orange, icon: 'nutrition-outline' },
+  'Special Waste': { color: C.red,    icon: 'alert-circle-outline' },
+  special_waste:   { color: C.red,    icon: 'alert-circle-outline' },
+  Hazardous:       { color: C.red,    icon: 'skull-outline' },
+  hazardous:       { color: C.red,    icon: 'skull-outline' },
+  General:         { color: C.slate,  icon: 'trash-bin-outline' },
+  general_waste:   { color: C.slate,  icon: 'trash-bin-outline' },
 };
 
-const getStatusMeta  = (s) => STATUS_META[s]  || { color: C.slateL, bg: 'rgba(139,165,188,0.13)', border: 'rgba(139,165,188,0.35)', icon: 'help-circle-outline' };
-const getClassMeta   = (c) => CLASS_META[c]   || { color: C.slateL, icon: '❓' };
+const getClassMeta = (c) => CLASS_META[c] || { color: C.slateL, icon: 'help-circle-outline' };
+
+// ── Confidence colour scale (quick visual scan, like a dashboard) ──────────────
+const getConfidenceColor = (value) => {
+  const pct = typeof value === 'number' ? (value <= 1 ? value * 100 : value) : 0;
+  if (pct >= 80) return C.green;
+  if (pct >= 50) return C.amber;
+  return C.red;
+};
 
 const formatDate = (dateString) =>
   new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+
+const formatShortDate = (dateString) =>
+  new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 const formatConfidence = (value) => {
   if (typeof value !== 'number') return `${value}`;
@@ -122,11 +157,17 @@ const ReportHistory = ({ navigation }) => {
   const [imageSize,          setImageSize]          = useState({ width: 0, height: 0 });
   const [showDetections,     setShowDetections]     = useState(true);
   const [imageLoading,       setImageLoading]       = useState(false);
+  const [statusFilter,       setStatusFilter]       = useState('all');
 
   const dispatch = useDispatch();
   const { reports, loading, error, success, operation, pagination, currentReport } =
     useSelector((state) => state.wasteReport);
   const { user } = useSelector((state) => state.auth);
+
+  // Reports currently shown in the table — "all" or filtered to a single status
+  const filteredReports = statusFilter === 'all'
+    ? reports
+    : reports.filter((r) => r.status === statusFilter);
 
   useEffect(() => { loadReports(1); }, []);
 
@@ -206,8 +247,9 @@ const ReportHistory = ({ navigation }) => {
       return (
         <View key={i} style={[s.detectionBox, { left, top, width, height, borderColor: meta.color }]}>
           <View style={[s.detectionLabel, { backgroundColor: meta.color }]}>
+            <Ionicons name={meta.icon} size={11} color={C.white} style={{ marginRight: 4 }} />
             <Text style={s.detectionLabelTxt} numberOfLines={1}>
-              {meta.icon} {item.label} ({formatConfidence(item.confidence)})
+              {item.label} ({formatConfidence(item.confidence)})
             </Text>
           </View>
         </View>
@@ -215,106 +257,112 @@ const ReportHistory = ({ navigation }) => {
     });
   };
 
-  // ── Report card ────────────────────────────────────────────────────────────
+  // ── Table header row ──────────────────────────────────────────────────────
+  const TableHeaderRow = () => (
+    <View style={s.tableHeaderRow}>
+      <Text style={[s.tableHeaderTxt, { flex: 2.6 }]}>Item</Text>
+      <Text style={[s.tableHeaderTxt, { flex: 1.3 }]}>Status</Text>
+      <Text style={[s.tableHeaderTxt, { flex: 0.9, textAlign: 'right' }]}>Conf.</Text>
+      <View style={{ width: 28 }} />
+    </View>
+  );
+
+  // ── Table row (one report) ───────────────────────────────────────────────
   const renderReportItem = ({ item, index }) => {
-    const statusMeta = getStatusMeta(item.status);
-    const classMeta  = getClassMeta(item.classification);
+    const statusMeta   = getStatusMeta(item.status);
+    const classMeta    = getClassMeta(item.classification);
     const objectsCount = (item.detected_objects || item.detectedObjects || []).length;
+    const confValue    = item.classification_confidence ?? item.classificationConfidence;
+    const isLast       = index === filteredReports.length - 1;
 
     return (
-      <FadeIn delay={index * 60}>
-        <View style={s.reportCard}>
-          {/* Card top accent line */}
-          <View style={[s.cardAccent, { backgroundColor: classMeta.color }]} />
-
-          {/* Header row */}
-          <View style={s.cardHeader}>
-            <View style={s.classRow}>
-              <Text style={s.classIcon}>{classMeta.icon}</Text>
-              <Text style={[s.classText, { color: classMeta.color }]}>
+      <TouchableOpacity
+        style={[s.tableRow, isLast && s.tableRowLast]}
+        onPress={() => handleViewDetails(item._id)}
+        activeOpacity={0.6}
+      >
+        {/* Item: thumbnail + classification + sub info */}
+        <View style={s.cellItem}>
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={s.rowThumb} resizeMode="cover" />
+          ) : (
+            <View style={[s.rowThumb, s.rowThumbPlaceholder, { backgroundColor: `${classMeta.color}1A`, borderColor: `${classMeta.color}40` }]}>
+              <Ionicons name={classMeta.icon} size={16} color={classMeta.color} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <View style={s.rowTitleRow}>
+              <Ionicons name={classMeta.icon} size={12} color={classMeta.color} />
+              <Text style={[s.rowTitle, { color: classMeta.color }]} numberOfLines={1}>
                 {item.classification}
               </Text>
             </View>
-            <View style={[s.statusBadge, { backgroundColor: statusMeta.bg, borderColor: statusMeta.border }]}>
-              <Ionicons name={statusMeta.icon} size={11} color={statusMeta.color} />
-              <Text style={[s.statusText, { color: statusMeta.color }]}>{item.status}</Text>
-            </View>
-          </View>
-
-          {/* Image + meta */}
-          <View style={s.cardBody}>
-            {item.image && (
-              <TouchableOpacity
-                style={s.thumbWrap}
-                onPress={() => openImageViewer(item.image, item.detected_objects)}
-                activeOpacity={0.82}
-              >
-                <Image source={{ uri: item.image }} style={s.thumbImg} resizeMode="cover" />
-                <View style={s.thumbOverlay}>
-                  <Ionicons name="scan-outline" size={18} color={C.white} />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            <View style={s.cardMeta}>
-              <View style={s.metaRow}>
-                <Ionicons name="calendar-outline" size={12} color={C.slateL} />
-                <Text style={s.metaTxt}>{formatDate(item.scan_date || item.scanDate)}</Text>
-              </View>
-              <View style={s.metaRow}>
-                <Ionicons name="stats-chart-outline" size={12} color={C.slateL} />
-                <Text style={s.metaTxt}>
-                  Confidence: {formatConfidence(item.classification_confidence || item.classificationConfidence)}
-                </Text>
-              </View>
-              <View style={s.metaRow}>
-                <Ionicons name="search-outline" size={12} color={C.slateL} />
-                <Text style={s.metaTxt}>{objectsCount} object{objectsCount !== 1 ? 's' : ''} detected</Text>
-              </View>
-              {item.location?.address && (
-                <View style={s.metaRow}>
-                  <Ionicons name="location-outline" size={12} color={C.slateL} />
-                  <Text style={[s.metaTxt, { flex: 1 }]} numberOfLines={1}>
-                    {item.location.address}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Divider */}
-          <View style={s.cardDivider} />
-
-          {/* Action buttons */}
-          <View style={s.cardActions}>
-            <TouchableOpacity
-              style={s.btnView}
-              onPress={() => handleViewDetails(item._id)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="eye-outline" size={14} color={C.navy} />
-              <Text style={s.btnViewTxt}>View Details</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.btnDelete}
-              onPress={() => handleDeleteReport(item)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={14} color={C.red} />
-              <Text style={s.btnDeleteTxt}>Delete</Text>
-            </TouchableOpacity>
+            <Text style={s.rowSub} numberOfLines={1}>
+              {objectsCount} object{objectsCount !== 1 ? 's' : ''} · {formatShortDate(item.scan_date || item.scanDate)}
+            </Text>
           </View>
         </View>
-      </FadeIn>
+
+        {/* Status */}
+        <View style={s.cellStatus}>
+          <View style={[s.statusBadgeSmall, { backgroundColor: statusMeta.bg, borderColor: statusMeta.border }]}>
+            <Ionicons name={statusMeta.icon} size={10} color={statusMeta.color} />
+            <Text style={[s.statusBadgeSmallTxt, { color: statusMeta.color }]} numberOfLines={1}>
+              {statusMeta.label}
+            </Text>
+          </View>
+        </View>
+
+        {/* Confidence */}
+        <View style={s.cellConf}>
+          <Text style={[s.rowConf, { color: getConfidenceColor(confValue) }]}>
+            {formatConfidence(confValue)}
+          </Text>
+        </View>
+
+        {/* Delete action */}
+        <TouchableOpacity
+          style={s.cellAction}
+          onPress={() => handleDeleteReport(item)}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="trash-outline" size={15} color={C.slateL} />
+        </TouchableOpacity>
+      </TouchableOpacity>
     );
   };
 
   // ── Empty state ────────────────────────────────────────────────────────────
-  const renderEmptyState = () => (
-    <FadeIn delay={0}>
+  const renderEmptyState = () => {
+    // No results because a status filter is active (but reports exist overall)
+    if (statusFilter !== 'all' && reports.length > 0) {
+      const meta = getFilterMeta(statusFilter);
+      return (
+        <View style={s.emptyWrap}>
+          <View style={[s.emptyIconWrap, { backgroundColor: meta.bg, borderColor: meta.border }]}>
+            <Ionicons name={meta.icon} size={32} color={meta.color} />
+          </View>
+          <Text style={s.emptyTitle}>No {meta.label} Reports</Text>
+          <Text style={s.emptyText}>
+            You don't have any reports with "{meta.label}" status yet.
+          </Text>
+          <TouchableOpacity
+            style={s.emptyScanBtn}
+            onPress={() => setStatusFilter('all')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="layers-outline" size={15} color={C.navy} />
+            <Text style={s.emptyScanBtnTxt}>View All Reports</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // No reports at all
+    return (
       <View style={s.emptyWrap}>
         <View style={s.emptyIconWrap}>
-          <Ionicons name="document-outline" size={38} color={C.teal} />
+          <Ionicons name="document-outline" size={32} color={C.teal} />
         </View>
         <Text style={s.emptyTitle}>No Reports Yet</Text>
         <Text style={s.emptyText}>
@@ -325,78 +373,130 @@ const ReportHistory = ({ navigation }) => {
           onPress={() => navigation.navigate('WasteDetection')}
           activeOpacity={0.85}
         >
-          <Ionicons name="camera-outline" size={16} color={C.navy} />
+          <Ionicons name="camera-outline" size={15} color={C.navy} />
           <Text style={s.emptyScanBtnTxt}>Start Scanning</Text>
         </TouchableOpacity>
       </View>
-    </FadeIn>
-  );
+    );
+  };
 
   // ── Root render ────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar style="light" backgroundColor={C.ink} />
-      
+
       <View style={s.container}>
-        {/* ── Header (mirrors EditProfile) ── */}
+        {/* ── Header ── */}
         <View style={s.header}>
-          <View style={s.headerBlob} />
           <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color={C.white} />
+            <Ionicons name="chevron-back" size={20} color={C.white} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
             <Text style={s.headerTitle}>Scan History</Text>
             <Text style={s.headerSub}>Your waste analysis reports</Text>
           </View>
-          <View style={{ width: 38 }} />
+          <View style={{ width: 36 }} />
         </View>
 
-        {/* ── Stats bar ── */}
+        {/* ── Summary stats ── */}
         {reports.length > 0 && (
           <FadeIn delay={0}>
-            <View style={s.statsBar}>
-              <View style={s.statItem}>
-                <Text style={s.statNum}>{reports.length}</Text>
-                <Text style={s.statLabel}>Total</Text>
+            <View style={s.statsRow}>
+              <View style={s.statCard}>
+                <View style={[s.statCardIconWrap, { backgroundColor: C.tealDim, borderColor: C.tealLine }]}>
+                  <Ionicons name="documents-outline" size={14} color={C.teal} />
+                </View>
+                <Text style={s.statCardNum}>{reports.length}</Text>
+                <Text style={s.statCardLabel}>Total</Text>
               </View>
-              <View style={s.statDivider} />
-              <View style={s.statItem}>
-                <Text style={[s.statNum, { color: C.green }]}>
+              <View style={s.statCard}>
+                <View style={[s.statCardIconWrap, { backgroundColor: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.3)' }]}>
+                  <Ionicons name="leaf-outline" size={14} color={C.green} />
+                </View>
+                <Text style={[s.statCardNum, { color: C.green }]}>
                   {reports.filter(r => r.classification === 'Recyclable' || r.classification === 'recyclable').length}
                 </Text>
-                <Text style={s.statLabel}>Recyclable</Text>
+                <Text style={s.statCardLabel}>Recyclable</Text>
               </View>
-              <View style={s.statDivider} />
-              <View style={s.statItem}>
-                <Text style={[s.statNum, { color: C.amber }]}>
+              <View style={s.statCard}>
+                <View style={[s.statCardIconWrap, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                  <Ionicons name="time-outline" size={14} color={C.amber} />
+                </View>
+                <Text style={[s.statCardNum, { color: C.amber }]}>
                   {reports.filter(r => r.status === 'pending').length}
                 </Text>
-                <Text style={s.statLabel}>Pending</Text>
+                <Text style={s.statCardLabel}>Pending</Text>
               </View>
             </View>
           </FadeIn>
         )}
 
-        {/* ── List ── */}
-        <FlatList
-          data={reports}
-          renderItem={renderReportItem}
-          keyExtractor={(item) => item._id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
-          }
-          ListEmptyComponent={!loading ? renderEmptyState : null}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loading && reports.length > 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={C.teal} />
-              </View>
-            ) : null
-          }
-          contentContainerStyle={s.listContent}
-        />
+        {/* ── Status filter chips ── */}
+        {reports.length > 0 && (
+          <FadeIn delay={40}>
+            <View style={s.filterBarWrap}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.filterBarContent}
+              >
+                {STATUS_FILTERS.map((key) => {
+                  const meta = getFilterMeta(key);
+                  const count = key === 'all'
+                    ? reports.length
+                    : reports.filter((r) => r.status === key).length;
+                  const active = statusFilter === key;
+
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[
+                        s.filterChip,
+                        active && { backgroundColor: meta.color, borderColor: meta.color },
+                      ]}
+                      onPress={() => setStatusFilter(key)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={meta.icon} size={13} color={active ? C.white : meta.color} />
+                      <Text style={[s.filterChipTxt, active && s.filterChipTxtActive]}>
+                        {meta.label}
+                      </Text>
+                      <View style={[s.filterChipBadge, active && s.filterChipBadgeActive]}>
+                        <Text style={[s.filterChipBadgeTxt, active && s.filterChipBadgeTxtActive]}>
+                          {count}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </FadeIn>
+        )}
+
+        {/* ── Reports table ── */}
+        <View style={s.tableCard}>
+          <FlatList
+            data={filteredReports}
+            renderItem={renderReportItem}
+            keyExtractor={(item) => item._id}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
+            }
+            ListHeaderComponent={filteredReports.length > 0 ? TableHeaderRow : null}
+            ListEmptyComponent={!loading ? renderEmptyState : null}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              loading && reports.length > 0 ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={C.teal} />
+                </View>
+              ) : null
+            }
+            contentContainerStyle={s.tableBody}
+          />
+        </View>
 
         {/* ── Initial loading ── */}
         {loading && reports.length === 0 && (
@@ -411,12 +511,11 @@ const ReportHistory = ({ navigation }) => {
       <Modal animationType="fade" transparent={false} visible={imageViewerVisible} onRequestClose={closeImageViewer}>
         <SafeAreaView style={s.imgViewerRoot} edges={['top']}>
           <StatusBar style="light" backgroundColor={C.ink} />
-          
+
           {/* Header */}
           <View style={s.imgViewerHeader}>
-            <View style={s.headerBlob} />
             <TouchableOpacity style={s.backBtn} onPress={closeImageViewer} activeOpacity={0.7}>
-              <Ionicons name="chevron-back" size={22} color={C.white} />
+              <Ionicons name="chevron-back" size={20} color={C.white} />
             </TouchableOpacity>
             <View style={s.headerCenter}>
               <Text style={s.headerTitle}>Historical Image</Text>
@@ -430,9 +529,9 @@ const ReportHistory = ({ navigation }) => {
                 onPress={() => setShowDetections(v => !v)}
                 activeOpacity={0.7}
               >
-                <Ionicons name={showDetections ? 'eye-outline' : 'eye-off-outline'} size={20} color={C.teal} />
+                <Ionicons name={showDetections ? 'eye-outline' : 'eye-off-outline'} size={18} color={C.teal} />
               </TouchableOpacity>
-            ) : <View style={{ width: 38 }} />}
+            ) : <View style={{ width: 36 }} />}
           </View>
 
           {/* Image */}
@@ -539,7 +638,7 @@ const ReportHistory = ({ navigation }) => {
                     const m = getClassMeta(selectedReport.classification);
                     return (
                       <View style={[s.chip, { borderColor: m.color, backgroundColor: `${m.color}22` }]}>
-                        <Text style={s.chipIcon}>{m.icon}</Text>
+                        <Ionicons name={m.icon} size={13} color={m.color} />
                         <Text style={[s.chipTxt, { color: m.color }]}>{selectedReport.classification}</Text>
                       </View>
                     );
@@ -549,7 +648,7 @@ const ReportHistory = ({ navigation }) => {
                     return (
                       <View style={[s.chip, { borderColor: m.border, backgroundColor: m.bg }]}>
                         <Ionicons name={m.icon} size={12} color={m.color} />
-                        <Text style={[s.chipTxt, { color: m.color }]}>{selectedReport.status}</Text>
+                        <Text style={[s.chipTxt, { color: m.color }]}>{m.label}</Text>
                       </View>
                     );
                   })()}
@@ -588,7 +687,9 @@ const ReportHistory = ({ navigation }) => {
                       const m = getClassMeta(obj.category || obj.label);
                       return (
                         <View key={i} style={[s.objectRow, { borderLeftColor: m.color }]}>
-                          <Text style={s.objectIcon}>{m.icon}</Text>
+                          <View style={[s.objectIconWrap, { backgroundColor: `${m.color}1A` }]}>
+                            <Ionicons name={m.icon} size={16} color={m.color} />
+                          </View>
                           <View style={{ flex: 1 }}>
                             <Text style={s.objectLabel}>{obj.label}</Text>
                             <Text style={s.objectMeta}>
@@ -707,634 +808,634 @@ export default ReportHistory;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: C.offWhite 
+  root: {
+    flex: 1,
+    backgroundColor: C.offWhite,
   },
   container: {
     flex: 1,
   },
 
-  // ── Header (identical to EditProfile) ────────────────────────────────────────
+  // ── Header (simplified, flat) ─────────────────────────────────────────────────
   header: {
     backgroundColor: C.ink,
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 8 : 14,
-    paddingBottom: 18, 
+    paddingBottom: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1, 
+    borderBottomWidth: 1,
     borderBottomColor: C.borderDk,
-    overflow: 'hidden',
-  },
-  headerBlob: {
-    position: 'absolute', 
-    width: 200, 
-    height: 200, 
-    borderRadius: 100,
-    backgroundColor: C.tealGlow, 
-    top: -80, 
-    right: -70,
   },
   backBtn: {
-    width: 38, 
-    height: 38, 
+    width: 36,
+    height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, 
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
     borderColor: C.borderDk,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCenter:  { 
-    flex: 1, 
-    alignItems: 'center' 
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
-  headerTitle:   { 
-    fontSize: 17, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: -0.2 
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: C.white,
+    letterSpacing: -0.2,
   },
-  headerSub:     { 
-    fontSize: 10, 
-    color: C.teal, 
-    fontWeight: '700', 
-    letterSpacing: 0.6, 
-    textTransform: 'uppercase', 
-    marginTop: 2 
+  headerSub: {
+    fontSize: 11,
+    color: C.ghost,
+    fontWeight: '500',
+    marginTop: 2,
   },
 
-  // ── Stats bar ─────────────────────────────────────────────────────────────────
-  statsBar: {
-    backgroundColor: C.ink,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-around',
-    paddingVertical: 14, 
+  // ── Summary stat cards ───────────────────────────────────────────────────────
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 24, 
-    borderBottomRightRadius: 24,
-    marginBottom: 16,
+    marginTop: 14,
+    marginBottom: 12,
   },
-  statItem:    { 
-    alignItems: 'center' 
-  },
-  statNum:     { 
-    fontSize: 22, 
-    fontWeight: '900', 
-    color: C.white 
-  },
-  statLabel:   { 
-    fontSize: 10, 
-    color: C.slateL, 
-    fontWeight: '700', 
-    textTransform: 'uppercase', 
-    letterSpacing: 0.5, 
-    marginTop: 2 
-  },
-  statDivider: { 
-    width: 1, 
-    height: 32, 
-    backgroundColor: C.borderDk 
-  },
-
-  // ── List ─────────────────────────────────────────────────────────────────────
-  listContent: { 
-    paddingHorizontal: 20, 
-    paddingBottom: 40, 
-    paddingTop: 4 
-  },
-
-  // ── Report card ──────────────────────────────────────────────────────────────
-  reportCard: {
-    backgroundColor: C.white, 
-    borderRadius: 20, 
-    marginBottom: 16,
-    borderWidth: 1, 
-    borderColor: C.border, 
-    overflow: 'hidden',
-    shadowColor: 'rgba(7,27,46,0.08)',
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 1, 
-    shadowRadius: 12, 
-    elevation: 3,
-  },
-  cardAccent:  { 
-    height: 3, 
-    width: '100%' 
-  },
-  cardHeader:  { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingHorizontal: 16, 
-    paddingTop: 14, 
-    paddingBottom: 10 
-  },
-  classRow:    { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6 
-  },
-  classIcon:   { 
-    fontSize: 16 
-  },
-  classText:   { 
-    fontSize: 14, 
-    fontWeight: '800' 
-  },
-  statusBadge: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  statCard: {
+    flex: 1,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 12,
+    alignItems: 'center',
     gap: 4,
-    borderWidth: 1, 
-    borderRadius: 20, 
-    paddingVertical: 4, 
-    paddingHorizontal: 10,
   },
-  statusText:  { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    textTransform: 'capitalize' 
+  statCardIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  statCardNum: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: C.navy,
+  },
+  statCardLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: C.slateL,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
-  cardBody:    { 
-    flexDirection: 'row', 
-    paddingHorizontal: 16, 
-    paddingBottom: 14, 
-    gap: 12 
+  // ── Status filter bar ────────────────────────────────────────────────────────
+  filterBarWrap: {
+    marginBottom: 12,
   },
-  thumbWrap:   { 
-    width: 82, 
-    height: 82, 
-    borderRadius: 14, 
-    overflow: 'hidden', 
-    borderWidth: 1.5, 
-    borderColor: C.border 
+  filterBarContent: {
+    paddingHorizontal: 20,
+    paddingRight: 24,
   },
-  thumbImg:    { 
-    width: '100%', 
-    height: '100%' 
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    backgroundColor: C.white,
+    borderColor: C.border,
+    marginRight: 8,
   },
-  thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    alignItems: 'center', 
+  filterChipTxt: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.slate,
+  },
+  filterChipTxtActive: {
+    color: C.white,
+  },
+  filterChipBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: 'center',
+    backgroundColor: 'rgba(7,27,46,0.06)',
+  },
+  filterChipBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  filterChipBadgeTxt: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: C.slate,
+  },
+  filterChipBadgeTxtActive: {
+    color: C.white,
+  },
+
+  // ── Reports table ────────────────────────────────────────────────────────────
+  tableCard: {
+    flex: 1,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: C.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+  },
+  tableBody: {
+    flexGrow: 1,
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.offWhite,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 8,
+  },
+  tableHeaderTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.slateL,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 8,
+    backgroundColor: C.white,
+  },
+  tableRowLast: {
+    borderBottomWidth: 0,
+  },
+
+  cellItem: {
+    flex: 2.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cellStatus: {
+    flex: 1.3,
+    alignItems: 'flex-start',
+  },
+  cellConf: {
+    flex: 0.9,
+    alignItems: 'flex-end',
+  },
+  cellAction: {
+    width: 28,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  cardMeta:    { 
-    flex: 1, 
-    gap: 5, 
-    justifyContent: 'center' 
-  },
-  metaRow:     { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5 
-  },
-  metaTxt:     { 
-    fontSize: 12, 
-    color: C.slate 
-  },
-  cardDivider: { 
-    height: 1, 
-    backgroundColor: C.border, 
-    marginHorizontal: 16 
-  },
 
-  cardActions: { 
-    flexDirection: 'row', 
-    gap: 10, 
-    padding: 14 
-  },
-  btnView: {
-    flex: 2, 
-    height: 40, 
+  rowThumb: {
+    width: 38,
+    height: 38,
     borderRadius: 10,
-    backgroundColor: C.teal,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 6,
-    shadowColor: C.teal, 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  btnViewTxt:   { 
-    fontSize: 13, 
-    fontWeight: '800', 
-    color: C.navy 
+  rowThumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnDelete: {
-    flex: 1, 
-    height: 40, 
-    borderRadius: 10,
-    backgroundColor: C.redDim, 
-    borderWidth: 1, 
-    borderColor: C.redLine,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  rowTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 5,
   },
-  btnDeleteTxt: { 
-    fontSize: 13, 
-    fontWeight: '700', 
-    color: C.red 
+  rowTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  rowSub: {
+    fontSize: 11,
+    color: C.slateL,
+    marginTop: 2,
+  },
+
+  statusBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    alignSelf: 'flex-start',
+  },
+  statusBadgeSmallTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  rowConf: {
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   // ── Empty state ──────────────────────────────────────────────────────────────
-  emptyWrap: { 
-    alignItems: 'center', 
-    paddingTop: 80, 
-    paddingHorizontal: 40 
+  emptyWrap: {
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 48,
+    paddingHorizontal: 36,
   },
   emptyIconWrap: {
-    width: 80, 
-    height: 80, 
-    borderRadius: 22,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1.5, 
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: C.tealDim,
+    borderWidth: 1.5,
     borderColor: C.tealLine,
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  emptyTitle:   { 
-    fontSize: 20, 
-    fontWeight: '900', 
-    color: C.navy, 
-    marginBottom: 8 
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: C.navy,
+    marginBottom: 6,
   },
-  emptyText:    { 
-    fontSize: 14, 
-    color: C.slate, 
-    textAlign: 'center', 
-    lineHeight: 21, 
-    marginBottom: 24 
+  emptyText: {
+    fontSize: 13,
+    color: C.slate,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
   },
   emptyScanBtn: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    backgroundColor: C.teal, 
-    borderRadius: 14,
-    paddingVertical: 14, 
-    paddingHorizontal: 28,
-    shadowColor: C.teal, 
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.35, 
-    shadowRadius: 12, 
-    elevation: 6,
+    backgroundColor: C.teal,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
   },
-  emptyScanBtnTxt: { 
-    fontSize: 15, 
-    fontWeight: '800', 
-    color: C.navy 
+  emptyScanBtnTxt: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: C.navy,
   },
 
   // ── Loading ──────────────────────────────────────────────────────────────────
-  loadingOverlay: { 
-    ...StyleSheet.absoluteFillObject, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    backgroundColor: C.offWhite 
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.offWhite,
   },
-  loadingTxt:     { 
-    marginTop: 14, 
-    fontSize: 14, 
-    color: C.slate, 
-    fontWeight: '600' 
+  loadingTxt: {
+    marginTop: 14,
+    fontSize: 14,
+    color: C.slate,
+    fontWeight: '600',
   },
 
   // ── Image viewer ─────────────────────────────────────────────────────────────
-  imgViewerRoot:   { 
-    flex: 1, 
-    backgroundColor: C.ink 
+  imgViewerRoot: {
+    flex: 1,
+    backgroundColor: C.ink,
   },
   imgViewerHeader: {
     backgroundColor: C.ink,
-    flexDirection: 'row', 
+    flexDirection: 'row',
     alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 8 : 14,
-    paddingBottom: 18, 
+    paddingBottom: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1, 
+    borderBottomWidth: 1,
     borderBottomColor: C.borderDk,
-    overflow: 'hidden',
   },
-  imgViewerBody:   { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  imgViewerBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  fullImg:         { 
-    width: screenWidth, 
-    height: screenHeight - 200 
+  fullImg: {
+    width: screenWidth,
+    height: screenHeight - 200,
   },
-  imgLoading:      { 
-    position: 'absolute', 
-    alignItems: 'center', 
-    gap: 12 
+  imgLoading: {
+    position: 'absolute',
+    alignItems: 'center',
+    gap: 12,
   },
-  imgLoadingTxt:   { 
-    fontSize: 13, 
-    color: C.ghost 
+  imgLoadingTxt: {
+    fontSize: 13,
+    color: C.ghost,
   },
-  detectionBox:    { 
-    position: 'absolute', 
-    borderWidth: 2 
+  detectionBox: {
+    position: 'absolute',
+    borderWidth: 2,
   },
-  detectionLabel:  { 
-    position: 'absolute', 
-    top: 0, 
-    left: 0, 
-    paddingHorizontal: 6, 
-    paddingVertical: 2, 
-    borderRadius: 4 
+  detectionLabel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  detectionLabelTxt: { 
-    fontSize: 10, 
-    color: C.white, 
-    fontWeight: '700' 
+  detectionLabelTxt: {
+    fontSize: 10,
+    color: C.white,
+    fontWeight: '700',
   },
 
-  imgViewerFooter: { 
-    backgroundColor: C.navy, 
-    padding: 16, 
-    borderTopWidth: 1, 
-    borderTopColor: C.borderDk 
+  imgViewerFooter: {
+    backgroundColor: C.navy,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: C.borderDk,
   },
-  detectionSummary: { 
-    flexDirection: 'row', 
-    gap: 20, 
-    justifyContent: 'center' 
+  detectionSummary: {
+    flexDirection: 'row',
+    gap: 20,
+    justifyContent: 'center',
   },
-  detSumItem:      { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6 
+  detSumItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  detSumDot:       { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4 
+  detSumDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  detSumTxt:       { 
-    fontSize: 12, 
-    color: C.ghost, 
-    fontWeight: '600' 
+  detSumTxt: {
+    fontSize: 12,
+    color: C.ghost,
+    fontWeight: '600',
   },
 
   // ── Modals ───────────────────────────────────────────────────────────────────
-  modalOverlay:    { 
-    flex: 1, 
-    backgroundColor: 'rgba(7,27,46,0.7)', 
-    justifyContent: 'flex-end' 
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(7,27,46,0.7)',
+    justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: C.white, 
-    borderTopLeftRadius: 28, 
-    borderTopRightRadius: 28,
-    paddingTop: 24, 
-    paddingHorizontal: 20, 
+    backgroundColor: C.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 24,
+    paddingHorizontal: 20,
     maxHeight: screenHeight * 0.88,
   },
   modalHeader: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
-  modalHeaderLeft: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 10 
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  modalTitle:      { 
-    fontSize: 17, 
-    fontWeight: '900', 
-    color: C.navy 
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: C.navy,
   },
   modalCloseBtn: {
-    width: 34, 
-    height: 34, 
+    width: 32,
+    height: 32,
     borderRadius: 9,
-    backgroundColor: C.offWhite, 
-    borderWidth: 1, 
+    backgroundColor: C.offWhite,
+    borderWidth: 1,
     borderColor: C.border,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
 
-  detailImgWrap:     { 
-    borderRadius: 16, 
-    overflow: 'hidden', 
-    marginBottom: 16, 
-    height: 200 
+  detailImgWrap: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 16,
+    height: 190,
   },
-  detailImg:         { 
-    width: '100%', 
-    height: '100%' 
+  detailImg: {
+    width: '100%',
+    height: '100%',
   },
   detailImgOverlay: {
-    ...StyleSheet.absoluteFillObject, 
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center', 
-    justifyContent: 'center', 
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
-  detailImgOverlayTxt: { 
-    fontSize: 13, 
-    color: C.white, 
-    fontWeight: '700' 
+  detailImgOverlayTxt: {
+    fontSize: 13,
+    color: C.white,
+    fontWeight: '700',
   },
 
-  chipRow:    { 
-    flexDirection: 'row', 
-    gap: 10, 
-    marginBottom: 16 
+  chipRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
   },
   chip: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5,
-    borderWidth: 1, 
-    borderRadius: 20, 
-    paddingVertical: 5, 
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 5,
     paddingHorizontal: 12,
   },
-  chipIcon:   { 
-    fontSize: 13 
-  },
-  chipTxt:    { 
-    fontSize: 12, 
-    fontWeight: '700' 
+  chipTxt: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
-  detailSection:       { 
-    marginBottom: 18 
+  detailSection: {
+    marginBottom: 18,
   },
-  detailSectionHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginBottom: 10 
+  detailSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
   },
-  detailSectionTitle:  { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    color: C.slateL, 
-    textTransform: 'uppercase', 
-    letterSpacing: 0.5 
+  detailSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.slateL,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  detailValue:         { 
-    fontSize: 14, 
-    color: C.navy, 
-    lineHeight: 21 
+  detailValue: {
+    fontSize: 14,
+    color: C.navy,
+    lineHeight: 21,
   },
-  detailSub:           { 
-    fontSize: 12, 
-    color: C.slateL, 
-    marginTop: 2 
+  detailSub: {
+    fontSize: 12,
+    color: C.slateL,
+    marginTop: 2,
   },
 
-  confidenceBarBg: { 
-    height: 8, 
-    backgroundColor: C.border, 
-    borderRadius: 4, 
-    marginBottom: 6 
+  confidenceBarBg: {
+    height: 8,
+    backgroundColor: C.border,
+    borderRadius: 4,
+    marginBottom: 6,
   },
-  confidenceBarFill: { 
-    height: '100%', 
-    backgroundColor: C.teal, 
-    borderRadius: 4 
+  confidenceBarFill: {
+    height: '100%',
+    backgroundColor: C.teal,
+    borderRadius: 4,
   },
-  confidenceNum:   { 
-    fontSize: 13, 
-    fontWeight: '700', 
-    color: C.teal 
+  confidenceNum: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.teal,
   },
 
   objectRow: {
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
-    backgroundColor: C.offWhite, 
-    borderRadius: 10, 
-    padding: 12, 
+    backgroundColor: C.offWhite,
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 8,
     borderLeftWidth: 3,
   },
-  objectIcon:  { 
-    fontSize: 16, 
-    marginTop: 1 
+  objectIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  objectLabel: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: C.navy, 
-    marginBottom: 2 
+  objectLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.navy,
+    marginBottom: 2,
   },
-  objectMeta:  { 
-    fontSize: 11, 
-    color: C.slateL 
+  objectMeta: {
+    fontSize: 11,
+    color: C.slateL,
   },
 
-  tipRow:     { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    gap: 8, 
-    marginBottom: 6 
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
   },
-  tipDot:     { 
-    width: 6, 
-    height: 6, 
-    borderRadius: 3, 
-    backgroundColor: C.teal, 
-    marginTop: 6 
+  tipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.teal,
+    marginTop: 6,
   },
-  tipTxt:     { 
-    flex: 1, 
-    fontSize: 13, 
-    color: C.slate, 
-    lineHeight: 19 
+  tipTxt: {
+    flex: 1,
+    fontSize: 13,
+    color: C.slate,
+    lineHeight: 19,
   },
 
   // ── Confirm delete modal ──────────────────────────────────────────────────────
   confirmSheet: {
-    backgroundColor: C.white, 
-    borderTopLeftRadius: 28, 
-    borderTopRightRadius: 28,
-    padding: 28, 
+    backgroundColor: C.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 28,
     alignItems: 'center',
   },
-  confirmTitle: { 
-    fontSize: 18, 
-    fontWeight: '900', 
-    color: C.navy, 
-    marginBottom: 8 
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: C.navy,
+    marginBottom: 8,
   },
-  confirmText:  { 
-    fontSize: 14, 
-    color: C.slate, 
-    textAlign: 'center', 
-    lineHeight: 21, 
-    marginBottom: 24 
+  confirmText: {
+    fontSize: 14,
+    color: C.slate,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 24,
   },
 
-  // ── Shared button styles (mirrors EditProfile) ────────────────────────────────
-  btnRow: { 
-    flexDirection: 'row', 
-    gap: 12, 
-    width: '100%' 
+  // ── Shared button styles ─────────────────────────────────────────────────────
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
   },
   btnCancel: {
-    flex: 1, 
-    height: 52, 
+    flex: 1,
+    height: 50,
     borderRadius: 12,
-    backgroundColor: C.white, 
-    borderWidth: 1.5, 
+    backgroundColor: C.white,
+    borderWidth: 1.5,
     borderColor: C.border,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  btnCancelTxt: { 
-    fontSize: 14, 
-    color: C.slate, 
-    fontWeight: '600' 
+  btnCancelTxt: {
+    fontSize: 14,
+    color: C.slate,
+    fontWeight: '600',
   },
   btnSave: {
-    flex: 2, 
-    height: 52, 
+    flex: 2,
+    height: 50,
     borderRadius: 12,
     backgroundColor: C.teal,
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: C.teal, 
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, 
-    shadowRadius: 12, 
-    elevation: 6,
   },
-  btnSaveTxt: { 
-    fontSize: 15, 
-    fontWeight: '800', 
-    color: C.navy 
+  btnSaveTxt: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.navy,
   },
 
-  // ── Form card icon wrap (reused from EditProfile) ─────────────────────────────
+  // ── Form card icon wrap ───────────────────────────────────────────────────────
   formCardIconWrap: {
-    width: 32, 
-    height: 32, 
+    width: 32,
+    height: 32,
     borderRadius: 9,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
+    backgroundColor: C.tealDim,
+    borderWidth: 1,
     borderColor: C.tealLine,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'center',
   },
 });

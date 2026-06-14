@@ -14,6 +14,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import NetInfo from '@react-native-community/netinfo';
 
+// Complete silence - override all console methods
+const noop = () => {};
+console.log = noop;
+console.error = noop;
+console.warn = noop;
+console.info = noop;
+console.debug = noop;
+
 const { width } = Dimensions.get('window');
 
 const C = {
@@ -102,31 +110,79 @@ const Login = () => {
 
   const ADMIN_EMAIL = 'admin@tmfkwaste.com';
 
-  // ── Network listener ─────────────────────────────────────────────────────────
+  // ── Network listener with error handling ─────────────────────────────────────────
   useEffect(() => {
-    NetInfo.fetch().then((state) => setIsOffline(!state.isConnected)).catch(() => {});
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsOffline(!state.isConnected);
-    });
-    return unsubscribe;
+    let isMounted = true;
+    let unsubscribe = null;
+    
+    const setupNetInfo = async () => {
+      try {
+        // Initial fetch
+        const state = await NetInfo.fetch().catch(() => ({ isConnected: true }));
+        if (isMounted) {
+          setIsOffline(!state.isConnected);
+        }
+        
+        // Add event listener with try-catch
+        try {
+          unsubscribe = NetInfo.addEventListener((state) => {
+            if (isMounted) {
+              setIsOffline(!state.isConnected);
+            }
+          });
+        } catch (listenerError) {
+          // Silently handle listener error
+          if (isMounted) {
+            setIsOffline(false);
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          setIsOffline(false);
+        }
+      }
+    };
+    
+    setupNetInfo();
+    
+    return () => {
+      isMounted = false;
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        try {
+          unsubscribe();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+    };
   }, []);
 
-  // ── Push notifications ───────────────────────────────────────────────────────
-  useEffect(() => { registerForPushNotifications(); }, []);
-
-  const registerForPushNotifications = async () => {
-    try {
-      const { status: existing } = await Notifications.getPermissionsAsync();
-      const { status } = existing !== 'granted'
-        ? await Notifications.requestPermissionsAsync()
-        : { status: existing };
-      if (status !== 'granted') return;
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
-      setPushToken(token);
-    } catch (_) {
-      // Silently ignore — push token is optional
-    }
-  };
+  // ── Push notifications with error handling ───────────────────────────────────────
+  useEffect(() => { 
+    let isMounted = true;
+    
+    const registerForPushNotifications = async () => {
+      try {
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        const { status } = existing !== 'granted'
+          ? await Notifications.requestPermissionsAsync()
+          : { status: existing };
+        if (status !== 'granted') return;
+        const token = (await Notifications.getExpoPushTokenAsync()).data;
+        if (isMounted) {
+          setPushToken(token);
+        }
+      } catch (_) {
+        // Silently ignore — push token is optional
+      }
+    };
+    
+    registerForPushNotifications();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ── Validation ───────────────────────────────────────────────────────────────
   const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -170,7 +226,10 @@ const Login = () => {
 
   // ── Email/password login ─────────────────────────────────────────────────────
   const handleLogin = async () => {
-    if (isOffline) return;
+    if (isOffline) {
+      Alert.alert('No Connection', 'Please check your internet connection');
+      return;
+    }
     if (!validateAll()) {
       Alert.alert('Validation Error', 'Please fill in all required fields correctly');
       return;
@@ -180,9 +239,8 @@ const Login = () => {
         loginUser({ email: form.email, password: form.password, pushToken })
       ).unwrap();
       await handleLoginSuccess(resultAction);
-    } catch (rejectedPayload) {
-      // WALANG console.log dito - error ay nasa Redux state na at magdi-display sa UI
-      // Pero hindi lalabas sa console
+    } catch (_) {
+      // Error is handled by Redux state - silent catch
     }
   };
 
@@ -193,7 +251,7 @@ const Login = () => {
     fieldErrors[field]    && s.inputError,
   ];
 
-  const isBanned = error && ['banned', 'suspended', 'disabled'].some((w) =>
+  const isBanned = error && typeof error === 'string' && ['banned', 'suspended', 'disabled'].some((w) =>
     error.toLowerCase().includes(w)
   );
 
@@ -257,8 +315,8 @@ const Login = () => {
               <Text style={s.cardTitle}>Welcome Back</Text>
               <Text style={s.cardSub}>Sign in to your account to continue</Text>
 
-              {/* Error banner - ITO AY LUMALABAS SA SCREEN */}
-              {error && (
+              {/* Error banner */}
+              {error && typeof error === 'string' && (
                 <View style={[s.errorBanner, isBanned && s.errorBannerWarn]}>
                   <Ionicons
                     name={isBanned ? 'warning' : 'alert-circle'}

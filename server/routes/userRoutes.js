@@ -3,23 +3,31 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const cloudinary = require('../config/cloudinary');
+const { cloudinary } = require('../config/cloudinary');
 const multer = require('multer');
 const { generateVerificationCode, sendVerificationEmail } = require('../config/emailService');
 
 const router = express.Router();
 
-// Configure multer for memory storage
+// ==================== MULTER CONFIGURATION ====================
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images are allowed'), false);
+    }
   }
 });
 
 // Middleware to parse form-data
 const parseFormData = upload.none();
+const uploadSingleImage = upload.single('profile');
 
 // ==================== REGISTER (SEND VERIFICATION CODE) ====================
 router.post('/register', async (req, res) => {
@@ -380,6 +388,54 @@ router.put('/push-token', auth, async (req, res) => {
   }
 });
 
+// ==================== UPLOAD PROFILE IMAGE (NEW) ====================
+router.post('/upload-profile-image', auth, (req, res) => {
+  uploadSingleImage(req, res, async (err) => {
+    if (err) {
+      console.error('Upload error:', err);
+      return res.status(400).json({ message: err.message });
+    }
+    
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+      
+      // Upload to Cloudinary
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'user_profiles',
+            transformation: [{ width: 500, height: 500, crop: 'limit' }]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        
+        uploadStream.end(req.file.buffer);
+      });
+      
+      // Update user's profile field
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user.id, 
+        { profile: result.secure_url },
+        { new: true }
+      ).select('-password');
+      
+      res.json({ 
+        message: 'Profile image uploaded successfully',
+        profileUrl: result.secure_url,
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      res.status(500).json({ message: 'Failed to upload image: ' + error.message });
+    }
+  });
+});
+
 // ==================== UPDATE PROFILE ====================
 router.put('/profile', auth, parseFormData, async (req, res) => {
   try {
@@ -405,14 +461,17 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
       updatedFields.gender = gender;
     }
     
-    // Handle address fields - IMPROVED LOGIC
-    // Check if we have fullAddress and barangay as separate fields
+    // Handle profile URL (now just a string, not base64)
+    if (profile !== undefined) {
+      updatedFields.profile = profile === '' ? null : profile;
+    }
+    
+    // Handle address fields
     if (fullAddress !== undefined || barangay !== undefined) {
       let finalFullAddress = fullAddress !== undefined ? fullAddress : '';
       let finalBarangay = barangay !== undefined ? barangay : '';
       let finalAddress = '';
       
-      // Get current values if not provided
       const currentUser = await User.findById(req.user.id);
       if (fullAddress === undefined && currentUser) {
         finalFullAddress = currentUser.fullAddress || '';
@@ -421,12 +480,10 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
         finalBarangay = currentUser.barangay || '';
       }
       
-      // Validate barangay if provided
       if (finalBarangay && !['South Signal', 'Central Bicutan'].includes(finalBarangay)) {
         return res.status(400).json({ message: 'Invalid barangay option. Must be South Signal or Central Bicutan' });
       }
       
-      // Combine fullAddress and barangay
       if (finalFullAddress && finalBarangay) {
         finalAddress = `${finalFullAddress}, ${finalBarangay}`;
       } else if (finalFullAddress) {
@@ -435,14 +492,11 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
         finalAddress = finalBarangay;
       }
       
-      // Update all address fields
       if (finalFullAddress !== undefined) updatedFields.fullAddress = finalFullAddress;
       if (finalBarangay !== undefined) updatedFields.barangay = finalBarangay;
       if (finalAddress) updatedFields.address = finalAddress;
     }
-    // Handle legacy address field (combined format)
     else if (address !== undefined && typeof address === 'string') {
-      // Parse the address to extract fullAddress and barangay
       const addressParts = address.split(',');
       let finalFullAddress = address;
       let finalBarangay = '';
@@ -451,7 +505,6 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
         finalFullAddress = addressParts[0].trim();
         finalBarangay = addressParts.slice(1).join(',').trim();
         
-        // Validate barangay
         if (finalBarangay && !['South Signal', 'Central Bicutan'].includes(finalBarangay)) {
           return res.status(400).json({ message: 'Invalid barangay option. Must be South Signal or Central Bicutan' });
         }
@@ -461,24 +514,6 @@ router.put('/profile', auth, parseFormData, async (req, res) => {
         updatedFields.address = address;
       } else {
         updatedFields.address = address;
-      }
-    }
-
-    // Handle profile image
-    if (profile !== undefined) {
-      if (profile === '') {
-        updatedFields.profile = null;
-      } else if (profile && typeof profile === 'string' && profile.startsWith('data:image')) {
-        try {
-          const uploadResponse = await cloudinary.uploader.upload(profile, {
-            folder: 'user_profiles',
-            resource_type: 'image',
-          });
-          updatedFields.profile = uploadResponse.secure_url;
-        } catch (uploadError) {
-          console.error('❌ Cloudinary upload error:', uploadError);
-          return res.status(500).json({ message: 'Error uploading image' });
-        }
       }
     }
 

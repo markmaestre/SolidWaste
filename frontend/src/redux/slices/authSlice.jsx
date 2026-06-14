@@ -31,12 +31,11 @@ const initialState = {
 // Register User - Updated to handle new address structure
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
   try {
-    // formData already contains the combined address
-    // No need to modify here since frontend already combines fullAddress + barangay
     const res = await axiosInstance.post('/users/register', formData);
     return res.data;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Registration failed');
+    const errorMessage = error.response?.data?.message || 'Registration failed';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -46,7 +45,8 @@ export const verifyEmail = createAsyncThunk('users/verifyEmail', async ({ email,
     const res = await axiosInstance.post('/users/verify-email', { email, verificationCode });
     return res.data;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Verification failed');
+    const errorMessage = error.response?.data?.message || 'Verification failed';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -56,7 +56,8 @@ export const resendVerificationCode = createAsyncThunk('users/resendVerification
     const res = await axiosInstance.post('/users/resend-verification', { email });
     return res.data;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to resend code');
+    const errorMessage = error.response?.data?.message || 'Failed to resend code';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -70,7 +71,8 @@ export const loginUser = createAsyncThunk('users/login', async ({ email, passwor
     });
     return res.data;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Login failed');
+    const errorMessage = error.response?.data?.message || 'Login failed';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -93,7 +95,8 @@ export const updatePushToken = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update push token');
+      const errorMessage = error.response?.data?.message || 'Failed to update push token';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -159,7 +162,9 @@ export const editProfile = createAsyncThunk('users/editProfile', async (formData
     return res.data.user;
   } catch (error) {
     console.error('❌ Edit profile error:', error.response?.data);
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Profile update failed');
+    // Return a string error message instead of an object
+    const errorMessage = error.response?.data?.message || 'Profile update failed';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -177,7 +182,8 @@ export const getCurrentUser = createAsyncThunk('users/getCurrentUser', async (_,
 
     return res.data.user;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch user data');
+    const errorMessage = error.response?.data?.message || 'Failed to fetch user data';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -195,7 +201,8 @@ export const fetchAllUsers = createAsyncThunk('users/fetchAllUsers', async (_, t
 
     return res.data;
   } catch (error) {
-    return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
+    const errorMessage = error.response?.data?.message || 'Failed to fetch users';
+    return thunkAPI.rejectWithValue(errorMessage);
   }
 });
 
@@ -215,7 +222,8 @@ export const updateUserStatus = createAsyncThunk(
 
       return res.data.user;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update user status');
+      const errorMessage = error.response?.data?.message || 'Failed to update user status';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -228,7 +236,8 @@ export const checkEmail = createAsyncThunk(
       const response = await axiosInstance.post('/users/check-email', { email });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Error checking email');
+      const errorMessage = error.response?.data?.message || 'Error checking email';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -251,7 +260,8 @@ export const submitFeedback = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to submit feedback');
+      const errorMessage = error.response?.data?.message || 'Failed to submit feedback';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -272,7 +282,8 @@ export const getUserFeedback = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch feedback');
+      const errorMessage = error.response?.data?.message || 'Failed to fetch feedback';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -293,7 +304,8 @@ export const getAllFeedback = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch all feedback');
+      const errorMessage = error.response?.data?.message || 'Failed to fetch all feedback';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -317,7 +329,8 @@ export const updateFeedbackStatus = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to update feedback status');
+      const errorMessage = error.response?.data?.message || 'Failed to update feedback status';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );
@@ -338,7 +351,8 @@ export const getFeedbackStats = createAsyncThunk(
 
       return res.data;
     } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message || 'Failed to fetch feedback statistics');
+      const errorMessage = error.response?.data?.message || 'Failed to fetch feedback statistics';
+      return thunkAPI.rejectWithValue(errorMessage);
     }
   }
 );

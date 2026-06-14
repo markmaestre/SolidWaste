@@ -19,6 +19,7 @@ import {
   MaterialCommunityIcons, Entypo,
 } from "@expo/vector-icons";
 import Constants from 'expo-constants';
+import { GestureHandlerRootView, PinchGestureHandler, PinchGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 
 // Get Cohere API key from environment variables
 const COHERE_API_KEY = Constants.expoConfig?.extra?.COHERE_API_KEY || process.env.COHERE_API_KEY;
@@ -38,7 +39,7 @@ const BOX_DECAY        = 5;
 const GOOGLE_PLACES_KEY = "YOUR_GOOGLE_PLACES_API_KEY";
 
 const BACKEND_CLASSIFICATION_MAP = {
-  "Recyclable":                "Recyclable",
+  "Recyclable":                "Recyclabl",
   "Special / Hazardous Waste": "Special Waste",           
   "Biodegradable":             "Biodegradable",
   "Residual / Non-Recyclable": "Residual / Non-Recyclable",
@@ -66,7 +67,7 @@ const WACS_CATEGORIES = {
     shortLabel: "Recyclable",
     color: "#1565C0",
     lightBg: "#E3F2FD",
-    description: "Clean materials with established recycling markets — plastic, metal, glass, paper",
+    description: "Clean materials with established recycling markets — metal, glass, paper",
     wacsCode: "REC",
     disposalMethod: "MRF, junk shop, or barangay collection program",
     examples: ["PET bottles", "HDPE containers", "Aluminum cans", "Glass bottles", "Clean paper", "Cardboard"],
@@ -117,146 +118,155 @@ const WACS_SUB_CATEGORIES = {
   "Bulky Waste":               { parent: "Special / Hazardous Waste", wacsField: "H5" },
 };
 
+// Updated PLASTIC_TYPES with comprehensive descriptions
 const PLASTIC_TYPES = {
   1: {
-    code: "PET",   fullName: "Polyethylene Terephthalate",
-    examples: "Water bottles, soda bottles, salad containers",
-    color: "#1565C0", recyclable: true,
-    wacsCategory: "Recyclable", wacsSubCat: "Plastic - Recyclable",
+    code: "PET",   
+    fullName: "Polyethylene Terephthalate",
+    examples: "Water bottles, soda bottles, salad containers, cooking oil bottles",
+    description: "Commonly used for single-use beverage bottles. Highly recyclable!",
+    color: "#1565C0", 
+    recyclable: true,
+    wacsCategory: "Recyclable", 
+    wacsSubCat: "Plastic - Recyclable",
+    recyclingTip: "Rinse thoroughly, remove caps (caps are usually #5 PP), crush to save space. Take to any junk shop or MRF.",
+    value: "₱2-₅ per kilo at junk shops",
+    environmentalNote: "PET can be recycled into new bottles, polyester fiber for clothing, or carpet material."
   },
   2: {
-    code: "HDPE",  fullName: "High-Density Polyethylene",
-    examples: "Milk jugs, shampoo bottles, detergent containers",
-    color: "#2E7D32", recyclable: true,
-    wacsCategory: "Recyclable", wacsSubCat: "Plastic - Recyclable",
+    code: "HDPE",  
+    fullName: "High-Density Polyethylene",
+    examples: "Detergent bottles, shampoo bottles, milk jugs, bleach containers, lotion bottles",
+    description: "Sturdy plastic used for household and industrial containers. Highly recyclable!",
+    color: "#2E7D32", 
+    recyclable: true,
+    wacsCategory: "Recyclable", 
+    wacsSubCat: "Plastic - Recyclable",
+    recyclingTip: "Rinse well, remove labels if possible, crush to save space. Take to junk shops or recycling centers.",
+    value: "₱5-₱10 per kilo at junk shops",
+    environmentalNote: "HDPE is one of the most valuable recyclable plastics and can be turned into new bottles, pipes, or plastic lumber."
   },
   3: {
-    code: "PVC",   fullName: "Polyvinyl Chloride",
-    examples: "Pipes, blister packs, cling wrap",
-    color: "#F57F17", recyclable: false,
-    wacsCategory: "Residual / Non-Recyclable", wacsSubCat: "Plastic - Non-Recyclable",
+    code: "PVC",   
+    fullName: "Polyvinyl Chloride",
+    examples: "Pipes, blister packs, cling wrap, window frames",
+    description: "Tough plastic, not easily recyclable. Avoid when possible.",
+    color: "#F57F17", 
+    recyclable: false,
+    wacsCategory: "Residual / Non-Recyclable", 
+    wacsSubCat: "Plastic - Non-Recyclable",
+    recyclingTip: "PVC is difficult to recycle. Dispose as residual waste. Try to avoid buying PVC products.",
+    value: "No recycling value",
+    environmentalNote: "PVC releases toxic chemicals when burned. Proper disposal is critical."
   },
   4: {
-    code: "LDPE",  fullName: "Low-Density Polyethylene",
-    examples: "Plastic bags, squeezable bottles, bread bags",
-    color: "#6A1E9A", recyclable: true,
-    wacsCategory: "Recyclable", wacsSubCat: "Plastic - Recyclable",
+    code: "LDPE",  
+    fullName: "Low-Density Polyethylene",
+    examples: "Plastic bags, grocery bags, wrappers, shrink wrap, bread bags, bubble wrap",
+    description: "Flexible plastic film. Recyclable but requires special processing.",
+    color: "#6A1E9A", 
+    recyclable: true,
+    wacsCategory: "Recyclable", 
+    wacsSubCat: "Plastic - Recyclable",
+    recyclingTip: "Clean and dry plastic bags. Many SM and Robinsons malls have plastic bag drop-off bins. NOT accepted in regular recycling bins.",
+    value: "Limited market value - usually recycled into new bags or composite lumber",
+    environmentalNote: "LDPE takes hundreds of years to decompose. Reuse bags whenever possible or drop off at designated collection points."
   },
   5: {
-    code: "PP",    fullName: "Polypropylene",
-    examples: "Bottle caps, yogurt containers, straws",
-    color: "#00838F", recyclable: true,
-    wacsCategory: "Recyclable", wacsSubCat: "Plastic - Recyclable",
+    code: "PP",    
+    fullName: "Polypropylene",
+    examples: "Food containers (takeout boxes), bottle caps, straws, yogurt cups, medicine bottles",
+    description: "Heat-resistant plastic used for food containers. Recyclable!",
+    color: "#00838F", 
+    recyclable: true,
+    wacsCategory: "Recyclable", 
+    wacsSubCat: "Plastic - Recyclable",
+    recyclingTip: "Rinse food containers well. Remove any labels. Crush or flatten. Acceptable at most recycling centers.",
+    value: "₱3-₱7 per kilo at junk shops",
+    environmentalNote: "PP is durable and heat-resistant. Recycled into battery cases, brooms, brushes, and auto parts."
   },
   6: {
-    code: "PS",    fullName: "Polystyrene",
-    examples: "Styrofoam cups, foam trays, disposable cutlery",
-    color: "#C62828", recyclable: false,
-    wacsCategory: "Residual / Non-Recyclable", wacsSubCat: "Plastic - Non-Recyclable",
+    code: "PS",    
+    fullName: "Polystyrene",
+    examples: "Styrofoam cups, foam trays, disposable cutlery, packing peanuts",
+    description: "Lightweight foam plastic. NOT recyclable in most areas.",
+    color: "#C62828", 
+    recyclable: false,
+    wacsCategory: "Residual / Non-Recyclable", 
+    wacsSubCat: "Plastic - Non-Recyclable",
+    recyclingTip: "Styrofoam is NOT recyclable in the Philippines. Dispose as residual waste. Avoid using foam products.",
+    value: "No recycling value",
+    environmentalNote: "PS takes 500+ years to decompose and breaks into microplastics. Never burn as it releases toxic fumes."
   },
   7: {
-    code: "OTHER", fullName: "Other / Mixed Plastics",
-    examples: "Water cooler bottles, bulletproof glass, nylon",
-    color: "#5D4037", recyclable: false,
-    wacsCategory: "Residual / Non-Recyclable", wacsSubCat: "Composite / Multi-Layer",
+    code: "OTHER", 
+    fullName: "Other / Mixed Plastics",
+    examples: "Sachets (coffee, shampoo, detergent sachets), CD/DVD cases (polycarbonate), nylon, acrylic",
+    description: "A catch-all category for other plastic types including multi-layer plastics.",
+    color: "#5D4037", 
+    recyclable: false,
+    wacsCategory: "Residual / Non-Recyclable", 
+    wacsSubCat: "Composite / Multi-Layer",
+    recyclingTip: "Most #7 plastics cannot be recycled. Sachets are multi-layer and non-recyclable. Dispose as residual waste.",
+    value: "No recycling value",
+    environmentalNote: "Sachets are a major environmental problem in the Philippines. Try to buy in bulk or choose products with recyclable packaging."
   },
 };
 
+// Updated LABEL_TO_WACS with correct plastic type mappings
 const LABEL_TO_WACS = {
-  "organic":            { type: "Biodegradable", subType: "Food Waste" },
-  "food waste":         { type: "Biodegradable", subType: "Food Waste" },
-  "food":               { type: "Biodegradable", subType: "Food Waste" },
-  "vegetable":          { type: "Biodegradable", subType: "Food Waste" },
-  "fruit":              { type: "Biodegradable", subType: "Food Waste" },
-  "fruit peel":         { type: "Biodegradable", subType: "Food Waste" },
-  "banana peel":        { type: "Biodegradable", subType: "Food Waste" },
-  "leaf":               { type: "Biodegradable", subType: "Garden / Yard Waste" },
-  "leaves":             { type: "Biodegradable", subType: "Garden / Yard Waste" },
-  "garden waste":       { type: "Biodegradable", subType: "Garden / Yard Waste" },
-  "grass":              { type: "Biodegradable", subType: "Garden / Yard Waste" },
-  "wood":               { type: "Biodegradable", subType: "Wood / Lumber" },
-  "branch":             { type: "Biodegradable", subType: "Wood / Lumber" },
-  "sawdust":            { type: "Biodegradable", subType: "Wood / Lumber" },
-  "paper":              { type: "Recyclable", subType: "Paper / Cardboard" },
-  "newspaper":          { type: "Recyclable", subType: "Paper / Cardboard" },
-  "cardboard":          { type: "Recyclable", subType: "Paper / Cardboard" },
-  "carton":             { type: "Recyclable", subType: "Paper / Cardboard" },
-  "box":                { type: "Recyclable", subType: "Paper / Cardboard" },
-  "book":               { type: "Recyclable", subType: "Paper / Cardboard" },
-  "magazine":           { type: "Recyclable", subType: "Paper / Cardboard" },
+  // PET #1 - Plastic beverage bottles
   "plastic bottle":     { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 1 },
   "bottle":             { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 1 },
   "water bottle":       { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 1 },
   "soda bottle":        { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 1 },
   "pet bottle":         { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 1 },
+  
+  // HDPE #2 - Detergent bottles, shampoo bottles (sturdy containers)
+  "detergent bottle":   { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
+  "shampoo bottle":     { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
   "milk jug":           { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
   "hdpe bottle":        { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
-  "shampoo bottle":     { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
-  "detergent bottle":   { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 2 },
+  
+  // LDPE #4 - Plastic bags, wrappers, "plastic" (flexible plastics)
+  "plastic":            { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
   "plastic bag":        { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
+  "wrapper":            { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
   "shopping bag":       { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
   "bread bag":          { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
   "ldpe bag":           { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
+  "plastic wrapper":    { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 4 },
+  
+  // PP #5 - Food containers, bottle caps, straws
+  "food container":     { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
   "bottle cap":         { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
-  "cap":                { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
   "straw":              { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
   "yogurt container":   { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
+  "takeout container":  { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
   "pp container":       { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
+  "cap":                { type: "Recyclable", subType: "Plastic - Recyclable", plasticRIC: 5 },
+  
+  // #7 Other - Sachet, CD (Polycarbonate)
+  "sachet":             { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer", plasticRIC: 7 },
+  "cd":                 { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer", plasticRIC: 7 },
+  "polycarbonate":      { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer", plasticRIC: 7 },
+  "mixed plastic":      { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer", plasticRIC: 7 },
+  "other plastic":      { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer", plasticRIC: 7 },
+  
+  // Other waste types
+  "organic":            { type: "Biodegradable", subType: "Food Waste" },
+  "food waste":         { type: "Biodegradable", subType: "Food Waste" },
+  "food":               { type: "Biodegradable", subType: "Food Waste" },
+  "vegetable":          { type: "Biodegradable", subType: "Food Waste" },
+  "fruit":              { type: "Biodegradable", subType: "Food Waste" },
+  "paper":              { type: "Recyclable", subType: "Paper / Cardboard" },
+  "cardboard":          { type: "Recyclable", subType: "Paper / Cardboard" },
   "can":                { type: "Recyclable", subType: "Metal / Non-Ferrous" },
   "aluminum can":       { type: "Recyclable", subType: "Metal / Non-Ferrous" },
-  "tin can":            { type: "Recyclable", subType: "Metal / Ferrous" },
-  "metal":              { type: "Recyclable", subType: "Metal / Ferrous" },
-  "scrap metal":        { type: "Recyclable", subType: "Metal / Ferrous" },
-  "iron":               { type: "Recyclable", subType: "Metal / Ferrous" },
-  "steel":              { type: "Recyclable", subType: "Metal / Ferrous" },
-  "copper":             { type: "Recyclable", subType: "Metal / Non-Ferrous" },
-  "aluminum":           { type: "Recyclable", subType: "Metal / Non-Ferrous" },
   "glass bottle":       { type: "Recyclable", subType: "Glass" },
   "glass":              { type: "Recyclable", subType: "Glass" },
-  "jar":                { type: "Recyclable", subType: "Glass" },
-  "rubber":             { type: "Recyclable", subType: "Rubber / Leather" },
-  "tire":               { type: "Recyclable", subType: "Rubber / Leather" },
-  "leather":            { type: "Recyclable", subType: "Rubber / Leather" },
-  "textile":            { type: "Recyclable", subType: "Textile / Fabric" },
-  "cloth":              { type: "Recyclable", subType: "Textile / Fabric" },
-  "clothing":           { type: "Recyclable", subType: "Textile / Fabric" },
-  "pvc pipe":           { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 3 },
-  "blister pack":       { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 3 },
-  "cling wrap":         { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 3 },
-  "cup":                { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 6 },
-  "styrofoam":          { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 6 },
-  "foam cup":           { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 6 },
-  "foam tray":          { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 6 },
-  "ps cup":             { type: "Residual / Non-Recyclable", subType: "Plastic - Non-Recyclable", plasticRIC: 6 },
-  "plastic":            { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer",  plasticRIC: 7 },
-  "mixed plastic":      { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer",  plasticRIC: 7 },
-  "other plastic":      { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer",  plasticRIC: 7 },
-  "sachet":             { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer" },
-  "tetra pak":          { type: "Residual / Non-Recyclable", subType: "Composite / Multi-Layer" },
-  "diaper":             { type: "Residual / Non-Recyclable", subType: "Sanitary Waste" },
-  "napkin":             { type: "Residual / Non-Recyclable", subType: "Sanitary Waste" },
-  "tissue":             { type: "Residual / Non-Recyclable", subType: "Sanitary Waste" },
-  "soiled paper":       { type: "Residual / Non-Recyclable", subType: "Soiled / Contaminated" },
-  "dirty plastic":      { type: "Residual / Non-Recyclable", subType: "Soiled / Contaminated" },
   "battery":            { type: "Special / Hazardous Waste", subType: "Battery / Accumulator" },
-  "batteries":          { type: "Special / Hazardous Waste", subType: "Battery / Accumulator" },
-  "bulb":               { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "fluorescent bulb":   { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "cfl":                { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "led bulb":           { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
   "electronics":        { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "phone":              { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "circuit board":      { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "e-waste":            { type: "Special / Hazardous Waste", subType: "Electronic Waste (E-Waste)" },
-  "paint":              { type: "Special / Hazardous Waste", subType: "Chemical / Solvent" },
-  "chemical":           { type: "Special / Hazardous Waste", subType: "Chemical / Solvent" },
-  "solvent":            { type: "Special / Hazardous Waste", subType: "Chemical / Solvent" },
-  "motor oil":          { type: "Special / Hazardous Waste", subType: "Chemical / Solvent" },
-  "syringe":            { type: "Special / Hazardous Waste", subType: "Medical / Clinical Waste" },
-  "medical waste":      { type: "Special / Hazardous Waste", subType: "Medical / Clinical Waste" },
-  "sharps":             { type: "Special / Hazardous Waste", subType: "Medical / Clinical Waste" },
-  "appliance":          { type: "Special / Hazardous Waste", subType: "Bulky Waste" },
-  "furniture":          { type: "Special / Hazardous Waste", subType: "Bulky Waste" },
 };
 
 const LEGACY_TYPE_MAP = {
@@ -299,6 +309,20 @@ function detectWacsType(label = "") {
   return null;
 }
 
+// Helper function to get plastic type explanation
+const getPlasticTypeExplanation = (plasticType) => {
+  if (!plasticType) return null;
+  return {
+    title: `${plasticType.code} (#${plasticType.typeNum}) - ${plasticType.fullName}`,
+    description: plasticType.description,
+    examples: plasticType.examples,
+    recyclingTip: plasticType.recyclingTip,
+    value: plasticType.value,
+    environmentalNote: plasticType.environmentalNote,
+    recyclable: plasticType.recyclable
+  };
+};
+
 const BARANGAY_OPTIONS = [
   {
     key: "south_signal",
@@ -340,27 +364,12 @@ const LOCAL_RECYCLING_CENTERS = {
     { name: "Alico Junk Shop",      vicinity: "Upper Bicutan / Tagak, Taguig",  rating: 4.5, open_now: true, types: ["recycling_center"],              lat: 14.5272, lng: 121.0585 },
     { name: "Trivali Trading",      vicinity: "Palar, Taguig",                  rating: 4.5, open_now: true, types: ["recycling_center"],              lat: 14.5240, lng: 121.0590 },
     { name: "R-V Junk Shop",        vicinity: "ML Quezon, Taguig",              rating: 4.5, open_now: true, types: ["recycling_center"],              lat: 14.5250, lng: 121.0600 },
-    { name: "Fulo Junk Shop",       vicinity: "C.P. Garcia, Taguig",            rating: 4.0, open_now: true, types: ["recycling_center"],              lat: 14.5260, lng: 121.0610 },
-    { name: "C.F. Famini Junkshop", vicinity: "C.P. Garcia, Taguig",            rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5270, lng: 121.0620 },
-    { name: "Olaso Junk Shop",      vicinity: "Chino Roces Ext, Taguig",        rating: 4.0, open_now: true, types: ["recycling_center"],              lat: 14.5280, lng: 121.0630 },
-    { name: "Otich Junk Shop",      vicinity: "Challenger, Taguig",             rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5290, lng: 121.0640 },
-    { name: "Junky Yard Junkshop",  vicinity: "Earth Rd, Bicutan, Taguig",      rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5300, lng: 121.0650 },
-    { name: "Paldo Junk Shop",      vicinity: "Fort Bonifacio, Taguig",         rating: 4.6, open_now: true, types: ["recycling_center"],              lat: 14.5310, lng: 121.0660 },
-    { name: "Fajie Junkshop",       vicinity: "Vulcan St., Taguig",             rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5320, lng: 121.0670 },
-    { name: "JOVE Junkshop",        vicinity: "9th Ave, Taguig",                rating: 5.0, open_now: true, types: ["recycling_center","waste_management"], lat: 14.5330, lng: 121.0680 },
-    { name: "Elsa's Junkshop",      vicinity: "Central Signal, Taguig",         rating: 5.0, open_now: true, types: ["scrap_metal_dealer"],            lat: 14.5340, lng: 121.0690 },
-    { name: "ABUYOG Junkshop",      vicinity: "Earth Rd / San Juan, Taguig",    rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5350, lng: 121.0700 },
-    { name: "Venus Junk Shop",      vicinity: "Central Bicutan, Taguig",        rating: 4.5, open_now: true, types: ["scrap_metal_dealer"],            lat: 14.5360, lng: 121.0710 },
-    { name: "Juarine Junkshop",     vicinity: "C.P. Garcia, Taguig",            rating: 4.5, open_now: true, types: ["recycling_center"],              lat: 14.5370, lng: 121.0720 },
-    { name: "Dodong Junk Shop",     vicinity: "Lawin St., Taguig",              rating: 5.0, open_now: true, types: ["recycling_center"],              lat: 14.5380, lng: 121.0730 },
   ],
   "Special / Hazardous Waste": [
     { name: "E-Waste Dropoff Center",  vicinity: "Taguig City Hall Complex",        rating: 4.2, open_now: true, types: ["ewaste"],     lat: 14.5400, lng: 121.0550 },
-    { name: "Hazardous Waste Facility",vicinity: "Brgy. South Signal, Taguig",      rating: 4.0, open_now: true, types: ["hazardous"],  lat: 14.5450, lng: 121.0600 },
   ],
   "Biodegradable": [
     { name: "Taguig Composting Facility", vicinity: "Brgy. Central Bicutan",        rating: 4.3, open_now: true, types: ["composting"], lat: 14.5500, lng: 121.0650 },
-    { name: "Organic Waste Processing",   vicinity: "Brgy. Tup Taguig",             rating: 4.1, open_now: true, types: ["composting"], lat: 14.5550, lng: 121.0700 },
   ],
   "Residual / Non-Recyclable": [
     { name: "Taguig MRF", vicinity: "Brgy. Central Signal",                         rating: 4.0, open_now: true, types: ["mrf"],        lat: 14.5600, lng: 121.0750 },
@@ -448,44 +457,46 @@ const buildTips = (dets) => {
   const types  = [...new Set(dets.map((d) => normaliseType(d.type)))];
 
   if (types.includes("Recyclable")) {
-    tips.push("• Ihiwalay ang mga recyclable (papel, plastik, metal, baso) sa hiwalay na bag bago ang araw ng koleksyon ng barangay.");
+    tips.push("Separate recyclables (paper, plastic, metal, glass) in a separate bag before barangay collection day.");
     if (labels.some((l) => ["bottle", "plastic bottle", "pet bottle", "water bottle"].includes(l)))
-      tips.push("• Banlawan ang mga plastik na bote at durugin para makatipid ng espasyo — dalhin sa junkshop o MRF.");
+      tips.push("Rinse plastic bottles and crush them to save space — bring to junk shop or MRF.");
     if (labels.some((l) => l.includes("can") || l.includes("aluminum")))
-      tips.push("• Banlawan ang metal cans at durugin para makatipid ng espasyo. Mataas ang halaga ng aluminum sa junkshop.");
+      tips.push("Rinse metal cans and crush them to save space. Aluminum has high value at junk shops.");
     if (labels.some((l) => l.includes("glass")))
-      tips.push("• Ang mga glass bottles ay maaaring i-recycle — banlawan at ihiwalay ayon sa kulay.");
+      tips.push("Glass bottles can be recycled — rinse and separate by color.");
     if (labels.some((l) => l.includes("paper") || l.includes("carton") || l.includes("cardboard")))
-      tips.push("• Patagin at patuyuin ang papel/karton. Ang basang papel ay dapat ilagay sa residual bin.");
-    if (labels.some((l) => l.includes("plastic bag") || l.includes("ldpe")))
-      tips.push("• Ang plastic bags (RIC 4) — i-drop off sa SM o Robinsons plastic-bag collection bins.");
+      tips.push("Flatten and dry paper/cardboard. Wet paper should go to residual bin.");
+    if (labels.some((l) => l.includes("plastic bag") || l.includes("ldpe") || l.includes("wrapper") || l.includes("plastic")))
+      tips.push("Plastic bags and wrappers (LDPE #4) — drop off at SM or Robinsons plastic-bag collection bins.");
   }
 
   if (types.includes("Biodegradable")) {
-    tips.push("• Ilagay ang food scraps at garden waste sa compost bin. Hinihikayat ng DENR ang backyard composting.");
+    tips.push("Place food scraps and garden waste in a compost bin. DENR encourages backyard composting.");
     if (labels.some((l) => l.includes("food") || l.includes("organic") || l.includes("vegetable") || l.includes("fruit")))
-      tips.push("• Ang kitchen food waste ay maaaring i-vermicompost — tanungin ang inyong barangay kung may ganitong programa.");
+      tips.push("Kitchen food waste can be vermicomposted — ask your barangay if they have this program.");
   }
 
   if (types.includes("Residual / Non-Recyclable")) {
-    tips.push("• Ang residual waste ay dapat dalhin sa sanitary landfill. HUWAG ihalo sa recyclable — nakokontamina nito ang buong batch.");
+    tips.push("Residual waste must go to sanitary landfill. DO NOT mix with recyclables — it contaminates the whole batch.");
     if (labels.some((l) => l.includes("styrofoam") || l.includes("foam") || l.includes("cup")))
-      tips.push("• Ang Styrofoam ay HINDI recyclable. Itapon bilang residual/non-recyclable waste.");
+      tips.push("Styrofoam is NOT recyclable. Dispose as residual/non-recyclable waste.");
+    if (labels.some((l) => l.includes("sachet") || l.includes("cd") || l.includes("polycarbonate")))
+      tips.push("#7 Other plastics like sachets and CDs are NOT recyclable. Dispose as residual waste.");
     if (labels.some((l) => l.includes("diaper") || l.includes("sanitary") || l.includes("tissue")))
-      tips.push("• Sanitary waste (diaper, napkin, tissue) — i-double bag at selyuhan bago ilagay sa residual bin.");
+      tips.push("Sanitary waste (diaper, napkin, tissue) — double bag and seal before placing in residual bin.");
   }
 
   if (types.includes("Special / Hazardous Waste")) {
-    tips.push("• HUWAG na HUWAG ihalo ang hazardous waste sa regular na basura. Dalhin sa tamang pasilidad.");
+    tips.push("NEVER mix hazardous waste with regular trash. Bring to proper facility.");
     if (labels.some((l) => l.includes("battery")))
-      tips.push("• Ang mga baterya ay naglalaman ng heavy metals. I-drop off sa SM, hardware stores, o Taguig City Hall.");
-    if (labels.some((l) => l.includes("phone") || l.includes("electronics") || l.includes("circuit")))
-      tips.push("• E-waste (cellphone, electronics) — i-drop off sa Robinsons e-waste bins, SM EcoHubs, o Taguig CENRO.");
+      tips.push("Batteries contain heavy metals. Drop off at SM, hardware stores, or Taguig City Hall.");
+    if (labels.some((l) => l.includes("electronics")))
+      tips.push("E-waste (cellphone, electronics) — drop off at Robinsons e-waste bins, SM EcoHubs, or Taguig CENRO.");
   }
 
   return tips.length
-    ? tips
-    : ["• Sundin ang waste segregation guidelines ng inyong barangay ayon sa batas."];
+    ? tips.map(tip => "• " + tip)
+    : ["• Follow your barangay's waste segregation guidelines according to the law."];
 };
 
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -530,8 +541,7 @@ function getAllowedBarangays(userAddress, detectedBarangay = null) {
   };
 }
 
-// ── COHERE AI FUNCTIONS ──────────────────────────────────────────────────────
-
+// COHERE AI FUNCTIONS - ENGLISH VERSION
 async function callCohereWasteAPI(question, detections, location) {
   if (!COHERE_API_KEY) {
     console.warn('Cohere API key not found. Using fallback response.');
@@ -553,10 +563,10 @@ async function callCohereWasteAPI(question, detections, location) {
         messages: [
           {
             role: 'system',
-            content: `You are T.M.F.K (Tagalog Mobile Friendly Kasambahay), a helpful waste management assistant in the Philippines.
+            content: `You are T.M.F.K (Trash Management Friendly Kasambahay), a helpful waste management assistant in the Philippines.
             
             RULES:
-            - Answer ONLY in Tagalog language
+            - Answer ONLY in English language
             - Be practical and specific to Philippine context
             - Provide actionable advice (3-5 sentences only)
             - Use friendly, encouraging tone
@@ -604,46 +614,46 @@ function getFallbackWasteResponse(question, detections) {
   const hasBattery = detections.some(d => d.label.toLowerCase().includes("battery"));
   const hasElectronics = detections.some(d => d.label.toLowerCase().includes("phone") || d.label.toLowerCase().includes("electronic"));
 
-  if (q.includes("paano") || q.includes("how")) {
+  if (q.includes("how") || q.includes("dispose") || q.includes("throw")) {
     if (hasPlastic || hasBottle) {
-      return "Para sa plastik na bote: Banlawan ito nang maigi, tanggalin ang takip, at durugin para makatipid ng espasyo. Dalhin sa junkshop o sa inyong barangay MRF para sa tamang recycling. Huwag itapon sa ordinaryong basurahan!";
+      return "For plastic bottles: Rinse them thoroughly, remove the cap, and crush to save space. Take them to a junk shop or your barangay MRF for proper recycling. Do not throw in regular trash!";
     }
     if (hasCan) {
-      return "Para sa lata: Banlawan ang lata, durugin ito para makatipid ng espasyo. Ang aluminum lata ay may mataas na halaga sa junkshop - ibenta para kumita habang tumutulong sa kalikasan. Dalhin sa kahit anong junk shop sa inyong lugar.";
+      return "For cans: Rinse the can, crush it to save space. Aluminum cans have high value at junk shops - sell them to earn while helping the environment. Take to any junk shop in your area.";
     }
     if (hasFood) {
-      return "Para sa food waste: Ilagay sa compost bin kasama ang tuyong dahon. Haluin minsan para magkaroon ng hangin. Iwasan ang karne at mantika. Pagkatapos ng ilang buwan, magkakaroon ka ng masustansyang abono para sa halaman!";
+      return "For food waste: Place in a compost bin with dry leaves. Mix occasionally for air circulation. Avoid meat and oil. After a few months, you'll have nutritious fertilizer for your plants!";
     }
     if (hasBattery) {
-      return "Para sa baterya: Huwag itapon sa basurahan! Maglalaman ito ng heavy metals na nakakasama sa kalikasan. Dalhin sa SM Store, Ace Hardware, o sa Taguig City Hall na may designated battery drop-off points. Libre lang ito!";
+      return "For batteries: Do not throw in the trash! They contain heavy metals that harm the environment. Take to SM Store, Ace Hardware, or Taguig City Hall with designated battery drop-off points. It's free!";
     }
     if (hasElectronics) {
-      return "Para sa electronics (e-waste): Dalhin sa Robinsons e-waste bins, SM EcoHubs, o Taguig CENRO. Ang mga ito ay naglalaman ng mahahalagang metals na maaaring i-recycle. Huwag sirain o sunugin - dalhin nang buo sa tamang pasilidad.";
+      return "For electronics (e-waste): Bring to Robinsons e-waste bins, SM EcoHubs, or Taguig CENRO. These contain valuable metals that can be recycled. Don't break or burn - bring intact to proper facilities.";
     }
-    return "Ihiwalay ang inyong basura ayon sa kategorya: Recyclable (plastik, papel, metal, baso), Biodegradable (pagkain, dahon), Residual (styrofoam, diaper), at Special/Hazardous (baterya, electronics). Tanungin ang inyong barangay tungkol sa schedule ng koleksyon.";
+    return "Separate your waste by category: Recyclable (plastic, paper, metal, glass), Biodegradable (food, leaves), Residual (styrofoam, diapers), and Special/Hazardous (batteries, electronics). Ask your barangay about collection schedule.";
   }
 
-  if (q.includes("saan")) {
+  if (q.includes("where")) {
     if (hasPlastic || hasBottle || hasCan) {
-      return "Maraming junkshop sa Taguig na tumatanggap ng recyclable tulad ng Alico Junk Shop sa Upper Bicutan, Trivali Trading sa Palar, at R-V Junk Shop sa ML Quezon. Tanungin din ang inyong barangay kung may MRF o recycling program.";
+      return "There are many junk shops in Taguig that accept recyclables like Alico Junk Shop in Upper Bicutan, Trivali Trading in Palar, and R-V Junk Shop on ML Quezon. Also ask your barangay if they have an MRF or recycling program.";
     }
     if (hasBattery || hasElectronics) {
-      return "May e-waste drop-off sa Taguig City Hall Complex. Pwede rin sa SM Aura o Market! Market! May mga e-waste bins. Maaari ring dalhin sa Robinsons Galleria. Libre ang pag-drop off ng small electronics at baterya.";
+      return "There's an e-waste drop-off at Taguig City Hall Complex. Also available at SM Aura or Market! Market! They have e-waste bins. You can also bring to Robinsons Galleria. Dropping off small electronics and batteries is free.";
     }
-    return "Ang inyong barangay ay may schedule ng waste collection. Para sa recyclable, dalhin sa junkshop o MRF. Para sa hazardous waste, pumunta sa Taguig City Hall. Para sa composting, meron sa Central Bicutan at TUP Taguig.";
+    return "Your barangay has a waste collection schedule. For recyclables, bring to junk shop or MRF. For hazardous waste, go to Taguig City Hall. For composting, there's facilities in Central Bicutan and TUP Taguig.";
   }
 
-  if (q.includes("magkano") || q.includes("price") || q.includes("bili")) {
+  if (q.includes("price") || q.includes("cost") || q.includes("sell")) {
     if (hasPlastic || hasBottle) {
-      return "Ang plastik na bote (PET) ay tinatanggap ng junkshop sa halagang ₱2-₱5 bawat kilo depende sa uri. Ang mas makapal na plastik (HDPE) ay maaaring ₱5-₱10 per kilo. Mas malaki ang kita kung malinis at naka-compress ang mga bote.";
+      return "Plastic bottles (PET) are accepted at junk shops for about ₱2-₱5 per kilo depending on type. Thicker plastic (HDPE) can be ₱5-₱10 per kilo. You earn more if bottles are clean and compressed.";
     }
     if (hasCan) {
-      return "Ang aluminum lata ay mataas ang halaga sa junkshop - ₱30-₱60 per kilo! Ang steel/tin cans naman ay ₱3-₱8 per kilo. Banlawan at durugin para mas marami ang mailagay at mas malaki ang kita.";
+      return "Aluminum cans have high value at junk shops - ₱30-₱60 per kilo! Steel/tin cans are ₱3-₱8 per kilo. Rinse and crush to fit more and earn more.";
     }
-    return "Ang presyo ng recyclable sa junkshop ay depende sa uri at linis ng materyal. Ang aluminum lata ang may pinakamataas na halaga (₱30-₱60/kilo), susundan ng copper wire (₱200-₱400/kilo), bakal (₱3-₱8/kilo), at plastik (₱2-₱10/kilo).";
+    return "Junk shop prices depend on material type and cleanliness. Aluminum cans have highest value (₱30-₱60/kilo), followed by copper wire (₱200-₱400/kilo), steel (₱3-₱8/kilo), and plastic (₱2-₱10/kilo).";
   }
 
-  return "Magandang araw! Ako si T.M.F.K, ang inyong waste assistant. Para sa tamang pagtatapon ng basura, sundin ang 4 na kategorya: Recyclable (plastik, papel, metal, baso), Biodegradable (pagkain, dahon), Residual (styrofoam, diaper), at Special/Hazardous (baterya, electronics). Tanungin ang inyong barangay para sa schedule ng collection. May iba pa ba kayong tanong?";
+  return "Good day! I'm T.M.F.K, your waste assistant. For proper waste disposal, follow the 4 categories: Recyclable (plastic, paper, metal, glass), Biodegradable (food, leaves), Residual (styrofoam, diapers), and Special/Hazardous (batteries, electronics). Ask your barangay about collection schedule. Do you have any other questions?";
 }
 
 async function callGeminiAPI(prompt) {
@@ -728,12 +738,12 @@ const LiveOverlay = React.memo(({ detections, scaleX, scaleY }) => (
 const LiveChips = React.memo(({ detections }) => {
   if (!detections.length) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.liveChipScroll}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveChipScroll}
       contentContainerStyle={{ paddingHorizontal: 4, gap: 8, flexDirection: "row" }}>
       {detections.map((d, i) => (
-        <View key={i} style={[S.liveChip, { backgroundColor: catColor(d.type) }]}>
+        <View key={i} style={[styles.liveChip, { backgroundColor: catColor(d.type) }]}>
           {catIcon(d.type)}
-          <Text style={S.liveChipText}>{d.label}  {Math.round(d.confidence * 100)}%</Text>
+          <Text style={styles.liveChipText}>{d.label}  {Math.round(d.confidence * 100)}%</Text>
         </View>
       ))}
     </ScrollView>
@@ -741,40 +751,100 @@ const LiveChips = React.memo(({ detections }) => {
 });
 
 const LiveStatus = React.memo(({ connected, count, ms }) => (
-  <View style={S.liveTitleWrap}>
-    <View style={[S.livePulse, { backgroundColor: connected ? C.accent : C.special }]} />
-    <Text style={S.liveTitleText}>
+  <View style={styles.liveTitleWrap}>
+    <View style={[styles.livePulse, { backgroundColor: connected ? C.accent : C.special }]} />
+    <Text style={styles.liveTitleText}>
       {connected ? (count > 0 ? `${count} object${count > 1 ? "s" : ""} detected` : "Scanning…") : "Connecting…"}
     </Text>
-    {ms != null && <Text style={S.liveMsText}>{ms}ms</Text>}
+    {ms != null && <Text style={styles.liveMsText}>{ms}ms</Text>}
   </View>
 ));
 
-const PlasticTypeBadge = ({ label }) => {
-  const pt = detectPlasticType(label);
-  if (!pt) return null;
+// Updated PlasticTypeBadge component with comprehensive details and clickable tabs
+const PlasticTypeBadge = ({ plasticItems, selectedIndex, onSelectPlastic }) => {
+  if (!plasticItems || plasticItems.length === 0) return null;
+  
+  const selected = plasticItems[selectedIndex];
+  if (!selected) return null;
+  
+  const explanation = getPlasticTypeExplanation(selected);
+  if (!explanation) return null;
+  
   return (
-    <View style={[S.plasticBadge, { backgroundColor: pt.color + "18", borderColor: pt.color + "55" }]}>
-      <View style={[S.plasticBadgeNum, { backgroundColor: pt.color }]}>
-        <Text style={S.plasticBadgeNumTxt}>{pt.typeNum}</Text>
+    <View style={styles.plasticDetailsCard}>
+      {/* Plastic type selector tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.plasticTypeTabs}>
+        {plasticItems.map((pt, idx) => (
+          <Pressable
+            key={`${pt.typeNum}-${idx}`}
+            style={[
+              styles.plasticTypeTab,
+              selectedIndex === idx && { backgroundColor: pt.color, borderColor: pt.color }
+            ]}
+            onPress={() => onSelectPlastic(idx)}
+          >
+            <View style={[styles.plasticTypeTabDot, { backgroundColor: pt.color }]} />
+            <Text style={[
+              styles.plasticTypeTabText,
+              selectedIndex === idx && { color: "white" }
+            ]}>
+              {pt.code} (#{pt.typeNum})
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      
+      <View style={[styles.plasticDetailsHeader, { backgroundColor: selected.color + "15", borderLeftColor: selected.color }]}>
+        <View style={[styles.plasticDetailsNum, { backgroundColor: selected.color }]}>
+          <Text style={styles.plasticDetailsNumTxt}>{selected.typeNum}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.plasticDetailsCode, { color: selected.color }]}>{selected.code}</Text>
+          <Text style={styles.plasticDetailsName}>{selected.fullName}</Text>
+        </View>
+        <View style={[styles.plasticDetailsTag, { backgroundColor: selected.recyclable ? "#E8F5EE" : "#FFEBEE" }]}>
+          <Text style={[styles.plasticDetailsTagTxt, { color: selected.recyclable ? "#2D7A4F" : "#C62828" }]}>
+            {selected.recyclable ? "♻️ Recyclable" : "❌ Not Recyclable"}
+          </Text>
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[S.plasticBadgeCode, { color: pt.color }]}>
-          {pt.code} — RIC {pt.typeNum}
-        </Text>
-        <Text style={S.plasticBadgeName} numberOfLines={1}>{pt.fullName}</Text>
-        <Text style={S.plasticBadgeEx} numberOfLines={1}>{pt.examples}</Text>
-      </View>
-      <View style={[S.plasticBadgeTag, { backgroundColor: pt.recyclable ? "#E8F5EE" : "#FFEBEE" }]}>
-        <Text style={[S.plasticBadgeTagTxt, { color: pt.recyclable ? "#2D7A4F" : "#C62828" }]}>
-          {pt.recyclable ? "Recyclable" : "Non-Recyclable"}
-        </Text>
+      
+      <View style={styles.plasticDetailsBody}>
+        <Text style={styles.plasticDetailsDesc}>{explanation.description}</Text>
+        
+        <View style={styles.plasticDetailsSection}>
+          <MaterialIcons name="info-outline" size={14} color={C.textMid} />
+          <Text style={styles.plasticDetailsSectionTitle}>Examples:</Text>
+        </View>
+        <Text style={styles.plasticDetailsText}>{explanation.examples}</Text>
+        
+        <View style={styles.plasticDetailsSection}>
+          <MaterialIcons name="recycling" size={14} color={C.secondary} />
+          <Text style={styles.plasticDetailsSectionTitle}>Recycling Tip:</Text>
+        </View>
+        <Text style={styles.plasticDetailsText}>{explanation.recyclingTip}</Text>
+        
+        {explanation.value && (
+          <>
+            <View style={styles.plasticDetailsSection}>
+              <MaterialIcons name="attach-money" size={14} color="#F5C842" />
+              <Text style={styles.plasticDetailsSectionTitle}>Value at Junk Shops:</Text>
+            </View>
+            <Text style={styles.plasticDetailsText}>{explanation.value}</Text>
+          </>
+        )}
+        
+        <View style={styles.plasticDetailsSection}>
+          <MaterialIcons name="eco" size={14} color={C.bio} />
+          <Text style={styles.plasticDetailsSectionTitle}>Environmental Note:</Text>
+        </View>
+        <Text style={styles.plasticDetailsText}>{explanation.environmentalNote}</Text>
       </View>
     </View>
   );
 };
 
-// UPDATED: TMFKWasteAssistant with Cohere AI
+// TMFKWasteAssistant with Cohere AI - ENGLISH VERSION
 const TMFKWasteAssistant = ({ detections, overallCat, manualLoc }) => {
   const unique = [...new Map(detections.map((d) => [d.label, d])).values()];
   const [activeIdx, setActiveIdx] = useState(0);
@@ -787,12 +857,22 @@ const TMFKWasteAssistant = ({ detections, overallCat, manualLoc }) => {
 
   const buildFallbackTips = useCallback((det) => {
     const normT = normaliseType(det.type);
+    const pt = detectPlasticType(det.label);
+    if (pt) {
+      return [
+        `• ${pt.code} (#${pt.typeNum}) - ${pt.fullName}: ${pt.recyclingTip}`,
+        `• ${pt.description}`,
+        `• ${pt.environmentalNote}`,
+        `• Check your barangay's waste collection schedule for ${normT} waste.`,
+        `• Bring ${det.label} to the proper facility in ${manualLoc || "your area"}.`,
+      ].join("\n");
+    }
     return [
-      `• Banlawan ang ${det.label} nang maigi bago itapon.`,
-      `• Ihiwalay ang ${det.label} bilang ${normT} ayon sa guidelines ng barangay.`,
-      `• Tingnan ang schedule ng koleksyon ng basura sa inyong barangay.`,
-      `• Bago itapon, isipin kung maaari pang magamit muli ang ${det.label}.`,
-      `• Dalhin ang ${det.label} sa tamang pasilidad sa ${manualLoc || "inyong lugar"}.`,
+      `• Rinse ${det.label} thoroughly before disposing.`,
+      `• Separate ${det.label} as ${normT} according to barangay guidelines.`,
+      `• Check your barangay's waste collection schedule.`,
+      `• Before throwing, consider if ${det.label} can be reused.`,
+      `• Bring ${det.label} to the proper facility in ${manualLoc || "your area"}.`,
     ].join("\n");
   }, [manualLoc]);
 
@@ -800,13 +880,20 @@ const TMFKWasteAssistant = ({ detections, overallCat, manualLoc }) => {
     if (!det || tips[det.label] || tipsLoad[det.label]) return;
     setTipsLoad((p) => ({ ...p, [det.label]: true }));
     try {
-      const prompt = `You are a waste management assistant in the Philippines. Give 5 disposal and cleanup tips for "${det.label}" in TAGALOG language only.
+      const pt = detectPlasticType(det.label);
+      let context = "";
+      if (pt) {
+        context = `This is a ${pt.code} (#${pt.typeNum}) - ${pt.fullName} plastic item. ${pt.description}`;
+      }
+      const prompt = `You are a waste management assistant in the Philippines. Give 5 disposal and cleanup tips for "${det.label}" in ENGLISH language only.
+      
+${context}
 
 Format each tip as a bullet point starting with "• ".
-Each tip should be a complete sentence (15-25 words in Tagalog).
+Each tip should be a complete sentence (15-25 words in English).
 Be practical and specific to Philippine context.
 
-Write the 5 Tagalog tips now:`;
+Write the 5 English tips now:`;
 
       const text = await callGeminiAPI(prompt);
       if (!text) throw new Error("no_response");
@@ -828,7 +915,6 @@ Write the 5 Tagalog tips now:`;
     setAskLoad(true);
     setAskAnswer("");
     
-    // Use Cohere AI for answering questions
     const answer = await callCohereWasteAPI(q, detections, manualLoc);
     setAskAnswer(answer);
     setAskLoad(false);
@@ -849,25 +935,25 @@ Write the 5 Tagalog tips now:`;
     });
 
   return (
-    <View style={S.aiPanel}>
-      <View style={S.aiHeader}>
-        <View style={S.aiAvatarWrap}>
+    <View style={styles.aiPanel}>
+      <View style={styles.aiHeader}>
+        <View style={styles.aiAvatarWrap}>
           <MaterialIcons name="psychology" size={20} color="white" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={S.aiTitle}>T.M.F.K Waste Assistant</Text>
-          <Text style={S.aiSubtitle}>Powered by Cohere AI • Disposal tips & guidance (Tagalog)</Text>
+          <Text style={styles.aiTitle}>T.M.F.K Waste Assistant</Text>
+          <Text style={styles.aiSubtitle}>Powered by Cohere AI • Disposal tips & guidance (English)</Text>
         </View>
       </View>
 
-      <View style={S.aiModeRow}>
-        <Pressable style={[S.aiModeBtn, panelMode === "tips" && S.aiModeBtnActive]} onPress={() => setPanelMode("tips")}>
+      <View style={styles.aiModeRow}>
+        <Pressable style={[styles.aiModeBtn, panelMode === "tips" && styles.aiModeBtnActive]} onPress={() => setPanelMode("tips")}>
           <MaterialIcons name="lightbulb" size={14} color={panelMode === "tips" ? "white" : "rgba(255,255,255,0.55)"} />
-          <Text style={[S.aiModeBtnTxt, panelMode === "tips" && { color: "white" }]}>Tips (Tagalog)</Text>
+          <Text style={[styles.aiModeBtnTxt, panelMode === "tips" && { color: "white" }]}>Tips</Text>
         </Pressable>
-        <Pressable style={[S.aiModeBtn, panelMode === "ask" && S.aiModeBtnActive]} onPress={() => setPanelMode("ask")}>
+        <Pressable style={[styles.aiModeBtn, panelMode === "ask" && styles.aiModeBtnActive]} onPress={() => setPanelMode("ask")}>
           <MaterialIcons name="chat" size={14} color={panelMode === "ask" ? "white" : "rgba(255,255,255,0.55)"} />
-          <Text style={[S.aiModeBtnTxt, panelMode === "ask" && { color: "white" }]}>Ask T.M.F.K (Tagalog)</Text>
+          <Text style={[styles.aiModeBtnTxt, panelMode === "ask" && { color: "white" }]}>Ask T.M.F.K</Text>
         </Pressable>
       </View>
 
@@ -884,12 +970,12 @@ Write the 5 Tagalog tips now:`;
               return (
                 <Pressable
                   key={det.label}
-                  style={[S.aiTab, i === activeIdx
+                  style={[styles.aiTab, i === activeIdx
                     ? { backgroundColor: catColor(det.type), borderColor: catColor(det.type) }
                     : { backgroundColor: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)" }]}
                   onPress={() => setActiveIdx(i)}
                 >
-                  <Text style={[S.aiTabTxt, i === activeIdx ? { color: "white" } : { color: "rgba(255,255,255,0.65)" }]}>
+                  <Text style={[styles.aiTabTxt, i === activeIdx ? { color: "white" } : { color: "rgba(255,255,255,0.65)" }]}>
                     {det.label}{pt ? ` (${pt.code})` : ""}
                   </Text>
                 </Pressable>
@@ -897,43 +983,43 @@ Write the 5 Tagalog tips now:`;
             })}
           </ScrollView>
 
-          <View style={S.aiTipsOuter}>
+          <View style={styles.aiTipsOuter}>
             {isLoading ? (
-              <View style={S.aiLoadingRow}>
+              <View style={styles.aiLoadingRow}>
                 <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
-                <Text style={S.aiLoadingTxt}>Getting Tagalog tips for {current.label}…</Text>
+                <Text style={styles.aiLoadingTxt}>Getting English tips for {current.label}…</Text>
               </View>
             ) : tipLines.length > 0 ? (
               <ScrollView
-                style={S.aiTipsScrollView}
+                style={styles.aiTipsScrollView}
                 showsVerticalScrollIndicator={true}
                 indicatorStyle="white"
                 nestedScrollEnabled={true}
-                contentContainerStyle={S.aiTipsContent}
+                contentContainerStyle={styles.aiTipsContent}
               >
                 {tipLines.map((tip, i) => (
-                  <View key={i} style={S.aiTipRow}>
-                    <View style={S.aiTipNum}>
-                      <Text style={S.aiTipNumTxt}>{i + 1}</Text>
+                  <View key={i} style={styles.aiTipRow}>
+                    <View style={styles.aiTipNum}>
+                      <Text style={styles.aiTipNumTxt}>{i + 1}</Text>
                     </View>
-                    <Text style={S.aiTipTxt}>{tip}</Text>
+                    <Text style={styles.aiTipTxt}>{tip}</Text>
                   </View>
                 ))}
               </ScrollView>
             ) : currentTips && currentTips.length > 0 ? (
               <ScrollView
-                style={S.aiTipsScrollView}
+                style={styles.aiTipsScrollView}
                 showsVerticalScrollIndicator={true}
                 indicatorStyle="white"
                 nestedScrollEnabled={true}
-                contentContainerStyle={S.aiTipsContent}
+                contentContainerStyle={styles.aiTipsContent}
               >
-                <Text style={S.aiTipTxt}>{currentTips}</Text>
+                <Text style={styles.aiTipTxt}>{currentTips}</Text>
               </ScrollView>
             ) : (
-              <View style={S.aiLoadingRow}>
+              <View style={styles.aiLoadingRow}>
                 <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
-                <Text style={S.aiLoadingTxt}>Preparing Tagalog tips…</Text>
+                <Text style={styles.aiLoadingTxt}>Preparing English tips…</Text>
               </View>
             )}
           </View>
@@ -942,8 +1028,8 @@ Write the 5 Tagalog tips now:`;
 
       {panelMode === "ask" && (
         <View>
-          <Text style={S.aiAskHint}>
-            Powered by Cohere AI — Ask about your scanned waste: proper disposal, recycling, or what to do. (Answers in Tagalog)
+          <Text style={styles.aiAskHint}>
+            Powered by Cohere AI — Ask about your scanned waste: proper disposal, recycling, or what to do. (Answers in English)
           </Text>
 
           <ScrollView
@@ -953,21 +1039,21 @@ Write the 5 Tagalog tips now:`;
             contentContainerStyle={{ flexDirection: "row", gap: 8 }}
           >
             {[
-              `Paano itapon ang ${unique[0]?.label ?? "basura"}?`,
-              "Saan ang pinakamalapit na junk shop?",
-              "Magkano ang bentahan ng plastik at lata?",
-              "Pwede bang i-compost ang food waste?",
+              `How to dispose of ${unique[0]?.label ?? "waste"}?`,
+              "Where is the nearest junk shop?",
+              "How much do plastic and cans sell for?",
+              "Can I compost food waste?",
             ].map((q) => (
-              <Pressable key={q} style={S.aiSuggestChip} onPress={() => setUserQ(q)}>
-                <Text style={S.aiSuggestChipTxt} numberOfLines={1}>{q}</Text>
+              <Pressable key={q} style={styles.aiSuggestChip} onPress={() => setUserQ(q)}>
+                <Text style={styles.aiSuggestChipTxt} numberOfLines={1}>{q}</Text>
               </Pressable>
             ))}
           </ScrollView>
 
-          <View style={S.aiAskRow}>
+          <View style={styles.aiAskRow}>
             <TextInput
-              style={S.aiAskInput}
-              placeholder="Magtanong tungkol sa basura... (Answers in Tagalog)"
+              style={styles.aiAskInput}
+              placeholder="Ask questions about waste disposal... (Answers in English)"
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={userQ}
               onChangeText={setUserQ}
@@ -975,7 +1061,7 @@ Write the 5 Tagalog tips now:`;
               returnKeyType="send"
               onSubmitEditing={handleAsk}
             />
-            <Pressable style={S.aiAskSendBtn} onPress={handleAsk} disabled={askLoad}>
+            <Pressable style={styles.aiAskSendBtn} onPress={handleAsk} disabled={askLoad}>
               {askLoad
                 ? <ActivityIndicator size="small" color="white" />
                 : <Ionicons name="send" size={18} color="white" />}
@@ -983,26 +1069,26 @@ Write the 5 Tagalog tips now:`;
           </View>
 
           {askLoad && (
-            <View style={S.aiLoadingRow}>
+            <View style={styles.aiLoadingRow}>
               <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
-              <Text style={S.aiLoadingTxt}>T.M.F.K is thinking (Cohere AI)…</Text>
+              <Text style={styles.aiLoadingTxt}>T.M.F.K is thinking (Cohere AI)…</Text>
             </View>
           )}
 
           {!!askAnswer && !askLoad && (
-            <View style={S.aiAnswerBox}>
-              <View style={S.aiAnswerHeader}>
+            <View style={styles.aiAnswerBox}>
+              <View style={styles.aiAnswerHeader}>
                 <MaterialIcons name="psychology" size={14} color={C.highlight} />
-                <Text style={S.aiAnswerHeaderTxt}>T.M.F.K Answer (Tagalog • Cohere AI)</Text>
+                <Text style={styles.aiAnswerHeaderTxt}>T.M.F.K Answer (English • Cohere AI)</Text>
               </View>
               <ScrollView
-                style={S.aiAnswerScroll}
+                style={styles.aiAnswerScroll}
                 showsVerticalScrollIndicator={true}
                 indicatorStyle="white"
                 nestedScrollEnabled={true}
                 contentContainerStyle={{ paddingBottom: 4 }}
               >
-                <Text style={S.aiAnswerTxt}>{askAnswer}</Text>
+                <Text style={styles.aiAnswerTxt}>{askAnswer}</Text>
               </ScrollView>
             </View>
           )}
@@ -1014,29 +1100,29 @@ Write the 5 Tagalog tips now:`;
 
 const BarangaySelector = ({ selected, onSelect, classification, disabled, allowedBarangays, locationMessage }) => {
   return (
-    <View style={S.barangaySelector}>
-      <View style={S.secHeader}>
-        <View style={[S.secIconBg, { backgroundColor: "#E8F0FE" }]}>
+    <View style={styles.barangaySelector}>
+      <View style={styles.secHeader}>
+        <View style={[styles.secIconBg, { backgroundColor: "#E8F0FE" }]}>
           <Ionicons name="navigate" size={16} color="#1A6B9A" />
         </View>
-        <Text style={S.secTitle}>Barangay</Text>
+        <Text style={styles.secTitle}>Barangay</Text>
       </View>
 
       {locationMessage && (
-        <View style={S.locationInfoBanner}>
+        <View style={styles.locationInfoBanner}>
           <Ionicons name="location-outline" size={14} color="#1A6B9A" />
-          <Text style={S.locationInfoText}>{locationMessage}</Text>
+          <Text style={styles.locationInfoText}>{locationMessage}</Text>
         </View>
       )}
 
       {allowedBarangays.length === 1 && (
-        <View style={S.singleOptionBanner}>
+        <View style={styles.singleOptionBanner}>
           <Ionicons name="information-circle" size={14} color="#2D7A4F" />
-          <Text style={S.singleOptionText}>Based on your location, you can only report to this barangay.</Text>
+          <Text style={styles.singleOptionText}>Based on your location, you can only report to this barangay.</Text>
         </View>
       )}
 
-      <Text style={S.barangayHint}>Select where to send your waste report</Text>
+      <Text style={styles.barangayHint}>Select where to send your waste report</Text>
 
       {BARANGAY_OPTIONS.map((opt) => {
         const isAllowed = allowedBarangays.includes(opt.key);
@@ -1045,15 +1131,15 @@ const BarangaySelector = ({ selected, onSelect, classification, disabled, allowe
         return (
           <Pressable
             key={opt.key}
-            style={[S.barangayOption,
+            style={[styles.barangayOption,
               isSelected && { borderColor: opt.color, backgroundColor: opt.color + "12" },
-              isDisabled && S.barangayOptionDisabled]}
+              isDisabled && styles.barangayOptionDisabled]}
             onPress={() => !isDisabled && onSelect(opt.key)}
             disabled={isDisabled}
           >
-            <View style={[S.barangayOptionDot, { backgroundColor: isSelected ? opt.color : C.border }]} />
+            <View style={[styles.barangayOptionDot, { backgroundColor: isSelected ? opt.color : C.border }]} />
             <View style={{ flex: 1 }}>
-              <Text style={[S.barangayOptionLabel, isSelected && { color: opt.color, fontWeight: "700" }]}>
+              <Text style={[styles.barangayOptionLabel, isSelected && { color: opt.color, fontWeight: "700" }]}>
                 {opt.label}
               </Text>
             </View>
@@ -1066,12 +1152,13 @@ const BarangaySelector = ({ selected, onSelect, classification, disabled, allowe
   );
 };
 
-// Main WasteDetection Component (continues from here)
+// Main WasteDetection Component
 const WasteDetection = ({ navigation }) => {
   const [imageUri,       setImageUri]       = useState(null);
   const [imageFile,      setImageFile]      = useState(null);
   const [imageBase64,    setImageBase64]    = useState(null);
   const [imageNatSize,   setImageNatSize]   = useState({ width: 1, height: 1 });
+  const [fullImgSize,    setFullImgSize]    = useState({ width: 0, height: 0 });
   const [displaySize,    setDisplaySize]    = useState({ width: 0, height: 0 });
   const [detections,     setDetections]     = useState([]);
   const [overallCat,     setOverallCat]     = useState(null);
@@ -1102,9 +1189,18 @@ const WasteDetection = ({ navigation }) => {
   const [liveFrameMs, setLiveFrameMs] = useState(null);
   const [liveFacing,  setLiveFacing]  = useState("back");
   const [captPerm,    reqCaptPerm]    = useCameraPermissions();
+  
+  // For pinch zoom in full image modal
+  const [scale, setScale] = useState(1);
+  const [baseScale, setBaseScale] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
 
   const [allowedBarangays, setAllowedBarangays] = useState(BARANGAY_OPTIONS.map(b => b.key));
   const [locationMessage,  setLocationMessage]  = useState(null);
+  
+  // For plastic type selector
+  const [selectedPlasticIndex, setSelectedPlasticIndex] = useState(0);
+  const [plasticItems, setPlasticItems] = useState([]);
 
   const [liveDetections, updateLiveDetections] = useStableDetections();
   const rawDetRef   = useRef([]);
@@ -1118,6 +1214,20 @@ const WasteDetection = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
   const { loading: repLoading, success, error, currentReport, operation, routing } = useSelector((s) => s.wasteReport);
+
+  // Update plastic items when detections change
+  useEffect(() => {
+    const plastics = detections
+      .map(d => detectPlasticType(d.label))
+      .filter(pt => pt !== null)
+      .filter((pt, index, self) => 
+        index === self.findIndex(p => p.typeNum === pt.typeNum)
+      );
+    setPlasticItems(plastics);
+    if (plastics.length > 0 && selectedPlasticIndex >= plastics.length) {
+      setSelectedPlasticIndex(0);
+    }
+  }, [detections]);
 
   useEffect(() => {
     dispatch(clearError());
@@ -1240,6 +1350,7 @@ const WasteDetection = ({ navigation }) => {
     setLiveFrameMs(null); setNearbyPlaces([]); setPlacesLoad(false); setPlacesErr(null);
     setSelectedBarangay(null); setBarangayError(null);
     setActiveCropMode(null); setLastSource(null);
+    setScale(1); setBaseScale(1); setImageOffset({ x: 0, y: 0 });
     const { allowed, detected } = getAllowedBarangays(manualLoc);
     setAllowedBarangays(allowed);
     if (detected) setSelectedBarangay(detected);
@@ -1293,6 +1404,13 @@ const WasteDetection = ({ navigation }) => {
       const data = await res.json();
       const rawDets = data.detections || [];
       
+      // Debug logging
+      console.log('Raw detections received:', rawDets.length);
+      if (rawDets.length > 0) {
+        console.log('First detection box:', rawDets[0].box);
+        console.log('All detection boxes:', rawDets.map(d => d.box));
+      }
+      
       if (rawDets.length === 0) {
         setLoading(false);
         Alert.alert(
@@ -1312,7 +1430,11 @@ const WasteDetection = ({ navigation }) => {
         return;
       }
       
-      const dets = rawDets.map(d => ({ ...d, type: normaliseType(d.type) }));
+      const dets = rawDets.map(d => ({ 
+        ...d, 
+        type: normaliseType(d.type),
+        box: d.box || { x1: 0.1, y1: 0.1, x2: 0.9, y2: 0.9 }
+      }));
       const cat  = buildOverallCat(dets);
       setDetections(dets); 
       setDeviceUsed(data.device_used || null);
@@ -1341,11 +1463,16 @@ const WasteDetection = ({ navigation }) => {
 
   const loadDemo = () => {
     const demo = [
-      { type: "Special / Hazardous Waste",  label: "Battery",       confidence: 0.912, box: { x1: 40,  y1: 40,  x2: 160, y2: 140 } },
-      { type: "Recyclable",                 label: "Plastic Bottle", confidence: 0.855, box: { x1: 180, y1: 40,  x2: 300, y2: 200 } },
-      { type: "Recyclable",                 label: "Can",            confidence: 0.923, box: { x1: 60,  y1: 160, x2: 180, y2: 280 } },
-      { type: "Biodegradable",              label: "Organic",        confidence: 0.787, box: { x1: 200, y1: 200, x2: 340, y2: 320 } },
-      { type: "Residual / Non-Recyclable",  label: "Cup",            confidence: 0.821, box: { x1: 240, y1: 60,  x2: 360, y2: 180 } },
+      { type: "Recyclable", label: "Plastic Bottle (PET #1)", confidence: 0.92, box: { x1: 0.1, y1: 0.1, x2: 0.35, y2: 0.45 } },
+      { type: "Recyclable", label: "Detergent Bottle (HDPE #2)", confidence: 0.88, box: { x1: 0.4, y1: 0.05, x2: 0.65, y2: 0.4 } },
+      { type: "Recyclable", label: "Plastic Bag (LDPE #4)", confidence: 0.85, box: { x1: 0.7, y1: 0.1, x2: 0.95, y2: 0.35 } },
+      { type: "Recyclable", label: "Food Container (PP #5)", confidence: 0.91, box: { x1: 0.05, y1: 0.5, x2: 0.3, y2: 0.85 } },
+      { type: "Residual / Non-Recyclable", label: "Sachet (#7 Other)", confidence: 0.87, box: { x1: 0.35, y1: 0.5, x2: 0.6, y2: 0.8 } },
+      { type: "Residual / Non-Recyclable", label: "CD (#7 Polycarbonate)", confidence: 0.83, box: { x1: 0.65, y1: 0.55, x2: 0.9, y2: 0.85 } },
+      { type: "Biodegradable", label: "Food Waste", confidence: 0.89, box: { x1: 0.15, y1: 0.6, x2: 0.45, y2: 0.95 } },
+      { type: "Recyclable", label: "Aluminum Can", confidence: 0.94, box: { x1: 0.5, y1: 0.7, x2: 0.75, y2: 0.92 } },
+      { type: "Special / Hazardous Waste", label: "Battery", confidence: 0.86, box: { x1: 0.8, y1: 0.15, x2: 0.95, y2: 0.45 } },
+      { type: "Biodegradable", label: "Banana Peel", confidence: 0.84, box: { x1: 0.55, y1: 0.45, x2: 0.85, y2: 0.7 } },
     ];
     const cat = buildOverallCat(demo);
     setDetections(demo); setOverallCat(cat); setOverallConf(buildOverallConf(demo));
@@ -1356,7 +1483,7 @@ const WasteDetection = ({ navigation }) => {
     const brKey = detected || allowed[0] || "central_bicutan";
     setSelectedBarangay(brKey);
     setBarangayError(validateBarangay(brKey, cat));
-    Alert.alert("Demo Mode", "Showing sample detection results.");
+    Alert.alert("Demo Mode", "Showing sample detection results with 10 objects.");
   };
 
   const handleSaveReport = () => {
@@ -1498,21 +1625,155 @@ const WasteDetection = ({ navigation }) => {
     } catch (err) { Alert.alert("Snapshot Error", err.message); }
   }, [stopLive, manualLoc, validateBarangay]);
 
-  const renderBoxes = () => {
-    if (!detections.length || displaySize.width === 0 || !showBoxes) return null;
-    const sx = displaySize.width / imageNatSize.width;
-    const sy = displaySize.height / imageNatSize.height;
-    return detections.map((item, i) => {
+  // IMPROVED renderBoxes function with better alignment
+  const renderBoxes = (isFullScreen = false, fullImageWidth = null, fullImageHeight = null) => {
+    if (!detections.length || !showBoxes) return null;
+    
+    if (isFullScreen && fullImageWidth && fullImageHeight) {
+      // For full screen modal - scale to actual image display size with pinch zoom
+      const scaleX = fullImageWidth / imageNatSize.width;
+      const scaleY = fullImageHeight / imageNatSize.height;
+      
+      return detections.map((item, idx) => {
+        if (!item.box) return null;
+        const { x1, y1, x2, y2 } = item.box;
+        const col = catColor(item.type);
+        
+        // Apply scaling and zoom transform
+        let left = x1 * scaleX;
+        let top = y1 * scaleY;
+        let width = (x2 - x1) * scaleX;
+        let height = (y2 - y1) * scaleY;
+        
+        // Apply pinch zoom scaling
+        if (scale !== 1) {
+          const centerX = fullImageWidth / 2;
+          const centerY = fullImageHeight / 2;
+          left = centerX + (left - centerX) * scale + imageOffset.x;
+          top = centerY + (top - centerY) * scale + imageOffset.y;
+          width = width * scale;
+          height = height * scale;
+        }
+        
+        if (width <= 0 || height <= 0 || isNaN(width) || isNaN(height)) {
+          return null;
+        }
+        
+        return (
+          <View 
+            key={`full-box-${idx}`}
+            style={[
+              styles.boundingBox,
+              {
+                left: left,
+                top: top,
+                width: width,
+                height: height,
+                borderWidth: 2.5,
+                borderColor: col,
+                borderRadius: 6,
+                backgroundColor: col + '22',
+                zIndex: 10,
+              }
+            ]}
+          >
+            <View style={[
+              styles.labelBox,
+              {
+                top: -24,
+                left: 0,
+                backgroundColor: col,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 5,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+              }
+            ]}>
+              <Text style={[styles.labelText, { color: 'white', fontSize: 11, fontWeight: 'bold' }]}>
+                {item.label} {Math.round(item.confidence * 100)}%
+              </Text>
+            </View>
+          </View>
+        );
+      });
+    }
+    
+    // For preview image
+    if (displaySize.width === 0 || displaySize.height === 0) {
+      return null;
+    }
+    
+    const scaleX = displaySize.width / imageNatSize.width;
+    const scaleY = displaySize.height / imageNatSize.height;
+    
+    return detections.map((item, idx) => {
+      if (!item.box) return null;
       const { x1, y1, x2, y2 } = item.box;
       const col = catColor(item.type);
+      const left = x1 * scaleX;
+      const top = y1 * scaleY;
+      const width = (x2 - x1) * scaleX;
+      const height = (y2 - y1) * scaleY;
+      
+      if (width <= 0 || height <= 0 || isNaN(width) || isNaN(height)) {
+        return null;
+      }
+      
       return (
-        <View key={i} style={[S.boundingBox, { left: x1*sx, top: y1*sy, width: (x2-x1)*sx, height: (y2-y1)*sy, borderColor: col }]}>
-          <View style={[S.labelBox, { backgroundColor: col }]}>
-            <Text style={S.labelText} numberOfLines={1}>{item.label} {Math.round(item.confidence*100)}%</Text>
+        <View 
+          key={`preview-box-${idx}`}
+          style={[
+            styles.boundingBox,
+            {
+              left: left,
+              top: top,
+              width: width,
+              height: height,
+              borderWidth: 2.5,
+              borderColor: col,
+              borderRadius: 6,
+              backgroundColor: col + '22',
+              zIndex: 10,
+            }
+          ]}
+        >
+          <View style={[
+            styles.labelBox,
+            {
+              top: -24,
+              left: 0,
+              backgroundColor: col,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 5,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }
+          ]}>
+            <Text style={[styles.labelText, { color: 'white', fontSize: 11, fontWeight: 'bold' }]}>
+              {item.label} {Math.round(item.confidence * 100)}%
+            </Text>
           </View>
         </View>
       );
     });
+  };
+
+  // Pinch zoom handler for full image modal
+  const onPinchEvent = (event) => {
+    const newScale = baseScale * event.nativeEvent.scale;
+    if (newScale >= 1 && newScale <= 3) {
+      setScale(newScale);
+    }
+  };
+
+  const onPinchStateChange = (event) => {
+    if (event.nativeEvent.oldState === 2) {
+      setBaseScale(scale);
+    }
   };
 
   const renderCompBar = () => {
@@ -1524,24 +1785,24 @@ const WasteDetection = ({ navigation }) => {
       { label: "Biodegradable", v: biodegradable, col: C.bio        },
     ];
     return (
-      <View style={S.card}>
-        <View style={S.secHeader}>
-          <View style={[S.secIconBg, { backgroundColor: "#E8F5EE" }]}>
+      <View style={styles.card}>
+        <View style={styles.secHeader}>
+          <View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}>
             <MaterialIcons name="pie-chart" size={16} color={C.secondary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={S.secTitle}>Waste Composition</Text>
+            <Text style={styles.secTitle}>Waste Composition</Text>
           </View>
         </View>
-        <View style={S.compBar}>
-          {bars.map(({ v, col }, i) => v > 0 ? <View key={i} style={[S.compSeg, { flex: v, backgroundColor: col }]} /> : null)}
+        <View style={styles.compBar}>
+          {bars.map(({ v, col }, i) => v > 0 ? <View key={i} style={[styles.compSeg, { flex: v, backgroundColor: col }]} /> : null)}
         </View>
-        <View style={S.compLegend}>
+        <View style={styles.compLegend}>
           {bars.map(({ label, v, col }) => (
-            <View key={label} style={S.compLegendItem}>
-              <View style={[S.compDot, { backgroundColor: col }]} />
-              <Text style={S.compLegendLabel}>{label}</Text>
-              <Text style={[S.compLegendVal, { color: col }]}>{v}%</Text>
+            <View key={label} style={styles.compLegendItem}>
+              <View style={[styles.compDot, { backgroundColor: col }]} />
+              <Text style={styles.compLegendLabel}>{label}</Text>
+              <Text style={[styles.compLegendVal, { color: col }]}>{v}%</Text>
             </View>
           ))}
         </View>
@@ -1572,21 +1833,21 @@ const WasteDetection = ({ navigation }) => {
       return km < 1 ? `${Math.round(km*1000)}m away` : `${km.toFixed(1)}km away`;
     };
     return (
-      <View style={[S.card, { borderTopWidth: 3, borderTopColor: cfg.accentColor }]}>
-        <View style={S.secHeader}>
-          <View style={[S.secIconBg, { backgroundColor: cfg.bgColor }]}>
+      <View style={[styles.card, { borderTopWidth: 3, borderTopColor: cfg.accentColor }]}>
+        <View style={styles.secHeader}>
+          <View style={[styles.secIconBg, { backgroundColor: cfg.bgColor }]}>
             <MaterialIcons name={cfg.icon} size={16} color={cfg.accentColor} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={S.secTitle}>{cfg.label}</Text>
+            <Text style={styles.secTitle}>{cfg.label}</Text>
           </View>
         </View>
-        {placesLoad && <View style={S.placesLoadWrap}><ActivityIndicator size="small" color={cfg.accentColor} /><Text style={[S.placesLoadTxt, { color: cfg.accentColor }]}>Finding nearby locations…</Text></View>}
-        {placesErr && !placesLoad && <View style={S.placesErrWrap}><Ionicons name="warning-outline" size={18} color={C.residual} /><Text style={S.placesErrTxt}>{placesErr}</Text></View>}
+        {placesLoad && <View style={styles.placesLoadWrap}><ActivityIndicator size="small" color={cfg.accentColor} /><Text style={[styles.placesLoadTxt, { color: cfg.accentColor }]}>Finding nearby locations…</Text></View>}
+        {placesErr && !placesLoad && <View style={styles.placesErrWrap}><Ionicons name="warning-outline" size={18} color={C.residual} /><Text style={styles.placesErrTxt}>{placesErr}</Text></View>}
         {!placesLoad && !placesErr && nearbyPlaces.length === 0 && (
-          <View style={S.placesEmptyWrap}>
+          <View style={styles.placesEmptyWrap}>
             <Ionicons name="location-outline" size={32} color={C.textLight} />
-            <Text style={S.placesEmptyTitle}>No places found nearby</Text>
+            <Text style={styles.placesEmptyTitle}>No places found nearby</Text>
           </View>
         )}
         {!placesLoad && nearbyPlaces.map((place, i) => {
@@ -1594,24 +1855,24 @@ const WasteDetection = ({ navigation }) => {
           const isOpen = place.opening_hours?.open_now;
           const rating = place.rating;
           return (
-            <Pressable key={place.place_id ?? i} style={[S.placeCard, { borderLeftColor: cfg.accentColor }]} onPress={() => openInMaps(place)} android_ripple={{ color: cfg.bgColor }}>
-              <View style={[S.placeIdx, { backgroundColor: cfg.accentColor }]}><Text style={S.placeIdxTxt}>{i+1}</Text></View>
-              <View style={S.placeInfo}>
-                <Text style={S.placeName} numberOfLines={1}>{place.name}</Text>
-                <Text style={S.placeVic} numberOfLines={1}>{place.vicinity}</Text>
-                <View style={S.placeMeta}>
-                  {dist && <View style={S.placeChip}><Ionicons name="navigate-outline" size={11} color={cfg.accentColor} /><Text style={[S.placeChipTxt, { color: cfg.accentColor }]}>{dist}</Text></View>}
-                  {rating != null && <View style={S.placeChip}><Ionicons name="star" size={11} color="#F5C842" /><Text style={S.placeChipTxt}>{rating.toFixed(1)}</Text></View>}
-                  {isOpen != null && <View style={[S.placeChip, { backgroundColor: isOpen ? "#E8F5EE" : "#FFEBEE" }]}><View style={[S.openDot, { backgroundColor: isOpen ? "#2D7A4F" : "#C62828" }]} /><Text style={[S.placeChipTxt, { color: isOpen ? "#2D7A4F" : "#C62828" }]}>{isOpen ? "Open" : "Closed"}</Text></View>}
+            <Pressable key={place.place_id ?? i} style={[styles.placeCard, { borderLeftColor: cfg.accentColor }]} onPress={() => openInMaps(place)} android_ripple={{ color: cfg.bgColor }}>
+              <View style={[styles.placeIdx, { backgroundColor: cfg.accentColor }]}><Text style={styles.placeIdxTxt}>{i+1}</Text></View>
+              <View style={styles.placeInfo}>
+                <Text style={styles.placeName} numberOfLines={1}>{place.name}</Text>
+                <Text style={styles.placeVic} numberOfLines={1}>{place.vicinity}</Text>
+                <View style={styles.placeMeta}>
+                  {dist && <View style={styles.placeChip}><Ionicons name="navigate-outline" size={11} color={cfg.accentColor} /><Text style={[styles.placeChipTxt, { color: cfg.accentColor }]}>{dist}</Text></View>}
+                  {rating != null && <View style={styles.placeChip}><Ionicons name="star" size={11} color="#F5C842" /><Text style={styles.placeChipTxt}>{rating.toFixed(1)}</Text></View>}
+                  {isOpen != null && <View style={[styles.placeChip, { backgroundColor: isOpen ? "#E8F5EE" : "#FFEBEE" }]}><View style={[styles.openDot, { backgroundColor: isOpen ? "#2D7A4F" : "#C62828" }]} /><Text style={[styles.placeChipTxt, { color: isOpen ? "#2D7A4F" : "#C62828" }]}>{isOpen ? "Open" : "Closed"}</Text></View>}
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color={cfg.accentColor} />
             </Pressable>
           );
         })}
-        <Pressable style={[S.mapsBtn, { borderColor: cfg.accentColor }]} onPress={openSearch}>
+        <Pressable style={[styles.mapsBtn, { borderColor: cfg.accentColor }]} onPress={openSearch}>
           <MaterialIcons name="map" size={16} color={cfg.accentColor} />
-          <Text style={[S.mapsBtnTxt, { color: cfg.accentColor }]}>Search more on Google Maps</Text>
+          <Text style={[styles.mapsBtnTxt, { color: cfg.accentColor }]}>Search more on Google Maps</Text>
           <Ionicons name="open-outline" size={14} color={cfg.accentColor} />
         </Pressable>
       </View>
@@ -1622,20 +1883,20 @@ const WasteDetection = ({ navigation }) => {
     const scaleX = SW / liveImgW.current;
     const scaleY = SH / liveImgH.current;
     return (
-      <View style={S.liveContainer}>
+      <View style={styles.liveContainer}>
         <StatusBar barStyle="light-content" backgroundColor="black" />
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={liveFacing} pictureSize="640x480" />
         <LiveOverlay detections={liveDetections} scaleX={scaleX} scaleY={scaleY} />
-        <SafeAreaView style={S.liveTopBar}>
-          <Pressable style={S.liveIconBtn} onPress={stopLive}><Ionicons name="close" size={24} color="white" /></Pressable>
+        <SafeAreaView style={styles.liveTopBar}>
+          <Pressable style={styles.liveIconBtn} onPress={stopLive}><Ionicons name="close" size={24} color="white" /></Pressable>
           <LiveStatus connected={wsConnected} count={liveDetections.length} ms={liveFrameMs} />
-          <Pressable style={S.liveIconBtn} onPress={() => setLiveFacing((f) => f === "back" ? "front" : "back")}><Ionicons name="camera-reverse" size={24} color="white" /></Pressable>
+          <Pressable style={styles.liveIconBtn} onPress={() => setLiveFacing((f) => f === "back" ? "front" : "back")}><Ionicons name="camera-reverse" size={24} color="white" /></Pressable>
         </SafeAreaView>
-        <View style={S.liveBottomPanel}>
+        <View style={styles.liveBottomPanel}>
           <LiveChips detections={liveDetections} />
-          <Pressable style={S.liveCaptureRow} onPress={captureLiveSnapshot}>
-            <View style={S.liveCaptureBtn}><Ionicons name="camera" size={30} color="white" /></View>
-            <Text style={S.liveCaptureTxt}>Capture & Save</Text>
+          <Pressable style={styles.liveCaptureRow} onPress={captureLiveSnapshot}>
+            <View style={styles.liveCaptureBtn}><Ionicons name="camera" size={30} color="white" /></View>
+            <Text style={styles.liveCaptureTxt}>Capture & Save</Text>
           </Pressable>
         </View>
       </View>
@@ -1643,233 +1904,306 @@ const WasteDetection = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={S.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={C.primary} />
-      <ScrollView style={S.container} contentContainerStyle={S.contentCont}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); resetForm(); setTimeout(() => setRefreshing(false), 800); }} tintColor={C.accent} colors={[C.accent]} />}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={C.primary} />
+        <ScrollView style={styles.container} contentContainerStyle={styles.contentCont}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); resetForm(); setTimeout(() => setRefreshing(false), 800); }} tintColor={C.accent} colors={[C.accent]} />}>
 
-        <View style={S.header}>
-          <View style={S.headerTop}>
-            <Pressable style={S.backBtn} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={22} color="white" /></Pressable>
-            <View style={S.headerCenter}>
-              <Text style={S.headerTitle}>Waste Analysis</Text>
-              <Text style={S.headerSub}>AI-Powered Waste Detection</Text>
-            </View>
-            <Pressable style={S.histBtn} onPress={() => navigation.navigate("ReportHistory")}><Ionicons name="time-outline" size={22} color="white" /></Pressable>
-          </View>
-          <View style={S.headerChips}>
-            {user && <View style={S.headerChip}><Ionicons name="person" size={12} color="rgba(255,255,255,0.8)" /><Text style={S.headerChipTxt} numberOfLines={1}>{user.email}</Text></View>}
-            {deviceUsed && <View style={[S.headerChip, { backgroundColor: "rgba(245,200,66,0.2)" }]}><Ionicons name="hardware-chip" size={12} color={C.highlight} /><Text style={[S.headerChipTxt, { color: C.highlight }]}>{deviceUsed.toUpperCase()}</Text></View>}
-          </View>
-        </View>
-
-        {usingDemo && (
-          <View style={S.demoBanner}><Ionicons name="flask" size={14} color={C.highlight} /><Text style={S.demoBannerTxt}>DEMO MODE — SAMPLE DATA</Text></View>
-        )}
-
-        <View style={S.card}>
-          <View style={S.secHeader}><View style={[S.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="location" size={16} color={C.secondary} /></View><Text style={S.secTitle}>Location</Text></View>
-          <TextInput style={S.input} placeholder="Enter or auto-detect location" placeholderTextColor={C.textLight} value={manualLoc} onChangeText={setManualLoc} />
-          <Pressable style={S.outlineBtn} onPress={getLocation}><Ionicons name="locate" size={16} color={C.secondary} /><Text style={S.outlineBtnTxt}>Use Current Location</Text></Pressable>
-        </View>
-
-        <View style={S.card}>
-          <View style={S.secHeader}><View style={[S.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="camera" size={16} color={C.secondary} /></View><Text style={S.secTitle}>Select Image</Text></View>
-          <View style={S.cropInfoBanner}><Ionicons name="crop-outline" size={14} color="#1A6B9A" /><Text style={S.cropInfoTxt}>After selecting a photo, drag to select any area you want to analyse.</Text></View>
-          <View style={S.srcGrid}>
-            {[
-              { col: C.secondary, icon: "camera",  label: "Camera",  sub: "Drag to crop",  fn: () => pickImage(true) },
-              { col: "#1A6B9A",   icon: "images",  label: "Gallery", sub: "Drag to crop",  fn: () => pickImage(false) },
-              { col: "#7A5C1E",   icon: "flask",   label: "Demo",    sub: "Sample data",   fn: () => Alert.alert("Demo Mode", "Load sample data?", [{ text: "Cancel", style: "cancel" }, { text: "Load", onPress: loadDemo }]) },
-            ].map(({ col, icon, label, sub, fn }) => (
-              <Pressable key={label} style={[S.srcCard, { backgroundColor: col }]} onPress={fn} disabled={loading || repLoading}>
-                <View style={S.srcIcon}><Ionicons name={icon} size={22} color="white" /></View>
-                <Text style={S.srcCardTxt}>{label}</Text>
-                <Text style={S.srcCardSub}>{sub}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable style={S.liveModeBtn} onPress={startLive} disabled={loading || repLoading}>
-            <View style={S.liveModeBtnL}><Ionicons name="videocam" size={20} color="white" /><View><Text style={S.liveModeTitle}>Live AI Detection</Text><Text style={S.liveModeSub}>Real-time scanning</Text></View></View>
-            <View style={S.liveModeArrow}><Ionicons name="chevron-forward" size={18} color="white" /></View>
-          </Pressable>
-        </View>
-
-        {imageUri && (
-          <View style={S.card}>
-            <View style={S.secHeader}>
-              <View style={[S.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="image" size={16} color={C.secondary} /></View>
-              <Text style={S.secTitle}>{usingDemo ? "Demo Image" : "Selected Image"}</Text>
-              {detections.length > 0 && (
-                <Pressable style={S.toggleBoxBtn} onPress={() => setShowBoxes(!showBoxes)}>
-                  <Ionicons name={showBoxes ? "eye-off-outline" : "eye-outline"} size={16} color={C.secondary} />
-                  <Text style={S.toggleBoxTxt}>{showBoxes ? "Hide" : "Show"} boxes</Text>
-                </Pressable>
-              )}
-            </View>
-            {activeCropMode === "free" && (
-              <View style={S.cropModeBadge}>
-                <Ionicons name="crop-outline" size={13} color="#1A6B9A" />
-                <Text style={S.cropModeBadgeTxt}>Free crop applied</Text>
-                <Pressable onPress={reCrop} style={S.cropChangeBtn}><Text style={S.cropChangeTxt}>Re-crop</Text></Pressable>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={22} color="white" /></Pressable>
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Waste Analysis</Text>
+                <Text style={styles.headerSub}>AI-Powered Waste Detection</Text>
               </View>
-            )}
-            <TouchableOpacity style={S.imgCont} activeOpacity={0.9} onPress={() => setFullImgVis(true)}>
-              <Image source={{ uri: imageUri }} style={S.previewImg} resizeMode="cover" onLoad={(e) => {
-                const { width: nw, height: nh } = e.nativeEvent.source;
-                setImageNatSize({ width: nw, height: nh });
-                const cw = SW - 80;
-                setDisplaySize({ width: cw, height: cw * (nh / nw) });
-              }} />
-              {renderBoxes()}
-              <View style={S.expandBadge}><Ionicons name="expand-outline" size={15} color="white" /><Text style={S.expandTxt}>View full</Text></View>
-            </TouchableOpacity>
+              <Pressable style={styles.histBtn} onPress={() => navigation.navigate("ReportHistory")}><Ionicons name="time-outline" size={22} color="white" /></Pressable>
+            </View>
+            <View style={styles.headerChips}>
+              {user && <View style={styles.headerChip}><Ionicons name="person" size={12} color="rgba(255,255,255,0.8)" /><Text style={styles.headerChipTxt} numberOfLines={1}>{user.email}</Text></View>}
+              {deviceUsed && <View style={[styles.headerChip, { backgroundColor: "rgba(245,200,66,0.2)" }]}><Ionicons name="hardware-chip" size={12} color={C.highlight} /><Text style={[styles.headerChipTxt, { color: C.highlight }]}>{deviceUsed.toUpperCase()}</Text></View>}
+            </View>
           </View>
-        )}
 
-        {imageUri && !detDone && !usingDemo && (
-          <View style={S.analyseWrap}>
-            {loading ? (
-              <View style={S.loadingCard}><ActivityIndicator size="large" color={C.accent} /><Text style={S.loadingTitle}>Analysing…</Text><Text style={S.loadingSub}>Processing image</Text></View>
-            ) : (
-              <Pressable style={S.analyseBtn} onPress={handleDetect}><Ionicons name="analytics" size={22} color="white" /><Text style={S.analyseBtnTxt}>Analyse Waste</Text></Pressable>
-            )}
+          {usingDemo && (
+            <View style={styles.demoBanner}><Ionicons name="flask" size={14} color={C.highlight} /><Text style={styles.demoBannerTxt}>DEMO MODE — SAMPLE DATA</Text></View>
+          )}
+
+          <View style={styles.card}>
+            <View style={styles.secHeader}><View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="location" size={16} color={C.secondary} /></View><Text style={styles.secTitle}>Location</Text></View>
+            <TextInput style={styles.input} placeholder="Enter or auto-detect location" placeholderTextColor={C.textLight} value={manualLoc} onChangeText={setManualLoc} />
+            <Pressable style={styles.outlineBtn} onPress={getLocation}><Ionicons name="locate" size={16} color={C.secondary} /><Text style={styles.outlineBtnTxt}>Use Current Location</Text></Pressable>
           </View>
-        )}
 
-        {detDone && detections.length > 0 && (
-          <>
-            <View style={S.summaryRow}>
+          <View style={styles.card}>
+            <View style={styles.secHeader}><View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="camera" size={16} color={C.secondary} /></View><Text style={styles.secTitle}>Select Image</Text></View>
+            <View style={styles.cropInfoBanner}><Ionicons name="crop-outline" size={14} color="#1A6B9A" /><Text style={styles.cropInfoTxt}>After selecting a photo, drag to select any area you want to analyse.</Text></View>
+            <View style={styles.srcGrid}>
               {[
-                { v: detections.length, l: "Objects" },
-                { v: `${overallConf}%`, l: "Confidence" },
-                { v: deviceUsed?.toUpperCase() ?? "—", l: "Device" },
-              ].map(({ v, l }) => (
-                <View key={l} style={S.summaryPill}><Text style={S.summaryPillVal}>{v}</Text><Text style={S.summaryPillLbl}>{l}</Text></View>
+                { col: C.secondary, icon: "camera",  label: "Camera",  sub: "Drag to crop",  fn: () => pickImage(true) },
+                { col: "#1A6B9A",   icon: "images",  label: "Gallery", sub: "Drag to crop",  fn: () => pickImage(false) },
+                { col: "#7A5C1E",   icon: "flask",   label: "Demo",    sub: "Sample data",   fn: () => Alert.alert("Demo Mode", "Load sample data?", [{ text: "Cancel", style: "cancel" }, { text: "Load", onPress: loadDemo }]) },
+              ].map(({ col, icon, label, sub, fn }) => (
+                <Pressable key={label} style={[styles.srcCard, { backgroundColor: col }]} onPress={fn} disabled={loading || repLoading}>
+                  <View style={styles.srcIcon}><Ionicons name={icon} size={22} color="white" /></View>
+                  <Text style={styles.srcCardTxt}>{label}</Text>
+                  <Text style={styles.srcCardSub}>{sub}</Text>
+                </Pressable>
               ))}
             </View>
+            <Pressable style={styles.liveModeBtn} onPress={startLive} disabled={loading || repLoading}>
+              <View style={styles.liveModeBtnL}><Ionicons name="videocam" size={20} color="white" /><View><Text style={styles.liveModeTitle}>Live AI Detection</Text><Text style={styles.liveModeSub}>Real-time scanning</Text></View></View>
+              <View style={styles.liveModeArrow}><Ionicons name="chevron-forward" size={18} color="white" /></View>
+            </Pressable>
+          </View>
 
-            <View style={[S.catHero, { backgroundColor: catColor(overallCat) }]}>
-              <View style={S.catHeroL}>
-                {catIcon(overallCat)}
-                <View>
-                  <Text style={S.catHeroLbl}>Primary Category</Text>
-                  <Text style={S.catHeroVal}>{overallCat}</Text>
-                </View>
+          {imageUri && (
+            <View style={styles.card}>
+              <View style={styles.secHeader}>
+                <View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="image" size={16} color={C.secondary} /></View>
+                <Text style={styles.secTitle}>{usingDemo ? "Demo Image" : "Selected Image"}</Text>
+                {detections.length > 0 && (
+                  <Pressable style={styles.toggleBoxBtn} onPress={() => setShowBoxes(!showBoxes)}>
+                    <Ionicons name={showBoxes ? "eye-off-outline" : "eye-outline"} size={16} color={C.secondary} />
+                    <Text style={styles.toggleBoxTxt}>{showBoxes ? "Hide" : "Show"} boxes</Text>
+                  </Pressable>
+                )}
               </View>
-              <Text style={S.catHeroConf}>{overallConf}%</Text>
+              {activeCropMode === "free" && (
+                <View style={styles.cropModeBadge}>
+                  <Ionicons name="crop-outline" size={13} color="#1A6B9A" />
+                  <Text style={styles.cropModeBadgeTxt}>Free crop applied</Text>
+                  <Pressable onPress={reCrop} style={styles.cropChangeBtn}><Text style={styles.cropChangeTxt}>Re-crop</Text></Pressable>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.imgCont} 
+                activeOpacity={0.9} 
+                onPress={() => setFullImgVis(true)}
+              >
+                <Image 
+                  source={{ uri: imageUri }} 
+                  style={styles.previewImg} 
+                  resizeMode="cover" 
+                  onLoad={(e) => {
+                    const { width: nw, height: nh } = e.nativeEvent.source;
+                    console.log('Image loaded - natural size:', nw, nh);
+                    setImageNatSize({ width: nw, height: nh });
+                    const containerWidth = SW - 40;
+                    const scaledHeight = containerWidth * (nh / nw);
+                    setDisplaySize({ width: containerWidth, height: scaledHeight });
+                    console.log('Display size set to:', containerWidth, scaledHeight);
+                  }} 
+                />
+                {renderBoxes(false)}
+                <View style={styles.expandBadge}><Ionicons name="expand-outline" size={15} color="white" /><Text style={styles.expandTxt}>View full</Text></View>
+              </TouchableOpacity>
             </View>
+          )}
 
-            {renderCompBar()}
+          {imageUri && !detDone && !usingDemo && (
+            <View style={styles.analyseWrap}>
+              {loading ? (
+                <View style={styles.loadingCard}><ActivityIndicator size="large" color={C.accent} /><Text style={styles.loadingTitle}>Analysing…</Text><Text style={styles.loadingSub}>Processing image</Text></View>
+              ) : (
+                <Pressable style={styles.analyseBtn} onPress={handleDetect}><Ionicons name="analytics" size={22} color="white" /><Text style={styles.analyseBtnTxt}>Analyse Waste</Text></Pressable>
+              )}
+            </View>
+          )}
 
-            <View style={S.card}>
-              <View style={S.secHeader}>
-                <View style={[S.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="list" size={16} color={C.secondary} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={S.secTitle}>Detected Objects ({detections.length})</Text>
-                </View>
+          {detDone && detections.length > 0 && (
+            <>
+              <View style={styles.summaryRow}>
+                {[
+                  { v: detections.length, l: "Objects" },
+                  { v: `${overallConf}%`, l: "Confidence" },
+                  { v: deviceUsed?.toUpperCase() ?? "—", l: "Device" },
+                ].map(({ v, l }) => (
+                  <View key={l} style={styles.summaryPill}><Text style={styles.summaryPillVal}>{v}</Text><Text style={styles.summaryPillLbl}>{l}</Text></View>
+                ))}
               </View>
-              {detections.map((item, i) => {
-                const pt = detectPlasticType(item.label);
-                const normType = normaliseType(item.type);
-                return (
-                  <View key={i} style={[S.objRow, { borderLeftColor: catColor(item.type) }]}>
-                    <View style={[S.objDot, { backgroundColor: catColor(item.type) }]}>{catIcon(item.type)}</View>
-                    <View style={S.objInfo}>
-                      <View style={S.objInfoTop}>
-                        <Text style={S.objLabel}>{item.label}</Text>
-                        <Text style={[S.objConf, { color: catColor(item.type) }]}>{Math.round(item.confidence*100)}%</Text>
-                      </View>
-                      <View style={S.objInfoBot}>
-                        {matIcon(item.label)}
-                        <Text style={S.objType}>{normType}</Text>
-                        {pt && (
-                          <View style={[S.objPlasticTag, { backgroundColor: pt.color }]}>
-                            <Text style={S.objPlasticTagTxt}>RIC {pt.typeNum} {pt.code}</Text>
-                          </View>
-                        )}
+
+              <View style={[styles.catHero, { backgroundColor: catColor(overallCat) }]}>
+                <View style={styles.catHeroL}>
+                  {catIcon(overallCat)}
+                  <View>
+                    <Text style={styles.catHeroLbl}>Primary Category</Text>
+                    <Text style={styles.catHeroVal}>{overallCat}</Text>
+                  </View>
+                </View>
+                <Text style={styles.catHeroConf}>{overallConf}%</Text>
+              </View>
+
+              {renderCompBar()}
+
+              <View style={styles.card}>
+                <View style={styles.secHeader}>
+                  <View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}><Ionicons name="list" size={16} color={C.secondary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.secTitle}>Detected Objects ({detections.length})</Text>
+                  </View>
+                </View>
+                {detections.map((item, i) => {
+                  const pt = detectPlasticType(item.label);
+                  const normType = normaliseType(item.type);
+                  return (
+                    <View key={i} style={[styles.objRow, { borderLeftColor: catColor(item.type) }]}>
+                      <View style={[styles.objDot, { backgroundColor: catColor(item.type) }]}>{catIcon(item.type)}</View>
+                      <View style={styles.objInfo}>
+                        <View style={styles.objInfoTop}>
+                          <Text style={styles.objLabel}>{item.label}</Text>
+                          <Text style={[styles.objConf, { color: catColor(item.type) }]}>{Math.round(item.confidence*100)}%</Text>
+                        </View>
+                        <View style={styles.objInfoBot}>
+                          {matIcon(item.label)}
+                          <Text style={styles.objType}>{normType}</Text>
+                          {pt && (
+                            <View style={[styles.objPlasticTag, { backgroundColor: pt.color }]}>
+                              <Text style={styles.objPlasticTagTxt}>RIC {pt.typeNum} {pt.code}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
+                  );
+                })}
+              </View>
+
+              {/* Plastic Type Information with clickable tabs */}
+              {plasticItems.length > 0 && (
+                <View style={styles.card}>
+                  <View style={styles.secHeader}>
+                    <View style={[styles.secIconBg, { backgroundColor: "#E8F5EE" }]}>
+                      <MaterialCommunityIcons name="bottle-soda-classic" size={16} color={C.secondary} />
+                    </View>
+                    <Text style={styles.secTitle}>Plastic Type Information</Text>
                   </View>
-                );
-              })}
-            </View>
+                  <PlasticTypeBadge 
+                    plasticItems={plasticItems}
+                    selectedIndex={selectedPlasticIndex}
+                    onSelectPlastic={setSelectedPlasticIndex}
+                  />
+                </View>
+              )}
 
-            <TMFKWasteAssistant detections={detections} overallCat={overallCat} manualLoc={manualLoc} />
+              <TMFKWasteAssistant detections={detections} overallCat={overallCat} manualLoc={manualLoc} />
 
-            {renderNearbyPlaces()}
+              {renderNearbyPlaces()}
 
-            <Pressable style={[S.saveBtn, barangayError && S.saveBtnDisabled]}
-              onPress={() => { if (barangayError) { Alert.alert("Cannot Submit", barangayError); return; } setReportVis(true); }}
-              disabled={repLoading}>
-              {repLoading
-                ? <ActivityIndicator size="small" color="white" />
-                : <><Ionicons name="save-outline" size={20} color="white" /><Text style={S.saveBtnTxt}>{usingDemo ? "Save Demo Report" : "Save Analysis Report"}</Text></>}
-            </Pressable>
-          </>
-        )}
+              <Pressable style={[styles.saveBtn, barangayError && styles.saveBtnDisabled]}
+                onPress={() => { if (barangayError) { Alert.alert("Cannot Submit", barangayError); return; } setReportVis(true); }}
+                disabled={repLoading}>
+                {repLoading
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <><Ionicons name="save-outline" size={20} color="white" /><Text style={styles.saveBtnTxt}>{usingDemo ? "Save Demo Report" : "Save Analysis Report"}</Text></>}
+              </Pressable>
+            </>
+          )}
 
-        {/* Full Image Modal */}
-        <Modal visible={fullImgVis} animationType="fade" transparent onRequestClose={() => setFullImgVis(false)}>
-          <View style={S.fullModal}>
-            <View style={S.fullModalTop}><Text style={S.fullModalTitle}>Full Image</Text><Pressable onPress={() => setFullImgVis(false)} style={S.closeCircle}><Ionicons name="close" size={22} color="white" /></Pressable></View>
-            <Image source={{ uri: imageUri }} style={S.fullImg} resizeMode="contain" />
-            <Text style={S.fullModalInfo}>{detections.length} object(s) · {overallCat} · {overallConf}% confidence</Text>
-          </View>
-        </Modal>
-
-        {/* Report Modal */}
-        <Modal visible={reportVis} animationType="slide" transparent onRequestClose={() => setReportVis(false)}>
-          <View style={S.modalOverlay}>
-            <View style={S.modalSheet}>
-              <View style={S.modalHandle} />
-              <View style={S.modalHeader}>
-                <Text style={S.modalTitle}>{usingDemo ? "Save Demo Report" : "Save Waste Report"}</Text>
-                <Pressable onPress={() => setReportVis(false)} style={S.closeCircle}><Ionicons name="close" size={20} color={C.textMid} /></Pressable>
-              </View>
-              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-                {[
-                  { icon: "person-outline",       label: "User",     value: user?.email ?? "—" },
-                  { icon: "flag-outline",          label: "Category", value: overallCat },
-                  { icon: "cube-outline",          label: "Objects",  value: String(detections.length) },
-                  { icon: "location-outline",      label: "Location", value: manualLoc || "Not specified" },
-                  { icon: "hardware-chip-outline", label: "Device",   value: deviceUsed?.toUpperCase() ?? "—" },
-                ].map(({ icon, label, value }) => (
-                  <View key={label} style={S.detailRow}><Ionicons name={icon} size={15} color={C.textLight} style={{ width: 22 }} /><Text style={S.detailLbl}>{label}</Text><Text style={S.detailVal} numberOfLines={1}>{value}</Text></View>
-                ))}
-                <BarangaySelector
-                  selected={selectedBarangay}
-                  onSelect={handleBarangaySelect}
-                  classification={overallCat}
-                  disabled={repLoading}
-                  allowedBarangays={allowedBarangays}
-                  locationMessage={locationMessage}
-                />
-                {barangayError && (
-                  <View style={S.modalBarangayErr}><Ionicons name="warning" size={14} color={C.special} /><Text style={S.modalBarangayErrTxt}>{barangayError}</Text></View>
-                )}
-              </ScrollView>
-              <View style={S.notesSection}>
-                <Text style={S.notesLbl}>Additional Notes (optional)</Text>
-                <TextInput style={S.notesInput} placeholder="Describe any additional observations…" placeholderTextColor={C.textLight}
-                  value={userMsg} onChangeText={setUserMsg} multiline numberOfLines={3} textAlignVertical="top" />
-              </View>
-              <View style={S.modalActions}>
-                <Pressable style={S.cancelBtn} onPress={() => setReportVis(false)} disabled={repLoading}><Text style={S.cancelBtnTxt}>Cancel</Text></Pressable>
-                <Pressable style={[S.confirmBtn, (!!barangayError || repLoading) && { opacity: 0.6 }]} onPress={handleSaveReport} disabled={!!barangayError || repLoading}>
-                  {repLoading ? <ActivityIndicator size="small" color="white" /> : <Text style={S.confirmBtnTxt}>{usingDemo ? "Save Demo" : "Save Report"}</Text>}
+          {/* Full Image Modal with pinch zoom */}
+          <Modal visible={fullImgVis} animationType="fade" transparent onRequestClose={() => {
+            setFullImgVis(false);
+            setScale(1);
+            setBaseScale(1);
+            setImageOffset({ x: 0, y: 0 });
+          }}>
+            <View style={styles.fullModal}>
+              <View style={styles.fullModalTop}>
+                <Text style={styles.fullModalTitle}>Full Image</Text>
+                <Pressable onPress={() => {
+                  setFullImgVis(false);
+                  setScale(1);
+                  setBaseScale(1);
+                  setImageOffset({ x: 0, y: 0 });
+                }} style={styles.closeCircle}>
+                  <Ionicons name="close" size={22} color="white" />
                 </Pressable>
               </View>
+              <View style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+                <PinchGestureHandler
+                  onGestureEvent={onPinchEvent}
+                  onHandlerStateChange={onPinchStateChange}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Image 
+                      source={{ uri: imageUri }} 
+                      style={[
+                        styles.fullImg,
+                        {
+                          transform: [{ scale: scale }],
+                        }
+                      ]} 
+                      resizeMode="contain"
+                      onLayout={(e) => {
+                        const { width, height } = e.nativeEvent.layout;
+                        console.log('Full image container size:', width, height);
+                        setFullImgSize({ width, height });
+                      }}
+                    />
+                    {fullImgSize.width > 0 && fullImgSize.height > 0 && renderBoxes(true, fullImgSize.width, fullImgSize.height)}
+                  </View>
+                </PinchGestureHandler>
+              </View>
+              <Text style={styles.fullModalInfo}>
+                {detections.length} object(s) · {overallCat} · {overallConf}% confidence
+                {"\n"}Pinch to zoom
+              </Text>
             </View>
-          </View>
-        </Modal>
-      </ScrollView>
-    </SafeAreaView>
+          </Modal>
+
+          {/* Report Modal */}
+          <Modal visible={reportVis} animationType="slide" transparent onRequestClose={() => setReportVis(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHandle} />
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{usingDemo ? "Save Demo Report" : "Save Waste Report"}</Text>
+                  <Pressable onPress={() => setReportVis(false)} style={styles.closeCircle}><Ionicons name="close" size={20} color={C.textMid} /></Pressable>
+                </View>
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  {[
+                    { icon: "person-outline",       label: "User",     value: user?.email ?? "—" },
+                    { icon: "flag-outline",          label: "Category", value: overallCat },
+                    { icon: "cube-outline",          label: "Objects",  value: String(detections.length) },
+                    { icon: "location-outline",      label: "Location", value: manualLoc || "Not specified" },
+                    { icon: "hardware-chip-outline", label: "Device",   value: deviceUsed?.toUpperCase() ?? "—" },
+                  ].map(({ icon, label, value }) => (
+                    <View key={label} style={styles.detailRow}><Ionicons name={icon} size={15} color={C.textLight} style={{ width: 22 }} /><Text style={styles.detailLbl}>{label}</Text><Text style={styles.detailVal} numberOfLines={1}>{value}</Text></View>
+                  ))}
+                  <BarangaySelector
+                    selected={selectedBarangay}
+                    onSelect={handleBarangaySelect}
+                    classification={overallCat}
+                    disabled={repLoading}
+                    allowedBarangays={allowedBarangays}
+                    locationMessage={locationMessage}
+                  />
+                  {barangayError && (
+                    <View style={styles.modalBarangayErr}><Ionicons name="warning" size={14} color={C.special} /><Text style={styles.modalBarangayErrTxt}>{barangayError}</Text></View>
+                  )}
+                </ScrollView>
+                <View style={styles.notesSection}>
+                  <Text style={styles.notesLbl}>Additional Notes (optional)</Text>
+                  <TextInput style={styles.notesInput} placeholder="Describe any additional observations…" placeholderTextColor={C.textLight}
+                    value={userMsg} onChangeText={setUserMsg} multiline numberOfLines={3} textAlignVertical="top" />
+                </View>
+                <View style={styles.modalActions}>
+                  <Pressable style={styles.cancelBtn} onPress={() => setReportVis(false)} disabled={repLoading}><Text style={styles.cancelBtnTxt}>Cancel</Text></Pressable>
+                  <Pressable style={[styles.confirmBtn, (!!barangayError || repLoading) && { opacity: 0.6 }]} onPress={handleSaveReport} disabled={!!barangayError || repLoading}>
+                    {repLoading ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.confirmBtnTxt}>{usingDemo ? "Save Demo" : "Save Report"}</Text>}
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        </ScrollView>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 };
 
-// Styles remain the same as in your original code
-const S = StyleSheet.create({
+// Styles
+const styles = StyleSheet.create({
   safeArea:        { flex: 1, backgroundColor: C.cream },
   container:       { flex: 1, backgroundColor: C.cream },
   contentCont:     { paddingBottom: 48 },
@@ -1914,9 +2248,9 @@ const S = StyleSheet.create({
   expandTxt:       { color: "white", fontSize: 11, fontWeight: "600" },
   toggleBoxBtn:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#E8F5EE" },
   toggleBoxTxt:    { color: C.secondary, fontSize: 12, fontWeight: "600" },
-  boundingBox:     { position: "absolute", borderWidth: 2, borderRadius: 4, zIndex: 1 },
-  labelBox:        { position: "absolute", top: -22, left: 0, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  labelText:       { color: "white", fontSize: 10, fontWeight: "bold" },
+  boundingBox:     { position: "absolute", borderWidth: 2, borderRadius: 6, zIndex: 10 },
+  labelBox:        { position: "absolute", top: -24, left: 0, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, flexDirection: "row", alignItems: "center", gap: 4 },
+  labelText:       { color: "white", fontSize: 11, fontWeight: "bold" },
   analyseWrap:     { marginHorizontal: 20, marginBottom: 14 },
   loadingCard:     { backgroundColor: C.cardBg, borderRadius: 16, padding: 28, alignItems: "center", gap: 10, borderWidth: 1, borderColor: C.border },
   loadingTitle:    { fontSize: 16, fontWeight: "700", color: C.textDark },
@@ -2049,31 +2383,23 @@ const S = StyleSheet.create({
   aiAnswerHeaderTxt:   { color: C.highlight, fontSize: 12, fontWeight: "700" },
   aiAnswerScroll:      { maxHeight: 200 },
   aiAnswerTxt:         { color: "rgba(255,255,255,0.9)", fontSize: 13, lineHeight: 20 },
-  plasticPanelSub:     { fontSize: 11, color: C.textLight, marginTop: 1 },
-  plasticCard:         { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 12, borderLeftWidth: 4, borderRadius: 12, backgroundColor: C.cream, marginBottom: 10 },
-  plasticCardNum:      { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  plasticCardNumTxt:   { color: "white", fontSize: 16, fontWeight: "900" },
-  plasticCardCode:     { fontSize: 15, fontWeight: "800" },
-  plasticCardFull:     { fontSize: 12, color: C.textMid, fontWeight: "500" },
-  plasticCardLabel:    { fontSize: 12, color: C.textLight },
-  plasticCardEx:       { fontSize: 11, color: C.textLight, fontStyle: "italic" },
-  plasticCardTag:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: "flex-start", marginTop: 2 },
-  plasticCardTagTxt:   { fontSize: 11, fontWeight: "700" },
-  plasticLegendTitle:  { fontSize: 12, fontWeight: "700", color: C.textMid, marginTop: 6, marginBottom: 8 },
-  plasticLegendGrid:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  plasticLegendItem:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  plasticLegendNum:    { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  plasticLegendNumTxt: { fontSize: 10, fontWeight: "800" },
-  plasticLegendCode:   { fontSize: 11, fontWeight: "700" },
-  plasticLegendDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: "#2D7A4F" },
-  plasticBadge:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
-  plasticBadgeNum:     { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  plasticBadgeNumTxt:  { color: "white", fontSize: 14, fontWeight: "900" },
-  plasticBadgeCode:    { fontSize: 13, fontWeight: "800" },
-  plasticBadgeName:    { fontSize: 11, color: C.textMid },
-  plasticBadgeEx:      { fontSize: 10, color: C.textLight, fontStyle: "italic" },
-  plasticBadgeTag:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
-  plasticBadgeTagTxt:  { fontSize: 10, fontWeight: "700" },
+  plasticDetailsCard:  { backgroundColor: C.cream, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: C.border },
+  plasticTypeTabs:     { flexDirection: "row", paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, maxHeight: 50 },
+  plasticTypeTab:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: C.border, marginRight: 8, backgroundColor: "white" },
+  plasticTypeTabDot:   { width: 8, height: 8, borderRadius: 4 },
+  plasticTypeTabText:  { fontSize: 11, fontWeight: "600", color: C.textDark },
+  plasticDetailsHeader:{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderLeftWidth: 4 },
+  plasticDetailsNum:   { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  plasticDetailsNumTxt:{ color: "white", fontSize: 18, fontWeight: "900" },
+  plasticDetailsCode:  { fontSize: 16, fontWeight: "800" },
+  plasticDetailsName:  { fontSize: 12, color: C.textMid, marginTop: 2 },
+  plasticDetailsTag:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  plasticDetailsTagTxt:{ fontSize: 11, fontWeight: "700" },
+  plasticDetailsBody:  { padding: 12, gap: 10 },
+  plasticDetailsDesc:  { fontSize: 13, color: C.textDark, lineHeight: 18 },
+  plasticDetailsSection:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  plasticDetailsSectionTitle: { fontSize: 12, fontWeight: "700", color: C.textMid },
+  plasticDetailsText:  { fontSize: 12, color: C.textLight, lineHeight: 17, marginLeft: 20 },
 });
 
 export default WasteDetection;

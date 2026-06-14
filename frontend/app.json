@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "SolidWaste",
+    "name": "solidWaste",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/TMFK.png",
-    "scheme": "SolidWaste",
+
+    "scheme": ["solidwaste"],
+
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kram_maestre.frontend",
+      "bundleIdentifier": "com.krammaestre.solidwaste",
       "infoPlist": {
         "NSCameraUsageDescription": "SolidWaste uses your camera to scan and classify waste items in real-time for proper disposal.",
         "NSPhotoLibraryUsageDescription": "SolidWaste accesses your photos to classify waste items for proper disposal.",
@@ -22,7 +24,7 @@
     },
 
     "android": {
-      "package": "com.kram_maestre.frontend",
+      "package": "com.krammaestre.solidwaste",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/TMFK.png",
         "backgroundColor": "#001f3f"
@@ -45,17 +47,15 @@
 
     "plugins": [
       "expo-router",
-
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/TMFK.png",
           "imageWidth": 300,
           "resizeMode": "contain",
-         "backgroundColor": "#0000FF"
+          "backgroundColor": "#0000FF"
         }
       ],
-
       [
         "expo-notifications",
         {
@@ -63,10 +63,8 @@
           "color": "#001f3f"
         }
       ],
-
       "expo-font",
       "expo-web-browser",
-
       [
         "expo-image-picker",
         {
@@ -75,7 +73,6 @@
           "microphonePermission": false
         }
       ],
-
       "expo-asset"
     ],
 
