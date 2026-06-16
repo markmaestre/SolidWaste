@@ -35,7 +35,7 @@ LogBox.ignoreLogs([
   'Vector Icons: Failed to load font',
   'Permissions: Permission denied',
   'Image: Could not load source',
-]);
+]); 
 
 const AppContent = () => {
   const [showSplash, setShowSplash] = useState(true);

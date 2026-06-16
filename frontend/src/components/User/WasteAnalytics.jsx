@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -53,122 +53,94 @@ const C = {
   inkA8:     'rgba(7,27,46,0.08)',
 };
 
-// ── CO₂ emission factors ──────────────────────────────────────────────────────
 const CO2_EMISSION_FACTORS = {
   recycling:    { plastic:1.5,paper:0.9,glass:0.6,metal:3.0,aluminum:8.0,organic:0.1,electronic:2.5,textile:2.0,cardboard:1.1,default:1.0 },
   landfill:     { plastic:0.1,paper:0.5,glass:0.02,metal:0.05,aluminum:0.05,organic:1.5,electronic:0.8,textile:0.7,cardboard:0.5,default:0.3 },
   incineration: { plastic:2.5,paper:0.8,glass:0.1,metal:0.1,aluminum:0.1,organic:0.3,electronic:1.2,textile:1.5,cardboard:0.9,default:1.0 },
 };
 
-// ── Weight lookup table ───────────────────────────────────────────────────────
-// Keys must be lowercase — calcWeight normalises classification before lookup.
-// Sub-keys match common AI detection labels (full label or last word).
-// All weights in kg per single detected object.
 const AVG_ITEM_WEIGHT = {
   plastic: {
-    // full labels a waste-detection model might output
-    'plastic bottle': 0.05, 'plastic bag': 0.01, 'plastic container': 0.08,
-    'plastic cup': 0.03,    'plastic straw': 0.002, 'plastic wrapper': 0.01,
-    'plastic packaging': 0.04,
-    // last-word sub-keys
-    bottle: 0.05, bag: 0.01, container: 0.08, cup: 0.03,
-    straw: 0.002, wrapper: 0.01, packaging: 0.04, film: 0.01,
-    default: 0.04,
+    'plastic bottle':0.05,'plastic bag':0.01,'plastic container':0.08,
+    'plastic cup':0.03,'plastic straw':0.002,'plastic wrapper':0.01,'plastic packaging':0.04,
+    bottle:0.05,bag:0.01,container:0.08,cup:0.03,straw:0.002,wrapper:0.01,packaging:0.04,film:0.01,
+    default:0.04,
   },
   paper: {
-    'paper bag': 0.05, 'paper cup': 0.01, 'newspaper': 0.10,
-    'magazine': 0.15,  'office paper': 0.05, 'tissue': 0.005,
-    bag: 0.05, cup: 0.01, newspaper: 0.10, magazine: 0.15,
-    tissue: 0.005, receipt: 0.002,
-    default: 0.08,
+    'paper bag':0.05,'paper cup':0.01,newspaper:0.10,magazine:0.15,'office paper':0.05,tissue:0.005,
+    bag:0.05,cup:0.01,newspaper:0.10,magazine:0.15,tissue:0.005,receipt:0.002,
+    default:0.08,
   },
   glass: {
-    'glass bottle': 0.30, 'glass jar': 0.25, 'glass cup': 0.20,
-    bottle: 0.30, jar: 0.25, cup: 0.20, shard: 0.05,
-    default: 0.25,
+    'glass bottle':0.30,'glass jar':0.25,'glass cup':0.20,
+    bottle:0.30,jar:0.25,cup:0.20,shard:0.05,
+    default:0.25,
   },
   metal: {
-    'metal can': 0.015, 'tin can': 0.015, 'aluminum can': 0.015,
-    'steel can': 0.03,  'metal lid': 0.01,
-    can: 0.015, tin: 0.015, lid: 0.01, scrap: 0.10,
-    default: 0.02,
+    'metal can':0.015,'tin can':0.015,'aluminum can':0.015,'steel can':0.03,'metal lid':0.01,
+    can:0.015,tin:0.015,lid:0.01,scrap:0.10,
+    default:0.02,
   },
   aluminum: {
-    'aluminum can': 0.015, 'aluminium can': 0.015, 'aluminum foil': 0.005,
-    can: 0.015, foil: 0.005,
-    default: 0.015,
+    'aluminum can':0.015,'aluminium can':0.015,'aluminum foil':0.005,
+    can:0.015,foil:0.005,
+    default:0.015,
   },
   organic: {
-    'food waste': 0.25, 'fruit peel': 0.10, 'vegetable waste': 0.20,
-    'yard waste': 0.50, 'food scraps': 0.25, 'leaves': 0.30,
-    food: 0.25, fruit: 0.15, vegetable: 0.20, yard: 0.50,
-    peel: 0.10, scraps: 0.25, leaves: 0.30,
-    default: 0.25,
+    'food waste':0.25,'fruit peel':0.10,'vegetable waste':0.20,
+    'yard waste':0.50,'food scraps':0.25,leaves:0.30,
+    food:0.25,fruit:0.15,vegetable:0.20,yard:0.50,peel:0.10,scraps:0.25,
+    default:0.25,
   },
   electronic: {
-    'mobile phone': 0.18, 'smartphone': 0.18, 'laptop': 2.00,
-    'tablet': 0.50,       'battery': 0.15,    'charger': 0.10,
-    'earphones': 0.03,    'cable': 0.05,      'circuit board': 0.15,
-    phone: 0.18, smartphone: 0.18, laptop: 2.00, tablet: 0.50,
-    battery: 0.15, charger: 0.10, cable: 0.05, board: 0.15,
-    default: 0.50,
+    'mobile phone':0.18,smartphone:0.18,laptop:2.00,tablet:0.50,
+    battery:0.15,charger:0.10,earphones:0.03,cable:0.05,'circuit board':0.15,
+    phone:0.18,board:0.15,
+    default:0.50,
   },
   textile: {
-    'shirt': 0.20, 'pants': 0.40, 'jeans': 0.50, 'jacket': 0.60,
-    'socks': 0.05, 'cloth': 0.25, 'fabric': 0.20,
-    shirt: 0.20, pants: 0.40, jeans: 0.50, jacket: 0.60,
-    socks: 0.05, cloth: 0.25, fabric: 0.20,
-    default: 0.25,
+    shirt:0.20,pants:0.40,jeans:0.50,jacket:0.60,socks:0.05,cloth:0.25,fabric:0.20,
+    default:0.25,
   },
   cardboard: {
-    'cardboard box': 0.50, 'cardboard sheet': 0.15, 'carton': 0.10,
-    box: 0.50, sheet: 0.15, carton: 0.10, tube: 0.05,
-    default: 0.25,
+    'cardboard box':0.50,'cardboard sheet':0.15,carton:0.10,
+    box:0.50,sheet:0.15,tube:0.05,
+    default:0.25,
   },
-  // flat fallback — unknown classification
-  default: 0.10,
+  default:0.10,
 };
 
-// ── Animated fade-in ──────────────────────────────────────────────────────────
+// ── FadeIn ────────────────────────────────────────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
   const opacity    = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity,    { toValue: 1, duration: 440, delay, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 440, delay, useNativeDriver: true }),
+      Animated.timing(opacity,    { toValue:1, duration:440, delay, useNativeDriver:true }),
+      Animated.timing(translateY, { toValue:0, duration:440, delay, useNativeDriver:true }),
     ]).start();
   }, []);
   return (
-    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+    <Animated.View style={{ opacity, transform:[{ translateY }] }}>
       {children}
     </Animated.View>
   );
 };
 
-// ── Animated score ring ───────────────────────────────────────────────────────
+// ── Score ring ────────────────────────────────────────────────────────────────
 const ScoreRing = ({ score }) => {
-  const anim = useRef(new Animated.Value(0)).current;
   const size = 120, stroke = 8, r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-
-  useEffect(() => {
-    Animated.timing(anim, { toValue: score / 100, duration: 900, delay: 200, useNativeDriver: false }).start();
-  }, [score]);
-
   const color = score >= 70 ? C.green : score >= 40 ? C.amber : C.red;
-
   return (
-    <View style={[s.ringWrap, { width: size, height: size }]}>
-      <View style={[s.ringBg, { width: size, height: size, borderRadius: size / 2, borderWidth: stroke, borderColor: C.border }]} />
+    <View style={[s.ringWrap, { width:size, height:size }]}>
+      <View style={[s.ringBg, { width:size, height:size, borderRadius:size/2, borderWidth:stroke, borderColor:C.border }]} />
       <View style={[s.ringFill, {
-        width: size, height: size, borderRadius: size / 2,
-        borderWidth: stroke,
-        borderColor: color,
-        borderRightColor: score < 25 ? 'transparent' : color,
+        width:size, height:size, borderRadius:size/2,
+        borderWidth:stroke, borderColor:color,
+        borderRightColor:  score < 25 ? 'transparent' : color,
         borderBottomColor: score < 50 ? 'transparent' : color,
-        borderLeftColor: score < 75 ? 'transparent' : color,
-        transform: [{ rotate: '-90deg' }],
+        borderLeftColor:   score < 75 ? 'transparent' : color,
+        transform:[{ rotate:'-90deg' }],
       }]} />
       <View style={s.ringCenter}>
         <Text style={[s.ringScore, { color }]}>{score}</Text>
@@ -178,28 +150,30 @@ const ScoreRing = ({ score }) => {
   );
 };
 
-// ── Animated progress bar ─────────────────────────────────────────────────────
+// ── Animated bar ──────────────────────────────────────────────────────────────
 const AnimatedBar = ({ pct, color, delay }) => {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(anim, { toValue: pct / 100, duration: 700, delay, useNativeDriver: false }).start();
+    anim.setValue(0);
+    Animated.timing(anim, { toValue:pct/100, duration:700, delay, useNativeDriver:false }).start();
   }, [pct]);
-  const barWidth = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const barWidth = anim.interpolate({ inputRange:[0,1], outputRange:['0%','100%'] });
   return (
     <View style={s.barTrack}>
-      <Animated.View style={[s.barFill, { width: barWidth, backgroundColor: color }]} />
+      <Animated.View style={[s.barFill, { width:barWidth, backgroundColor:color }]} />
     </View>
   );
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Status meta ───────────────────────────────────────────────────────────────
 const STATUS_META = {
-  recycled:  { color: C.green,  dim: C.greenDim,  line: C.greenLine,  icon: 'refresh-circle-outline' },
-  processed: { color: C.blue,   dim: C.blueDim,   line: C.blueLine,   icon: 'checkmark-circle-outline' },
-  pending:   { color: C.amber,  dim: C.amberDim,  line: C.amberLine,  icon: 'time-outline' },
-  disposed:  { color: C.red,    dim: C.redDim,    line: C.redLine,    icon: 'trash-outline' },
+  recycled:  { color:C.green, dim:C.greenDim,  line:C.greenLine,  icon:'refresh-circle-outline' },
+  processed: { color:C.blue,  dim:C.blueDim,   line:C.blueLine,   icon:'checkmark-circle-outline' },
+  pending:   { color:C.amber, dim:C.amberDim,  line:C.amberLine,  icon:'time-outline' },
+  disposed:  { color:C.red,   dim:C.redDim,    line:C.redLine,    icon:'trash-outline' },
 };
-const getStatusMeta = (s) => STATUS_META[s] || { color: C.slateL, dim:'rgba(139,165,188,0.13)', line:'rgba(139,165,188,0.35)', icon:'help-circle-outline' };
+const getStatusMeta = (st) =>
+  STATUS_META[st] || { color:C.slateL, dim:'rgba(139,165,188,0.13)', line:'rgba(139,165,188,0.35)', icon:'help-circle-outline' };
 
 const formatCO2 = (v) => {
   const n = parseFloat(v) || 0;
@@ -207,7 +181,6 @@ const formatCO2 = (v) => {
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
 const SectionHeader = ({ icon, title, sub }) => (
   <View style={s.sectionHeader}>
     <View style={s.sectionIconWrap}>
@@ -221,8 +194,8 @@ const SectionHeader = ({ icon, title, sub }) => (
 );
 
 const MetricCard = ({ title, value, sub, accentColor, icon }) => (
-  <View style={[s.metricCard, { borderTopColor: accentColor }]}>
-    <View style={[s.metricIconWrap, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}44` }]}>
+  <View style={[s.metricCard, { borderTopColor:accentColor }]}>
+    <View style={[s.metricIconWrap, { backgroundColor:`${accentColor}22`, borderColor:`${accentColor}44` }]}>
       <Ionicons name={icon} size={18} color={accentColor} />
     </View>
     <Text style={s.metricValue}>{value}</Text>
@@ -231,18 +204,22 @@ const MetricCard = ({ title, value, sub, accentColor, icon }) => (
   </View>
 );
 
-const TimeBtn = ({ range, active, onPress }) => {
+const TimeBtn = ({ range, active, onPress, count }) => {
   const icons = { week:'calendar-outline', month:'today-outline', year:'calendar-clear-outline', all:'infinite-outline' };
+  const labels = { week:'Week', month:'Month', year:'Year', all:'All' };
   return (
     <TouchableOpacity
       style={[s.timeBtn, active && s.timeBtnActive]}
       onPress={() => onPress(range)}
-      activeOpacity={0.8}
+      activeOpacity={0.75}
     >
       <Ionicons name={icons[range]} size={13} color={active ? C.navy : C.teal} />
-      <Text style={[s.timeBtnTxt, active && s.timeBtnTxtActive]}>
-        {range.charAt(0).toUpperCase() + range.slice(1)}
-      </Text>
+      <Text style={[s.timeBtnTxt, active && s.timeBtnTxtActive]}>{labels[range]}</Text>
+      {count != null && (
+        <View style={[s.timeBtnBadge, active ? s.timeBtnBadgeActive : null]}>
+          <Text style={[s.timeBtnBadgeTxt, active && s.timeBtnBadgeTxtActive]}>{count}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -250,14 +227,14 @@ const TimeBtn = ({ range, active, onPress }) => {
 const ProgressRow = ({ label, sublabel, pct, color, valueLabel, delay }) => (
   <View style={s.progressRow}>
     <View style={s.progressTop}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex:1 }}>
         <Text style={s.progressLabel}>{label}</Text>
         {sublabel ? <Text style={s.progressSublabel}>{sublabel}</Text> : null}
       </View>
       <Text style={[s.progressValue, { color }]}>{valueLabel}</Text>
     </View>
     <AnimatedBar pct={Math.min(100, Math.max(0, pct))} color={color} delay={delay || 0} />
-    <Text style={s.progressPct}>{(pct).toFixed(1)}%</Text>
+    <Text style={s.progressPct}>{pct.toFixed(1)}%</Text>
   </View>
 );
 
@@ -265,18 +242,21 @@ const StatusCard = ({ status, data }) => {
   const meta = getStatusMeta(status);
   if (!data.count) return null;
   return (
-    <View style={[s.statusCard, { borderTopColor: meta.color }]}>
-      <View style={[s.statusIconWrap, { backgroundColor: meta.dim, borderColor: meta.line }]}>
+    <View style={[s.statusCard, { borderTopColor:meta.color }]}>
+      <View style={[s.statusIconWrap, { backgroundColor:meta.dim, borderColor:meta.line }]}>
         <Ionicons name={meta.icon} size={16} color={meta.color} />
       </View>
-      <Text style={[s.statusLabel, { color: meta.color }]}>
+      <Text style={[s.statusLabel, { color:meta.color }]}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Text>
       <Text style={s.statusCount}>{data.count}</Text>
       <Text style={s.statusCountLabel}>items</Text>
       <View style={s.statusDivider} />
       <Text style={s.statusWeight}>{data.weight.toFixed(2)} kg</Text>
-      <View style={[s.statusCO2Pill, { backgroundColor: data.total < 0 ? C.greenDim : C.redDim, borderColor: data.total < 0 ? C.greenLine : C.redLine }]}>
+      <View style={[s.statusCO2Pill, {
+        backgroundColor: data.total < 0 ? C.greenDim : C.redDim,
+        borderColor:     data.total < 0 ? C.greenLine : C.redLine,
+      }]}>
         <Ionicons name={data.total < 0 ? 'arrow-down' : 'arrow-up'} size={10} color={data.total < 0 ? C.green : C.red} />
         <Text style={[s.statusCO2Txt, { color: data.total < 0 ? C.green : C.red }]}>
           {formatCO2(Math.abs(data.total))} {data.total < 0 ? 'saved' : 'emitted'}
@@ -287,7 +267,7 @@ const StatusCard = ({ status, data }) => {
 };
 
 const InsightRow = ({ icon, label, value, last }) => (
-  <View style={[s.insightRow, last && { borderBottomWidth: 0 }]}>
+  <View style={[s.insightRow, last && { borderBottomWidth:0 }]}>
     <View style={s.insightLeft}>
       <View style={s.insightIconWrap}>
         <Ionicons name={icon} size={14} color={C.teal} />
@@ -298,20 +278,64 @@ const InsightRow = ({ icon, label, value, last }) => (
   </View>
 );
 
-// ── FIX: EquivTile now uses flex layout, not fixed pixel width ────────────────
 const EquivTile = ({ icon, color, value, label }) => (
   <View style={s.equivTile}>
-    <View style={[s.equivIcon, { backgroundColor: `${color}20`, borderColor: `${color}40` }]}>
+    <View style={[s.equivIcon, { backgroundColor:`${color}20`, borderColor:`${color}40` }]}>
       <Ionicons name={icon} size={24} color={color} />
     </View>
-    <Text style={[s.equivValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
-      {value}
-    </Text>
+    <Text style={[s.equivValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
     <Text style={s.equivLabel} numberOfLines={2}>{label}</Text>
   </View>
 );
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const calcWeight = (r) => {
+  const quantity = (r.detectedObjects && r.detectedObjects.length > 0) ? r.detectedObjects.length : 1;
+  const classKey = (r.classification || '').toLowerCase().trim();
+  const rawLabel = (r.detectedObjects?.[0]?.label || '').toLowerCase().trim();
+  const labelLast = rawLabel.split(' ').pop();
+  const entry = AVG_ITEM_WEIGHT[classKey];
+  let unitWeight;
+  if (!entry) {
+    unitWeight = AVG_ITEM_WEIGHT.default;
+  } else if (typeof entry === 'object') {
+    unitWeight = entry[rawLabel] ?? entry[labelLast] ?? entry.default ?? AVG_ITEM_WEIGHT.default;
+  } else {
+    unitWeight = entry;
+  }
+  return unitWeight * quantity;
+};
+
+const calcCO2 = (r, wasteType, weight) => {
+  const t = (wasteType || 'default').toLowerCase();
+  switch (r.status || 'pending') {
+    case 'recycled':  return -(weight * (CO2_EMISSION_FACTORS.recycling[t] || CO2_EMISSION_FACTORS.recycling.default));
+    case 'processed': return -(weight * (t === 'organic' ? 0.5 : 0.3));
+    case 'disposed':  return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
+    default:          return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
+  }
+};
+
+// ── FIX: creates a clean Date for the start of each range ────────────────────
+// Previously used setDate/setMonth on the SAME object which mutated incorrectly.
+const getStartDate = (range) => {
+  const now = new Date();
+  switch (range) {
+    case 'week':  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    case 'month': return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    case 'year':  return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    default:      return null;
+  }
+};
+
+// ── Count reports per range (for badge numbers on time filter buttons) ────────
+const countForRange = (reports, range) => {
+  const start = getStartDate(range);
+  if (!start) return reports.length;
+  return reports.filter(r => new Date(r.scanDate || r.createdAt) >= start).length;
+};
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 const WasteAnalytics = ({ navigation }) => {
   const dispatch = useDispatch();
   const { reports, loading } = useSelector((st) => st.wasteReport);
@@ -320,78 +344,37 @@ const WasteAnalytics = ({ navigation }) => {
   const [analytics,  setAnalytics]  = useState(null);
 
   useEffect(() => { loadReports(); }, []);
-  useEffect(() => { if (reports.length > 0) calculateAnalytics(); }, [reports, timeRange]);
+
+  // ── Re-calculate whenever reports OR timeRange changes ──────────────────────
+  useEffect(() => {
+    if (reports.length > 0) {
+      calculateAnalytics(reports, timeRange);
+    } else {
+      setAnalytics(null);
+    }
+  }, [reports, timeRange]);
 
   const loadReports = async () => {
-    try { await dispatch(getUserReports({ limit: 1000 })).unwrap(); }
+    try { await dispatch(getUserReports({ limit:1000 })).unwrap(); }
     catch (e) { console.error('Failed to load reports:', e); }
   };
 
-  const onRefresh = async () => { setRefreshing(true); await loadReports(); setRefreshing(false); };
-
-  const filterByTime = (reps) => {
-    if (timeRange === 'all') return reps;
-    const now = new Date();
-    const start = {
-      week:  new Date(new Date().setDate(now.getDate() - 7)),
-      month: new Date(new Date().setMonth(now.getMonth() - 1)),
-      year:  new Date(new Date().setFullYear(now.getFullYear() - 1)),
-    }[timeRange];
-    return reps.filter(r => new Date(r.scanDate || r.createdAt) >= start);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadReports();
+    setRefreshing(false);
   };
 
-  // ── calcWeight ────────────────────────────────────────────────────────────────
-  // Backend stores NO weight / quantity / itemType fields directly.
-  // Real schema fields we use:
-  //   r.classification   — "Plastic", "Organic", etc.
-  //   r.detectedObjects  — [{ label, confidence, ... }, ...]
-  //
-  // Quantity  = detectedObjects.length (how many objects the AI found), min 1
-  // Item type = first detected object's label, e.g. "plastic bottle" → try
-  //             full label then last word to hit sub-keys like "bottle"
-  const calcWeight = (r) => {
-    // 1. Quantity from number of detected objects
-    const quantity = (r.detectedObjects && r.detectedObjects.length > 0)
-      ? r.detectedObjects.length
-      : 1;
+  // ── FIX: accepts reports + timeRange as arguments so it always uses ──────────
+  // the latest values, not stale closure captures.
+  const calculateAnalytics = useCallback((allReports, range) => {
+    // Filter by the chosen time window
+    const start    = getStartDate(range);
+    const filtered = start
+      ? allReports.filter(r => new Date(r.scanDate || r.createdAt) >= start)
+      : allReports;
 
-    // 2. Classification key (normalised to lowercase)
-    const classKey = (r.classification || '').toLowerCase().trim();
-
-    // 3. Item-type from the first (usually highest-confidence) detected object
-    //    e.g. label = "plastic bottle" → try "plastic bottle", then "bottle"
-    const rawLabel  = (r.detectedObjects?.[0]?.label || '').toLowerCase().trim();
-    const labelLast = rawLabel.split(' ').pop();
-
-    // 4. Resolve unit weight from table
-    const entry = AVG_ITEM_WEIGHT[classKey];
-    let unitWeight;
-    if (!entry) {
-      unitWeight = AVG_ITEM_WEIGHT.default;
-    } else if (typeof entry === 'object') {
-      unitWeight = entry[rawLabel] ?? entry[labelLast] ?? entry.default ?? AVG_ITEM_WEIGHT.default;
-    } else {
-      unitWeight = entry;
-    }
-
-    return unitWeight * quantity;
-  };
-
-  const calcCO2 = (r, wasteType, weight) => {
-    const t = (wasteType || 'default').toLowerCase();
-    switch (r.status || 'pending') {
-      case 'recycled':  return -(weight * (CO2_EMISSION_FACTORS.recycling[t] || CO2_EMISSION_FACTORS.recycling.default));
-      case 'processed': return -(weight * (t === 'organic' ? 0.5 : 0.3));
-      case 'disposed':  return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
-      default:          return  (weight * (CO2_EMISSION_FACTORS.landfill[t]  || CO2_EMISSION_FACTORS.landfill.default));
-    }
-  };
-
-  const calculateAnalytics = () => {
-    const filtered = filterByTime(reports);
     if (!filtered.length) { setAnalytics(null); return; }
-
-
 
     const wasteDistribution = {}, statusDistribution = {}, co2ByWasteType = {};
     const co2ByStatus = {
@@ -406,35 +389,45 @@ const WasteAnalytics = ({ navigation }) => {
       const wt     = r.classification || 'Unknown';
       const weight = calcWeight(r);
       const co2    = calcCO2(r, wt, weight);
-      totalWeight += weight; totalCO2 += co2;
+      totalWeight += weight;
+      totalCO2    += co2;
+
       wasteDistribution[wt] = (wasteDistribution[wt] || 0) + 1;
+
       if (!co2ByWasteType[wt]) co2ByWasteType[wt] = { count:0, weight:0, co2Impact:0 };
       co2ByWasteType[wt].count++;
-      co2ByWasteType[wt].weight   += weight;
+      co2ByWasteType[wt].weight    += weight;
       co2ByWasteType[wt].co2Impact += co2;
+
       const st = r.status || 'pending';
       statusDistribution[st] = (statusDistribution[st] || 0) + 1;
-      if (co2ByStatus[st]) { co2ByStatus[st].count++; co2ByStatus[st].weight += weight; co2ByStatus[st].total += co2; }
+      if (co2ByStatus[st]) {
+        co2ByStatus[st].count++;
+        co2ByStatus[st].weight += weight;
+        co2ByStatus[st].total  += co2;
+      }
+
       totalConf += r.classificationConfidence || 0;
-      totalTips += r.recyclingTips?.length || 0;
+      totalTips += r.recyclingTips?.length    || 0;
     });
 
     const total        = filtered.length;
     const mostCommon   = Object.entries(wasteDistribution).sort(([,a],[,b]) => b-a)[0];
     const co2Savings   = Math.max(0, -Math.min(0, totalCO2));
     const co2Emissions = Math.max(0, totalCO2);
-    const sustainScore = Math.round(Math.min(100, Math.max(0, ((totalWeight*2.5 - co2Emissions)/(totalWeight*2.5))*100))) || 0;
+    const sustainScore = Math.round(
+      Math.min(100, Math.max(0, ((totalWeight*2.5 - co2Emissions)/(totalWeight*2.5))*100))
+    ) || 0;
 
     setAnalytics({
       totalReports: total,
       totalWeight:  totalWeight.toFixed(2),
       wasteDistribution, statusDistribution, co2ByWasteType, co2ByStatus,
-      avgConfidence:     Math.round((totalConf/total)*100) || 0,
+      avgConfidence:      Math.round((totalConf / total) * 100) || 0,
       totalRecyclingTips: totalTips,
-      mostCommonWaste: mostCommon ? {
-        type: mostCommon[0], count: mostCommon[1],
-        percentage: Math.round((mostCommon[1]/total)*100) || 0,
-      } : null,
+      mostCommonWaste:    mostCommon
+        ? { type:mostCommon[0], count:mostCommon[1], percentage:Math.round((mostCommon[1]/total)*100) || 0 }
+        : null,
       sustainabilityScore: sustainScore,
       recycledCount:  co2ByStatus.recycled.count,
       processedCount: co2ByStatus.processed.count,
@@ -443,15 +436,21 @@ const WasteAnalytics = ({ navigation }) => {
       co2Savings:     co2Savings.toFixed(2),
       co2Emissions:   co2Emissions.toFixed(2),
       environmentalEquivalents: {
-        treesEquivalent:    co2Savings  > 0 ? Math.max(1, Math.round(co2Savings/21))  : 0,
+        treesEquivalent:    co2Savings   > 0 ? Math.max(1, Math.round(co2Savings/21)) : 0,
         carsEquivalent:     co2Emissions > 0 ? (co2Emissions/4600).toFixed(2)         : '0',
         gasolineLiters:     co2Emissions > 0 ? Math.round(co2Emissions*0.43)          : 0,
-        smartphonesCharged: co2Savings  > 0 ? Math.round(co2Savings*120)             : 0,
+        smartphonesCharged: co2Savings   > 0 ? Math.round(co2Savings*120)             : 0,
       },
     });
+  }, []);
+
+  // ── Handle time range tap ───────────────────────────────────────────────────
+  const handleRangeChange = (range) => {
+    setTimeRange(range);
+    // calculateAnalytics fires via useEffect; no need to call manually
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading && !refreshing && !analytics) {
     return (
       <SafeAreaView style={s.rootSafe} edges={['top']}>
@@ -467,7 +466,7 @@ const WasteAnalytics = ({ navigation }) => {
               <Text style={s.headerLabel}>Carbon Tracker</Text>
               <Text style={s.headerTitle}>Waste Analytics</Text>
             </View>
-            <View style={{ width: 38 }} />
+            <View style={{ width:38 }} />
           </View>
           <View style={s.loadingWrap}>
             <ActivityIndicator size="large" color={C.teal} />
@@ -487,7 +486,6 @@ const WasteAnalytics = ({ navigation }) => {
         <View style={s.header}>
           <View style={s.headerBlob1} />
           <View style={s.headerBlob2} />
-          <View style={s.headerGrid} />
 
           <View style={s.headerRow}>
             <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -503,17 +501,24 @@ const WasteAnalytics = ({ navigation }) => {
             </View>
           </View>
 
+          {/* ── Time filter — shows item count per range ── */}
           <View style={s.timeFilterRow}>
             {['week','month','year','all'].map((r) => (
-              <TimeBtn key={r} range={r} active={timeRange === r} onPress={setTimeRange} />
+              <TimeBtn
+                key={r}
+                range={r}
+                active={timeRange === r}
+                onPress={handleRangeChange}
+                count={countForRange(reports, r)}
+              />
             ))}
           </View>
         </View>
 
         <ScrollView
-          style={{ flex: 1 }}
+          style={{ flex:1 }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 52 }}
+          contentContainerStyle={{ paddingBottom:52 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} colors={[C.teal]} />
           }
@@ -530,20 +535,37 @@ const WasteAnalytics = ({ navigation }) => {
                 <Text style={s.emptyText}>
                   {reports.length === 0
                     ? 'Create your first waste report to see carbon analytics here.'
-                    : `No reports found for "${timeRange}". Try a wider time range.`}
+                    : `No reports found for the selected period. Try a wider time range.`}
                 </Text>
+                {reports.length > 0 && timeRange !== 'all' && (
+                  <TouchableOpacity style={s.emptyAction} onPress={() => handleRangeChange('all')} activeOpacity={0.8}>
+                    <Ionicons name="infinite-outline" size={14} color={C.navy} />
+                    <Text style={s.emptyActionTxt}>View all time</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </FadeIn>
           ) : (
             <>
-              {/* ══ 1. Carbon impact overview ══ */}
+              {/* ── Range label ── */}
+              <FadeIn delay={0}>
+                <View style={s.rangeLabelRow}>
+                  <Ionicons name="funnel-outline" size={13} color={C.teal} />
+                  <Text style={s.rangeLabelTxt}>
+                    Showing {analytics.totalReports} report{analytics.totalReports !== 1 ? 's' : ''}{' '}
+                    {timeRange === 'all' ? '· All time' : `· Past ${timeRange}`}
+                  </Text>
+                </View>
+              </FadeIn>
+
+              {/* ══ 1. Carbon impact ══ */}
               <FadeIn delay={40}>
                 <View style={s.section}>
                   <SectionHeader icon="leaf-outline" title="Carbon Impact" sub="Overall waste carbon footprint" />
                   <View style={s.metricsGrid}>
-                    <MetricCard title="Total Waste"  value={`${analytics.totalWeight}kg`} sub={`${analytics.totalReports} items`} accentColor={C.teal}  icon="layers-outline" />
-                    <MetricCard title="CO₂ Saved"    value={formatCO2(analytics.co2Savings)}   sub="Via recycling"     accentColor={C.green} icon="cloud-outline" />
-                    <MetricCard title="CO₂ Emitted"  value={formatCO2(analytics.co2Emissions)} sub="From disposal"     accentColor={C.red}   icon="cloud" />
+                    <MetricCard title="Total Waste"  value={`${analytics.totalWeight}kg`}        sub={`${analytics.totalReports} items`} accentColor={C.teal}  icon="layers-outline" />
+                    <MetricCard title="CO₂ Saved"    value={formatCO2(analytics.co2Savings)}      sub="Via recycling"    accentColor={C.green} icon="cloud-outline" />
+                    <MetricCard title="CO₂ Emitted"  value={formatCO2(analytics.co2Emissions)}    sub="From disposal"    accentColor={C.red}   icon="cloud" />
                     <MetricCard
                       title="Net Impact"
                       value={formatCO2(analytics.totalCO2Impact)}
@@ -563,13 +585,13 @@ const WasteAnalytics = ({ navigation }) => {
                     <ScoreRing score={analytics.sustainabilityScore} />
                     <View style={s.scoreRight}>
                       {[
-                        { label:'Recycled',  count: analytics.recycledCount,  color: C.green },
-                        { label:'Processed', count: analytics.processedCount, color: C.blue  },
-                        { label:'Pending',   count: analytics.totalReports - analytics.recycledCount - analytics.processedCount - analytics.disposedCount, color: C.amber },
-                        { label:'Disposed',  count: analytics.disposedCount,  color: C.red   },
+                        { label:'Recycled',  count:analytics.recycledCount,  color:C.green },
+                        { label:'Processed', count:analytics.processedCount, color:C.blue  },
+                        { label:'Pending',   count:analytics.totalReports - analytics.recycledCount - analytics.processedCount - analytics.disposedCount, color:C.amber },
+                        { label:'Disposed',  count:analytics.disposedCount,  color:C.red   },
                       ].map(({ label, count, color }) => (
                         <View key={label} style={s.scoreRow}>
-                          <View style={[s.scoreDot, { backgroundColor: color }]} />
+                          <View style={[s.scoreDot, { backgroundColor:color }]} />
                           <Text style={s.scoreRowLabel}>{label}</Text>
                           <Text style={[s.scoreRowCount, { color }]}>{count}</Text>
                         </View>
@@ -584,38 +606,17 @@ const WasteAnalytics = ({ navigation }) => {
                 <FadeIn delay={160}>
                   <View style={s.section}>
                     <SectionHeader icon="globe-outline" title="Environmental Equivalents" sub="Your impact in real-world terms" />
-                    {/* FIX: replaced equivGrid+equivTile with a proper 2-column layout */}
                     <View style={s.card}>
                       <View style={s.equivRow}>
-                        <EquivTile
-                          icon="leaf-outline"
-                          color={C.green}
-                          value={String(analytics.environmentalEquivalents.treesEquivalent)}
-                          label="Trees to absorb emissions"
-                        />
+                        <EquivTile icon="leaf-outline"          color={C.green}  value={String(analytics.environmentalEquivalents.treesEquivalent)}    label="Trees to absorb emissions" />
                         <View style={s.equivDividerV} />
-                        <EquivTile
-                          icon="car-outline"
-                          color={C.blue}
-                          value={String(analytics.environmentalEquivalents.carsEquivalent)}
-                          label="Cars off road / yr"
-                        />
+                        <EquivTile icon="car-outline"           color={C.blue}   value={String(analytics.environmentalEquivalents.carsEquivalent)}     label="Cars off road / yr" />
                       </View>
                       <View style={s.equivDividerH} />
                       <View style={s.equivRow}>
-                        <EquivTile
-                          icon="flame-outline"
-                          color={C.amber}
-                          value={`${analytics.environmentalEquivalents.gasolineLiters}L`}
-                          label="Gasoline equivalent"
-                        />
+                        <EquivTile icon="flame-outline"         color={C.amber}  value={`${analytics.environmentalEquivalents.gasolineLiters}L`}       label="Gasoline equivalent" />
                         <View style={s.equivDividerV} />
-                        <EquivTile
-                          icon="phone-portrait-outline"
-                          color={C.purple}
-                          value={String(analytics.environmentalEquivalents.smartphonesCharged)}
-                          label="Smartphones charged"
-                        />
+                        <EquivTile icon="phone-portrait-outline" color={C.purple} value={String(analytics.environmentalEquivalents.smartphonesCharged)} label="Smartphones charged" />
                       </View>
                     </View>
                   </View>
@@ -652,7 +653,7 @@ const WasteAnalytics = ({ navigation }) => {
                 </FadeIn>
               )}
 
-              {/* ══ 5. CO₂ by processing status ══ */}
+              {/* ══ 5. CO₂ by status ══ */}
               <FadeIn delay={240}>
                 <View style={s.section}>
                   <SectionHeader icon="stats-chart-outline" title="By Processing Status" sub="CO₂ breakdown per disposal method" />
@@ -679,19 +680,18 @@ const WasteAnalytics = ({ navigation }) => {
                         last
                       />
                     )}
-
                     {parseFloat(analytics.co2Emissions) > 0 && (
                       <View style={s.tipBox}>
-                        <View style={[s.tipIcon, { backgroundColor: C.amberDim, borderColor: C.amberLine }]}>
+                        <View style={[s.tipIcon, { backgroundColor:C.amberDim, borderColor:C.amberLine }]}>
                           <Ionicons name="warning-outline" size={15} color={C.amber} />
                         </View>
                         <Text style={s.tipTxt}>
                           Recycling more{' '}
-                          <Text style={{ color: C.amber, fontWeight: '700' }}>
+                          <Text style={{ color:C.amber, fontWeight:'700' }}>
                             {Object.entries(analytics.co2ByWasteType)
                               .filter(([,d]) => d.co2Impact > 0)
                               .sort(([,a],[,b]) => b.co2Impact - a.co2Impact)
-                              .slice(0, 2).map(([t]) => t).join(' and ') || 'waste'}
+                              .slice(0,2).map(([t]) => t).join(' and ') || 'waste'}
                           </Text>
                           {' '}could cut your emissions by up to 50%.
                         </Text>
@@ -710,19 +710,20 @@ const WasteAnalytics = ({ navigation }) => {
 
 export default WasteAnalytics;
 
-
+// ── Styles ────────────────────────────────────────────────────────────────────
 const CARD_SHADOW = {
   shadowColor: 'rgba(7,27,46,0.08)',
-  shadowOffset: { width: 0, height: 4 },
+  shadowOffset: { width:0, height:4 },
   shadowOpacity: 1,
   shadowRadius: 12,
   elevation: 3,
 };
 
 const s = StyleSheet.create({
-  rootSafe: { flex: 1, backgroundColor: C.ink },
-  root: { flex: 1, backgroundColor: C.offWhite },
+  rootSafe: { flex:1, backgroundColor:C.ink },
+  root:     { flex:1, backgroundColor:C.offWhite },
 
+  // Header
   header: {
     backgroundColor: C.ink,
     paddingTop: Platform.OS === 'ios' ? 8 : 8,
@@ -732,220 +733,200 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 28,
     overflow: 'hidden',
     shadowColor: C.ink,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width:0, height:8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 10,
     marginBottom: 4,
   },
   headerBlob1: {
-    position: 'absolute', width: 260, height: 260, borderRadius: 130,
-    backgroundColor: C.tealGlow, top: -100, right: -80,
+    position:'absolute', width:260, height:260, borderRadius:130,
+    backgroundColor:C.tealGlow, top:-100, right:-80,
   },
   headerBlob2: {
-    position: 'absolute', width: 120, height: 120, borderRadius: 60,
-    backgroundColor: 'rgba(0,201,167,0.07)', bottom: -20, left: -30,
+    position:'absolute', width:120, height:120, borderRadius:60,
+    backgroundColor:'rgba(0,201,167,0.07)', bottom:-20, left:-30,
   },
-  headerGrid: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-  },
-  headerRow: {
-    flexDirection: 'row', alignItems: 'center',
-    marginBottom: 20,
-  },
+  headerRow:    { flexDirection:'row', alignItems:'center', marginBottom:20 },
   backBtn: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1, borderColor: C.borderDk,
-    alignItems: 'center', justifyContent: 'center',
+    width:38, height:38, borderRadius:10,
+    backgroundColor:'rgba(255,255,255,0.10)',
+    borderWidth:1, borderColor:C.borderDk,
+    alignItems:'center', justifyContent:'center',
   },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerLabel:  { fontSize: 10, color: C.teal, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 },
-  headerTitle:  { fontSize: 18, fontWeight: '900', color: C.white, letterSpacing: -0.3 },
-  headerBadge:  {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: C.tealDim, borderRadius: 10,
-    paddingVertical: 6, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: C.tealLine,
+  headerCenter:    { flex:1, alignItems:'center' },
+  headerLabel:     { fontSize:10, color:C.teal, fontWeight:'700', letterSpacing:1.2, textTransform:'uppercase', marginBottom:2 },
+  headerTitle:     { fontSize:18, fontWeight:'900', color:C.white, letterSpacing:-0.3 },
+  headerBadge: {
+    flexDirection:'row', alignItems:'center', gap:4,
+    backgroundColor:C.tealDim, borderRadius:10,
+    paddingVertical:6, paddingHorizontal:10,
+    borderWidth:1, borderColor:C.tealLine,
   },
-  headerBadgeTxt: { fontSize: 11, color: C.teal, fontWeight: '700' },
+  headerBadgeTxt: { fontSize:11, color:C.teal, fontWeight:'700' },
 
-  timeFilterRow: {
-    flexDirection: 'row', gap: 8,
-    paddingBottom: 18,
-  },
+  // Time filter
+  timeFilterRow: { flexDirection:'row', gap:8, paddingBottom:18 },
   timeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    paddingVertical: 9, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1, borderColor: C.borderDk,
+    flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4,
+    paddingVertical:9, borderRadius:10,
+    backgroundColor:'rgba(255,255,255,0.07)',
+    borderWidth:1, borderColor:C.borderDk,
   },
-  timeBtnActive:    { backgroundColor: C.teal, borderColor: C.teal },
-  timeBtnTxt:       { fontSize: 11, fontWeight: '700', color: C.teal },
-  timeBtnTxtActive: { color: C.navy },
-
-  // ── Section ───────────────────────────────────────────────────────────────────
-  section: { marginTop: 24, paddingHorizontal: 20 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  sectionIconWrap: {
-    width: 32, height: 32, borderRadius: 9,
-    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center',
+  timeBtnActive:      { backgroundColor:C.teal, borderColor:C.teal },
+  timeBtnTxt:         { fontSize:11, fontWeight:'700', color:C.teal },
+  timeBtnTxtActive:   { color:C.navy },
+  timeBtnBadge: {
+    backgroundColor:'rgba(255,255,255,0.15)',
+    borderRadius:8, paddingHorizontal:5, paddingVertical:1, minWidth:18, alignItems:'center',
   },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: C.navy, letterSpacing: -0.2 },
-  sectionSub:   { fontSize: 11, color: C.slateL, marginTop: 1 },
+  timeBtnBadgeActive:  { backgroundColor:'rgba(10,37,64,0.18)' },
+  timeBtnBadgeTxt:     { fontSize:9, fontWeight:'800', color:C.teal },
+  timeBtnBadgeTxtActive:{ color:C.navy },
 
-  // ── Generic card ──────────────────────────────────────────────────────────────
+  // Range label
+  rangeLabelRow: {
+    flexDirection:'row', alignItems:'center', gap:6,
+    marginHorizontal:20, marginTop:16, marginBottom:0,
+    backgroundColor:C.tealDim, borderWidth:1, borderColor:C.tealLine,
+    borderRadius:8, paddingVertical:8, paddingHorizontal:12,
+  },
+  rangeLabelTxt: { fontSize:12, color:C.tealDark, fontWeight:'600' },
+
+  // Section
+  section:        { marginTop:24, paddingHorizontal:20 },
+  sectionHeader:  { flexDirection:'row', alignItems:'center', gap:10, marginBottom:14 },
+  sectionIconWrap:{
+    width:32, height:32, borderRadius:9,
+    backgroundColor:C.tealDim, borderWidth:1, borderColor:C.tealLine,
+    alignItems:'center', justifyContent:'center',
+  },
+  sectionTitle: { fontSize:15, fontWeight:'800', color:C.navy, letterSpacing:-0.2 },
+  sectionSub:   { fontSize:11, color:C.slateL, marginTop:1 },
+
+  // Generic card
   card: {
-    backgroundColor: C.white, borderRadius: 18, padding: 18,
-    borderWidth: 1, borderColor: C.border, ...CARD_SHADOW,
+    backgroundColor:C.white, borderRadius:18, padding:18,
+    borderWidth:1, borderColor:C.border, ...CARD_SHADOW,
   },
 
-  // ── Metrics grid ──────────────────────────────────────────────────────────────
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // Metrics
+  metricsGrid: { flexDirection:'row', flexWrap:'wrap', gap:10 },
   metricCard: {
-    flex: 1, minWidth: (width - 58) / 2,
-    backgroundColor: C.white, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: C.border,
-    borderTopWidth: 3,
+    flex:1, minWidth:(width-58)/2,
+    backgroundColor:C.white, borderRadius:16, padding:16,
+    borderWidth:1, borderColor:C.border, borderTopWidth:3,
     ...CARD_SHADOW,
   },
   metricIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+    width:36, height:36, borderRadius:10,
+    borderWidth:1, alignItems:'center', justifyContent:'center', marginBottom:12,
   },
-  metricValue: { fontSize: 22, fontWeight: '900', color: C.navy, marginBottom: 2 },
-  metricTitle: { fontSize: 10, fontWeight: '700', color: C.slateL, textTransform: 'uppercase', letterSpacing: 0.5 },
-  metricSub:   { fontSize: 11, color: C.slateL, marginTop: 4 },
+  metricValue: { fontSize:22, fontWeight:'900', color:C.navy, marginBottom:2 },
+  metricTitle: { fontSize:10, fontWeight:'700', color:C.slateL, textTransform:'uppercase', letterSpacing:0.5 },
+  metricSub:   { fontSize:11, color:C.slateL, marginTop:4 },
 
-  // ── Score card ────────────────────────────────────────────────────────────────
+  // Score
   scoreCard: {
-    backgroundColor: C.white, borderRadius: 18, padding: 22,
-    borderWidth: 1, borderColor: C.border,
-    flexDirection: 'row', alignItems: 'center', gap: 20,
+    backgroundColor:C.white, borderRadius:18, padding:22,
+    borderWidth:1, borderColor:C.border,
+    flexDirection:'row', alignItems:'center', gap:20,
     ...CARD_SHADOW,
   },
-  ringWrap:   { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  ringBg:     { position: 'absolute' },
-  ringFill:   { position: 'absolute' },
-  ringCenter: { alignItems: 'center' },
-  ringScore:  { fontSize: 30, fontWeight: '900' },
-  ringOf:     { fontSize: 10, color: C.slateL, fontWeight: '700' },
-  scoreRight: { flex: 1, gap: 10 },
-  scoreRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  scoreDot:   { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  scoreRowLabel: { flex: 1, fontSize: 13, color: C.slate },
-  scoreRowCount: { fontSize: 13, fontWeight: '800' },
+  ringWrap:      { position:'relative', alignItems:'center', justifyContent:'center' },
+  ringBg:        { position:'absolute' },
+  ringFill:      { position:'absolute' },
+  ringCenter:    { alignItems:'center' },
+  ringScore:     { fontSize:30, fontWeight:'900' },
+  ringOf:        { fontSize:10, color:C.slateL, fontWeight:'700' },
+  scoreRight:    { flex:1, gap:10 },
+  scoreRow:      { flexDirection:'row', alignItems:'center', gap:8 },
+  scoreDot:      { width:8, height:8, borderRadius:4, flexShrink:0 },
+  scoreRowLabel: { flex:1, fontSize:13, color:C.slate },
+  scoreRowCount: { fontSize:13, fontWeight:'800' },
 
-  // ── Environmental equivalents — FIX ──────────────────────────────────────────
-  // Two rows of two tiles, each row separated by a divider.
-  // Tiles use flex:1 so they share the available width equally regardless of
-  // screen size.  No hardcoded pixel widths.
-  equivRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  equivDividerV: {
-    width: 1,
-    backgroundColor: C.border,
-    marginVertical: 4,
-  },
-  equivDividerH: {
-    height: 1,
-    backgroundColor: C.border,
-    marginVertical: 16,
-  },
-  equivTile: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
+  // Equivalents
+  equivRow:      { flexDirection:'row', alignItems:'stretch' },
+  equivDividerV: { width:1, backgroundColor:C.border, marginVertical:4 },
+  equivDividerH: { height:1, backgroundColor:C.border, marginVertical:16 },
+  equivTile:     { flex:1, alignItems:'center', paddingHorizontal:8, paddingVertical:4 },
   equivIcon: {
-    width: 52, height: 52, borderRadius: 14,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    width:52, height:52, borderRadius:14,
+    borderWidth:1, alignItems:'center', justifyContent:'center', marginBottom:10,
   },
-  equivValue: {
-    fontSize: 20, fontWeight: '900', marginBottom: 4,
-    maxWidth: '100%',
-  },
-  equivLabel: {
-    fontSize: 11, color: C.slateL, textAlign: 'center', lineHeight: 16,
-  },
+  equivValue: { fontSize:20, fontWeight:'900', marginBottom:4, maxWidth:'100%' },
+  equivLabel: { fontSize:11, color:C.slateL, textAlign:'center', lineHeight:16 },
 
-  // ── Progress rows ─────────────────────────────────────────────────────────────
-  progressRow:     { marginBottom: 18 },
-  progressTop:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 7 },
-  progressLabel:   { fontSize: 13, color: C.navy, fontWeight: '700' },
-  progressSublabel:{ fontSize: 11, color: C.slateL, marginTop: 1 },
-  progressValue:   { fontSize: 12, fontWeight: '800', marginLeft: 8 },
-  barTrack: {
-    height: 7, backgroundColor: C.border, borderRadius: 4,
-    overflow: 'hidden', marginBottom: 4,
-  },
-  barFill:    { height: '100%', borderRadius: 4 },
-  progressPct:{ fontSize: 10, color: C.slateL, textAlign: 'right' },
+  // Progress
+  progressRow:      { marginBottom:18 },
+  progressTop:      { flexDirection:'row', alignItems:'flex-start', marginBottom:7 },
+  progressLabel:    { fontSize:13, color:C.navy, fontWeight:'700' },
+  progressSublabel: { fontSize:11, color:C.slateL, marginTop:1 },
+  progressValue:    { fontSize:12, fontWeight:'800', marginLeft:8 },
+  barTrack:         { height:7, backgroundColor:C.border, borderRadius:4, overflow:'hidden', marginBottom:4 },
+  barFill:          { height:'100%', borderRadius:4 },
+  progressPct:      { fontSize:10, color:C.slateL, textAlign:'right' },
 
-  // ── Status grid ───────────────────────────────────────────────────────────────
-  statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // Status
+  statusGrid: { flexDirection:'row', flexWrap:'wrap', gap:10 },
   statusCard: {
-    flex: 1, minWidth: (width - 58) / 2,
-    backgroundColor: C.white, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: C.border,
-    borderTopWidth: 3,
+    flex:1, minWidth:(width-58)/2,
+    backgroundColor:C.white, borderRadius:16, padding:16,
+    borderWidth:1, borderColor:C.border, borderTopWidth:3,
     ...CARD_SHADOW,
   },
   statusIconWrap: {
-    width: 34, height: 34, borderRadius: 9,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    width:34, height:34, borderRadius:9,
+    borderWidth:1, alignItems:'center', justifyContent:'center', marginBottom:10,
   },
-  statusLabel:     { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  statusCount:     { fontSize: 26, fontWeight: '900', color: C.navy, lineHeight: 30 },
-  statusCountLabel:{ fontSize: 11, color: C.slateL, marginBottom: 6 },
-  statusDivider:   { height: 1, backgroundColor: C.border, marginBottom: 8 },
-  statusWeight:    { fontSize: 12, color: C.slate, fontWeight: '600', marginBottom: 8 },
-  statusCO2Pill:   {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderRadius: 8,
-    paddingVertical: 4, paddingHorizontal: 8, alignSelf: 'flex-start',
+  statusLabel:      { fontSize:11, fontWeight:'800', textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 },
+  statusCount:      { fontSize:26, fontWeight:'900', color:C.navy, lineHeight:30 },
+  statusCountLabel: { fontSize:11, color:C.slateL, marginBottom:6 },
+  statusDivider:    { height:1, backgroundColor:C.border, marginBottom:8 },
+  statusWeight:     { fontSize:12, color:C.slate, fontWeight:'600', marginBottom:8 },
+  statusCO2Pill: {
+    flexDirection:'row', alignItems:'center', gap:4,
+    borderWidth:1, borderRadius:8, paddingVertical:4, paddingHorizontal:8, alignSelf:'flex-start',
   },
-  statusCO2Txt: { fontSize: 11, fontWeight: '700' },
+  statusCO2Txt: { fontSize:11, fontWeight:'700' },
 
-  // ── Insight rows ──────────────────────────────────────────────────────────────
+  // Insights
   insightRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border,
+    flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+    paddingVertical:13, borderBottomWidth:1, borderBottomColor:C.border,
   },
-  insightLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  insightIconWrap: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: C.tealDim, alignItems: 'center', justifyContent: 'center',
-  },
-  insightLabel: { fontSize: 13, color: C.slate, flex: 1 },
-  insightValue: { fontSize: 14, fontWeight: '800', color: C.navy },
-
+  insightLeft:    { flexDirection:'row', alignItems:'center', gap:10, flex:1 },
+  insightIconWrap:{ width:28, height:28, borderRadius:8, backgroundColor:C.tealDim, alignItems:'center', justifyContent:'center' },
+  insightLabel:   { fontSize:13, color:C.slate, flex:1 },
+  insightValue:   { fontSize:14, fontWeight:'800', color:C.navy },
   tipBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    marginTop: 14, padding: 14, borderRadius: 12,
-    backgroundColor: C.amberDim, borderWidth: 1, borderColor: C.amberLine,
+    flexDirection:'row', alignItems:'flex-start', gap:12,
+    marginTop:14, padding:14, borderRadius:12,
+    backgroundColor:C.amberDim, borderWidth:1, borderColor:C.amberLine,
   },
   tipIcon: {
-    width: 30, height: 30, borderRadius: 8, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width:30, height:30, borderRadius:8, borderWidth:1,
+    alignItems:'center', justifyContent:'center', flexShrink:0,
   },
-  tipTxt: { flex: 1, fontSize: 13, color: C.slate, lineHeight: 19 },
+  tipTxt: { flex:1, fontSize:13, color:C.slate, lineHeight:19 },
 
-  // ── Empty ────────────────────────────────────────────────────────────────────
-  emptyWrap: { alignItems: 'center', paddingTop: 72, paddingHorizontal: 40 },
-  emptyIconWrap: {
-    width: 84, height: 84, borderRadius: 24,
-    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+  // Empty
+  emptyWrap:    { alignItems:'center', paddingTop:72, paddingHorizontal:40 },
+  emptyIconWrap:{
+    width:84, height:84, borderRadius:24,
+    backgroundColor:C.tealDim, borderWidth:1.5, borderColor:C.tealLine,
+    alignItems:'center', justifyContent:'center', marginBottom:20,
   },
-  emptyTitle: { fontSize: 22, fontWeight: '900', color: C.navy, marginBottom: 10, letterSpacing: -0.3 },
-  emptyText:  { fontSize: 14, color: C.slateL, textAlign: 'center', lineHeight: 22 },
+  emptyTitle:  { fontSize:22, fontWeight:'900', color:C.navy, marginBottom:10, letterSpacing:-0.3 },
+  emptyText:   { fontSize:14, color:C.slateL, textAlign:'center', lineHeight:22, marginBottom:20 },
+  emptyAction: {
+    flexDirection:'row', alignItems:'center', gap:6,
+    backgroundColor:C.teal, borderRadius:12,
+    paddingVertical:12, paddingHorizontal:20,
+  },
+  emptyActionTxt: { fontSize:13, fontWeight:'800', color:C.navy },
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt:  { marginTop: 14, fontSize: 14, color: C.slate, fontWeight: '600' },
+  // Loading
+  loadingWrap: { flex:1, alignItems:'center', justifyContent:'center' },
+  loadingTxt:  { marginTop:14, fontSize:14, color:C.slate, fontWeight:'600' },
 });

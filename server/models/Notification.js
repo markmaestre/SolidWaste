@@ -16,7 +16,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['report_created', 'report_processed', 'recycling_tips', 'system'],
+    enum: ['report_created', 'report_processed', 'report_archived', 'report_restored', 'pickup_scheduled', 'recycling_tips', 'system'],
     default: 'system'
   },
   relatedReport: {

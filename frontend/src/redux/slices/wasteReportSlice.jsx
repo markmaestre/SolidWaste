@@ -89,17 +89,18 @@ export const updateReportStatus = createAsyncThunk(
   }
 );
 
-export const deleteReport = createAsyncThunk(
-  'wasteReport/delete',
+// REPLACED deleteReport with archiveReport
+export const archiveReport = createAsyncThunk(
+  'wasteReport/archive',
   async (reportId, { rejectWithValue }) => {
     try {
-      await axiosInstance.delete(`/waste-reports/${reportId}`);
-      return reportId;
+      const response = await axiosInstance.put(`/waste-reports/${reportId}/archive`);
+      return { reportId, report: response.data.report };
     } catch (error) {
       return rejectWithValue(
         error.response?.data || {
           success: false,
-          error:   'Failed to delete report',
+          error:   'Failed to archive report',
           details: error.message || 'Network error occurred',
         }
       );
@@ -111,9 +112,9 @@ export const getAllReports = createAsyncThunk(
   'wasteReport/getAllReports',
   async (filters = {}, { rejectWithValue }) => {
     try {
-      const { page = 1, limit = 10, status, user, barangay } = filters;
+      const { page = 1, limit = 10, status, user, barangay, showArchived = false } = filters;
       const response = await axiosInstance.get('/waste-reports', {
-        params: { page, limit, status, user, barangay },
+        params: { page, limit, status, user, barangay, showArchived },
       });
       return response.data;
     } catch (error) {
@@ -337,22 +338,23 @@ const wasteReportSlice = createSlice({
         state.loading = false; state.operation = 'update_status'; state.error = action.payload;
       })
 
-    // ── deleteReport ────────────────────────────────────────────────────────
-      .addCase(deleteReport.pending, (state) => {
-        state.loading = true; state.error = null; state.operation = 'delete';
+    // ── archiveReport (replaced delete) ─────────────────────────────────────
+      .addCase(archiveReport.pending, (state) => {
+        state.loading = true; state.error = null; state.operation = 'archive';
       })
-      .addCase(deleteReport.fulfilled, (state, action) => {
+      .addCase(archiveReport.fulfilled, (state, action) => {
         state.loading   = false;
         state.success   = true;
-        state.operation = 'delete';
+        state.operation = 'archive';
         state.error     = null;
-        const id = action.payload;
+        // Remove archived report from active lists
+        const id = action.payload.reportId;
         state.reports    = state.reports.filter((r) => r._id !== id);
         state.allReports = state.allReports.filter((r) => r._id !== id);
         if (state.currentReport?._id === id) state.currentReport = null;
       })
-      .addCase(deleteReport.rejected, (state, action) => {
-        state.loading = false; state.operation = 'delete'; state.error = action.payload;
+      .addCase(archiveReport.rejected, (state, action) => {
+        state.loading = false; state.operation = 'archive'; state.error = action.payload;
       });
   },
 });

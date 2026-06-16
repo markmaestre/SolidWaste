@@ -12,8 +12,12 @@ import {
   TextInput,
   Animated,
   Platform,
+  Modal,
+  ScrollView,
+  Pressable,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +29,9 @@ import {
   initializeNotifications,
 } from '../../redux/slices/notificationSlice';
 
-// ── Design tokens (shared palette) ───────────────────────────────────────────
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   ink:      '#071B2E',
   navy:     '#0A2540',
@@ -54,9 +60,10 @@ const C = {
   blue:     '#60A5FA',
   blueDim:  'rgba(96,165,250,0.13)',
   blueLine: 'rgba(96,165,250,0.35)',
+  overlay:  'rgba(7,27,46,0.72)',
 };
 
-// ── FadeIn animation (mirrors EditProfile) ────────────────────────────────────
+// ── FadeIn ────────────────────────────────────────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
   const opacity    = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
@@ -73,14 +80,36 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
-// ── Notification type helpers ─────────────────────────────────────────────────
+// ── Type helpers ──────────────────────────────────────────────────────────────
 const TYPE_META = {
-  report_created:   { icon: 'document-text-outline', color: C.teal,  label: 'REPORT' },
-  report_processed: { icon: 'checkmark-circle-outline', color: C.blue, label: 'UPDATE' },
-  recycling_tips:   { icon: 'leaf-outline',           color: C.green, label: 'TIP'    },
+  report_created:   { icon: 'document-text-outline',    color: C.teal,  label: 'REPORT' },
+  report_processed: { icon: 'checkmark-circle-outline', color: C.blue,  label: 'UPDATE' },
+  recycling_tips:   { icon: 'leaf-outline',             color: C.green, label: 'TIP'    },
 };
 const getTypeMeta = (t) =>
   TYPE_META[t] || { icon: 'notifications-outline', color: C.slateL, label: 'INFO' };
+
+const getTypeLabel = (type) => {
+  switch (type) {
+    case 'report_created':   return 'Report Submitted';
+    case 'report_processed': return 'Report Status Update';
+    case 'recycling_tips':   return 'Recycling Tip';
+    default:                 return 'General Notification';
+  }
+};
+
+const getTypeExplanation = (type) => {
+  switch (type) {
+    case 'report_created':
+      return 'Your recycling report has been successfully submitted. Our team will review the report and may take action on the issue you flagged. You will be notified once it has been processed.';
+    case 'report_processed':
+      return 'One of your submitted reports has been updated. This may mean it has been reviewed, approved, or that a resolution has been reached. Tap "View Report" below to see the full details.';
+    case 'recycling_tips':
+      return 'This is an eco-tip from the EcoTrack team to help you recycle smarter and reduce waste. Small daily habits lead to a meaningful environmental impact over time.';
+    default:
+      return 'This is a general notification from EcoTrack. It may contain important updates about your account, app changes, or announcements from the team.';
+  }
+};
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
@@ -89,12 +118,188 @@ const formatDate = (dateString) => {
   const mins  = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days  = Math.floor(diff / 86400000);
-  if (mins  < 1)  return 'Just now';
-  if (mins  < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
+  if (mins  < 1)   return 'Just now';
+  if (mins  < 60)  return `${mins}m ago`;
+  if (hours < 24)  return `${hours}h ago`;
   if (days  === 1) return 'Yesterday';
-  if (days  < 7)  return `${days}d ago`;
-  return date.toLocaleDateString();
+  if (days  < 7)   return `${days}d ago`;
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+// ── Notification Detail Modal ─────────────────────────────────────────────────
+const NotificationModal = ({ visible, item, onClose, onNavigate }) => {
+  const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 70,
+          friction: 12,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  if (!item) return null;
+
+  const meta       = getTypeMeta(item.type);
+  const typeLabel  = getTypeLabel(item.type);
+  const explanation = getTypeExplanation(item.type);
+  const hasAction  = ['report_created', 'report_processed'].includes(item.type);
+  const hasTipLink = item.type === 'recycling_tips' && (item.link || item.data?.link);
+  const showAction = hasAction || hasTipLink;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      {/* Backdrop */}
+      <Animated.View style={[m.backdrop, { opacity: fadeAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[
+          m.sheet,
+          {
+            transform: [{ translateY: slideAnim }],
+            paddingBottom: insets.bottom + 16,
+          },
+        ]}
+      >
+        {/* Drag handle */}
+        <View style={m.handle} />
+
+        {/* ── Modal header ── */}
+        <View style={m.modalHeader}>
+          {/* Left: icon */}
+          <View style={[m.headerIconWrap, { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` }]}>
+            <Ionicons name={meta.icon} size={26} color={meta.color} />
+          </View>
+
+          {/* Center: title stack */}
+          <View style={m.headerTextBlock}>
+            <View style={[m.typePill, { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` }]}>
+              <View style={[m.pillDot, { backgroundColor: meta.color }]} />
+              <Text style={[m.pillTxt, { color: meta.color }]}>{meta.label}</Text>
+            </View>
+            <Text style={m.headerTypeLabel}>{typeLabel}</Text>
+          </View>
+
+          {/* Right: close */}
+          <TouchableOpacity style={m.closeBtn} onPress={onClose} activeOpacity={0.7}>
+            <Ionicons name="close" size={20} color={C.slate} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Accent line */}
+        <View style={[m.accentLine, { backgroundColor: meta.color }]} />
+
+        {/* ── Scrollable body ── */}
+        <ScrollView
+          style={m.body}
+          contentContainerStyle={m.bodyContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* Notification title */}
+          <Text style={m.notifTitle}>{item.title}</Text>
+
+          {/* Full message */}
+          <Text style={m.notifMessage}>{item.message}</Text>
+
+          {/* Meta chips row */}
+          <View style={m.chipsRow}>
+            <View style={m.chip}>
+              <Ionicons name="time-outline" size={13} color={C.slateL} />
+              <Text style={m.chipTxt}>{formatDate(item.createdAt)}</Text>
+            </View>
+            <View style={[
+              m.chip,
+              item.read
+                ? { backgroundColor: C.greenDim, borderColor: C.greenLine }
+                : { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` },
+            ]}>
+              <Ionicons
+                name={item.read ? 'checkmark-done-circle-outline' : 'radio-button-on-outline'}
+                size={13}
+                color={item.read ? C.green : meta.color}
+              />
+              <Text style={[m.chipTxt, { color: item.read ? C.green : meta.color }]}>
+                {item.read ? 'Read' : 'Unread'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Divider */}
+          <View style={m.sectionDivider} />
+
+          {/* What does this mean section */}
+          <View style={m.sectionHeader}>
+            <Ionicons name="information-circle-outline" size={16} color={meta.color} />
+            <Text style={[m.sectionTitle, { color: meta.color }]}>What does this mean?</Text>
+          </View>
+          <View style={[m.explanationBox, { backgroundColor: `${meta.color}0D`, borderColor: `${meta.color}30` }]}>
+            <Text style={m.explanationTxt}>{explanation}</Text>
+          </View>
+
+          {/* Extra data fields (reportId etc.) */}
+          {(item.reportId || item.data?.reportId) && (
+            <>
+              <View style={m.sectionDivider} />
+              <View style={m.sectionHeader}>
+                <Ionicons name="link-outline" size={16} color={C.slateL} />
+                <Text style={[m.sectionTitle, { color: C.slate }]}>Reference</Text>
+              </View>
+              <View style={m.refBox}>
+                <Text style={m.refLabel}>Report ID</Text>
+                <Text style={m.refValue}>{item.reportId || item.data?.reportId}</Text>
+              </View>
+            </>
+          )}
+        </ScrollView>
+
+        {/* ── Footer CTA ── */}
+        {showAction && (
+          <View style={m.footer}>
+            <TouchableOpacity
+              style={[m.ctaBtn, { backgroundColor: meta.color }]}
+              onPress={onNavigate}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={hasAction ? 'document-text-outline' : 'leaf-outline'}
+                size={18}
+                color={C.navy}
+              />
+              <Text style={m.ctaTxt}>
+                {hasAction ? 'View Report Details' : 'Read Full Tip'}
+              </Text>
+              <Ionicons name="arrow-forward-outline" size={16} color={C.navy} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!showAction && (
+          <View style={m.footer}>
+            <TouchableOpacity style={m.dismissBtn} onPress={onClose} activeOpacity={0.7}>
+              <Text style={m.dismissTxt}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </Animated.View>
+    </Modal>
+  );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,6 +311,8 @@ const NotificationsScreen = ({ navigation }) => {
   const [refreshing,    setRefreshing]    = useState(false);
   const [showSettings,  setShowSettings]  = useState(false);
   const [searchQuery,   setSearchQuery]   = useState('');
+  const [selectedNotif, setSelectedNotif] = useState(null);
+  const [modalVisible,  setModalVisible]  = useState(false);
   const [preferences,   setPreferences]   = useState({
     notificationsEnabled: true,
     reportUpdates:        true,
@@ -158,65 +365,62 @@ const NotificationsScreen = ({ navigation }) => {
     }
   };
 
-  // ── Handle notification press based on type ─────────────────────────────────
   const handleNotificationPress = async (item) => {
-    // Mark as read first
-    if (!item.read) {
-      await handleMarkAsRead(item._id);
-    }
-    
-    // Navigate based on notification type
+    if (!item.read) await handleMarkAsRead(item._id);
+    setSelectedNotif(item);
+    setModalVisible(true);
+  };
+
+  const handleModalNavigate = () => {
+    const item = selectedNotif;
+    setModalVisible(false);
+    setTimeout(() => setSelectedNotif(null), 300);
+
     switch (item.type) {
       case 'report_created':
       case 'report_processed':
-        // Navigate to report details screen
         if (item.reportId) {
           navigation.navigate('ReportDetail', { reportId: item.reportId });
         } else if (item.data?.reportId) {
           navigation.navigate('ReportDetail', { reportId: item.data.reportId });
-        } else {
-          // If no reportId found, just show the notification message
-          Alert.alert(item.title, item.message);
         }
         break;
-      
       case 'recycling_tips':
-        // Navigate to recycling tips screen or show modal
         if (item.link || item.data?.link) {
-          // If you have a webview or tips screen
           navigation.navigate('RecyclingTipsDetail', { tip: item });
-        } else {
-          Alert.alert(item.title, item.message);
         }
         break;
-      
       default:
-        // Default action - show alert with notification content
-        Alert.alert(item.title, item.message);
         break;
     }
   };
 
-  // ── Notification item ──────────────────────────────────────────────────────
+  const closeModal = () => {
+    setModalVisible(false);
+    setTimeout(() => setSelectedNotif(null), 300);
+  };
+
+  // ── Notification card ──────────────────────────────────────────────────────
   const renderItem = ({ item, index }) => {
     const meta = getTypeMeta(item.type);
     return (
       <FadeIn delay={index * 40}>
         <TouchableOpacity
-          style={[s.notifCard, !item.read && { borderLeftColor: meta.color, borderLeftWidth: 3 }]}
+          style={[
+            s.notifCard,
+            !item.read && { borderLeftColor: meta.color, borderLeftWidth: 3.5 },
+          ]}
           onPress={() => handleNotificationPress(item)}
-          activeOpacity={0.8}
+          activeOpacity={0.78}
         >
-          {/* Icon */}
-          <View style={[s.notifIconWrap, { backgroundColor: `${meta.color}22`, borderColor: `${meta.color}44` }]}>
+          <View style={[s.notifIconWrap, { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` }]}>
             <Ionicons name={meta.icon} size={20} color={meta.color} />
           </View>
 
-          {/* Content */}
           <View style={s.notifContent}>
             <View style={s.notifTopRow}>
               <Text style={s.notifTitle} numberOfLines={1}>{item.title}</Text>
-              <View style={[s.typeBadge, { backgroundColor: `${meta.color}22`, borderColor: `${meta.color}44` }]}>
+              <View style={[s.typeBadge, { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` }]}>
                 <Text style={[s.typeBadgeTxt, { color: meta.color }]}>{meta.label}</Text>
               </View>
             </View>
@@ -226,10 +430,15 @@ const NotificationsScreen = ({ navigation }) => {
                 <Ionicons name="time-outline" size={11} color={C.slateL} />
                 <Text style={s.timeTxt}>{formatDate(item.createdAt)}</Text>
               </View>
-              {!item.read && (
-                <View style={[s.newBadge, { backgroundColor: `${meta.color}22`, borderColor: `${meta.color}44` }]}>
+              {!item.read ? (
+                <View style={[s.newBadge, { backgroundColor: `${meta.color}18`, borderColor: `${meta.color}40` }]}>
                   <View style={[s.newDot, { backgroundColor: meta.color }]} />
                   <Text style={[s.newTxt, { color: meta.color }]}>NEW</Text>
+                </View>
+              ) : (
+                <View style={s.readHint}>
+                  <Ionicons name="eye-outline" size={11} color={C.slateL} />
+                  <Text style={s.readHintTxt}>Tap to view</Text>
                 </View>
               )}
             </View>
@@ -239,7 +448,7 @@ const NotificationsScreen = ({ navigation }) => {
     );
   };
 
-  // ── Loading state ──────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={s.root} edges={['top']}>
@@ -268,7 +477,14 @@ const NotificationsScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar style="light" backgroundColor={C.ink} />
-      
+
+      <NotificationModal
+        visible={modalVisible}
+        item={selectedNotif}
+        onClose={closeModal}
+        onNavigate={handleModalNavigate}
+      />
+
       <View style={s.container}>
         {/* ── Header ── */}
         <View style={s.header}>
@@ -303,7 +519,7 @@ const NotificationsScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* ── Search bar ── */}
+        {/* ── Search ── */}
         <FadeIn delay={0}>
           <View style={s.searchWrap}>
             <View style={s.searchBar}>
@@ -334,12 +550,11 @@ const NotificationsScreen = ({ navigation }) => {
                 </View>
                 <Text style={s.settingsCardTitle}>Notification Settings</Text>
               </View>
-
               {[
-                { key:'notificationsEnabled', icon:'notifications-outline', label:'Enable Notifications',  desc:'Receive all notifications',            alwaysOn: true },
-                { key:'reportUpdates',        icon:'document-text-outline', label:'Report Updates',         desc:'Status changes for your reports' },
-                { key:'recyclingTips',        icon:'leaf-outline',          label:'Recycling Tips',          desc:'Helpful recycling advice' },
-                { key:'systemNotifications',  icon:'information-circle-outline', label:'System Notifications', desc:'App updates and announcements' },
+                { key: 'notificationsEnabled', icon: 'notifications-outline',     label: 'Enable Notifications',  desc: 'Receive all notifications',        alwaysOn: true },
+                { key: 'reportUpdates',        icon: 'document-text-outline',     label: 'Report Updates',         desc: 'Status changes for your reports' },
+                { key: 'recyclingTips',        icon: 'leaf-outline',              label: 'Recycling Tips',          desc: 'Helpful recycling advice' },
+                { key: 'systemNotifications',  icon: 'information-circle-outline', label: 'System Notifications',  desc: 'App updates and announcements' },
               ].map(({ key, icon, label, desc, alwaysOn }) => (
                 <View key={key} style={s.prefRow}>
                   <View style={s.prefLeft}>
@@ -382,7 +597,7 @@ const NotificationsScreen = ({ navigation }) => {
           </FadeIn>
         )}
 
-        {/* ── Search results info ── */}
+        {/* ── Search result count ── */}
         {searchQuery.length > 0 && (
           <FadeIn delay={0}>
             <View style={s.searchResultBar}>
@@ -403,10 +618,7 @@ const NotificationsScreen = ({ navigation }) => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[C.teal]} tintColor={C.teal} />
           }
-          contentContainerStyle={[
-            s.listContent,
-            filtered.length === 0 && { flexGrow: 1 },
-          ]}
+          contentContainerStyle={[s.listContent, filtered.length === 0 && { flexGrow: 1 }]}
           ListEmptyComponent={
             <FadeIn delay={60}>
               <View style={s.emptyWrap}>
@@ -436,391 +648,394 @@ const NotificationsScreen = ({ navigation }) => {
 
 export default NotificationsScreen;
 
-// ─── Stylesheet ───────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: C.offWhite 
+// ─── Modal styles ─────────────────────────────────────────────────────────────
+const m = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: C.overlay,
   },
-  container: {
-    flex: 1,
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: C.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    // Sheet takes roughly 78% of screen — feels full but not cramped
+    maxHeight: SCREEN_HEIGHT * 0.78,
+    minHeight: SCREEN_HEIGHT * 0.52,
+    overflow: 'hidden',
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.border,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  accentLine: {
+    height: 3,
+    marginHorizontal: 24,
+    borderRadius: 2,
+    marginBottom: 0,
   },
 
-  // ── Header ───────────────────────────────────────────────────────────────────
+  // Header
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
+  headerIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  headerTextBlock: {
+    flex: 1,
+    gap: 5,
+  },
+  typePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  pillTxt: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  headerTypeLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.slate,
+    letterSpacing: 0.1,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: C.offWhite,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // Body
+  body: {
+    flex: 1,
+  },
+  bodyContent: {
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 12,
+  },
+  notifTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: C.navy,
+    letterSpacing: -0.4,
+    lineHeight: 28,
+    marginBottom: 10,
+  },
+  notifMessage: {
+    fontSize: 15,
+    color: C.slate,
+    lineHeight: 24,
+    marginBottom: 18,
+  },
+
+  // Chips
+  chipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 22,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.offWhite,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  chipTxt: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.slateL,
+  },
+
+  // Section divider
+  sectionDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginBottom: 18,
+  },
+
+  // Explanation section
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  explanationBox: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+  },
+  explanationTxt: {
+    fontSize: 14,
+    color: C.slate,
+    lineHeight: 22,
+  },
+
+  // Reference box
+  refBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: C.offWhite,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  refLabel: {
+    fontSize: 12,
+    color: C.slateL,
+    fontWeight: '600',
+  },
+  refValue: {
+    fontSize: 12,
+    color: C.navy,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // Footer
+  footer: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  ctaTxt: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.navy,
+    flex: 1,
+    textAlign: 'center',
+  },
+  dismissBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  dismissTxt: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.slate,
+  },
+});
+
+// ─── Screen styles ────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.offWhite },
+  container: { flex: 1 },
+
+  // Header
   header: {
     backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 8 : 14,
-    paddingBottom: 18, 
+    paddingBottom: 18,
     paddingHorizontal: 20,
-    borderBottomWidth: 1, 
+    borderBottomWidth: 1,
     borderBottomColor: C.borderDk,
     overflow: 'hidden',
   },
   headerBlob: {
-    position: 'absolute', 
-    width: 200, 
-    height: 200, 
-    borderRadius: 100,
-    backgroundColor: C.tealGlow, 
-    top: -80, 
-    right: -70,
+    position: 'absolute',
+    width: 200, height: 200, borderRadius: 100,
+    backgroundColor: C.tealGlow,
+    top: -80, right: -70,
   },
   backBtn: {
-    width: 38, 
-    height: 38, 
-    borderRadius: 10,
+    width: 38, height: 38, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, 
-    borderColor: C.borderDk,
-    alignItems: 'center', 
-    justifyContent: 'center',
+    borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerCenter:   { 
-    flex: 1, 
-    alignItems: 'center' 
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 17, fontWeight: '900', color: C.white, letterSpacing: -0.2 },
+  headerSub: {
+    fontSize: 10, color: C.teal, fontWeight: '700',
+    letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2,
   },
-  headerTitleRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8 
-  },
-  headerTitle:    { 
-    fontSize: 17, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: -0.2 
-  },
-  headerSub:      { 
-    fontSize: 10, 
-    color: C.teal, 
-    fontWeight: '700', 
-    letterSpacing: 0.6, 
-    textTransform: 'uppercase', 
-    marginTop: 2 
-  },
-  headerActions:  { 
-    flexDirection: 'row', 
-    gap: 8 
-  },
+  headerActions: { flexDirection: 'row', gap: 8 },
   headerIconBtn: {
-    width: 38, 
-    height: 38, 
-    borderRadius: 10,
+    width: 38, height: 38, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, 
-    borderColor: C.borderDk,
-    alignItems: 'center', 
-    justifyContent: 'center',
+    borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center',
   },
   unreadPill: {
-    backgroundColor: C.teal, 
-    borderRadius: 10,
-    paddingHorizontal: 7, 
-    paddingVertical: 2, 
-    minWidth: 22, 
-    alignItems: 'center',
+    backgroundColor: C.teal, borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 2, minWidth: 22, alignItems: 'center',
   },
-  unreadPillTxt: { 
-    fontSize: 11, 
-    fontWeight: '900', 
-    color: C.navy 
-  },
+  unreadPillTxt: { fontSize: 11, fontWeight: '900', color: C.navy },
 
-  // ── Search ───────────────────────────────────────────────────────────────────
-  searchWrap: { 
-    paddingHorizontal: 20, 
-    paddingTop: 16, 
-    paddingBottom: 4 
-  },
+  // Search
+  searchWrap: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
   searchBar: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 10,
-    backgroundColor: C.white, 
-    borderRadius: 12,
-    borderWidth: 1.5, 
-    borderColor: C.border,
-    paddingHorizontal: 14, 
-    height: 46,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.white, borderRadius: 12,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 14, height: 46,
   },
-  searchInput: { 
-    flex: 1, 
-    fontSize: 14, 
-    color: C.navy 
-  },
-
+  searchInput: { flex: 1, fontSize: 14, color: C.navy },
   searchResultBar: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6,
-    marginHorizontal: 20, 
-    marginTop: 8, 
-    marginBottom: 4,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
-    borderColor: C.tealLine,
-    borderRadius: 8, 
-    paddingVertical: 8, 
-    paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginHorizontal: 20, marginTop: 8, marginBottom: 4,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12,
   },
-  searchResultTxt: { 
-    fontSize: 12, 
-    color: C.tealDark, 
-    fontWeight: '600' 
-  },
+  searchResultTxt: { fontSize: 12, color: C.tealDark, fontWeight: '600' },
 
-  // ── Settings card ─────────────────────────────────────────────────────────────
+  // Settings
   settingsCard: {
-    backgroundColor: C.white, 
-    borderRadius: 20,
-    marginHorizontal: 20, 
-    marginTop: 12,
-    padding: 20, 
-    borderWidth: 1, 
-    borderColor: C.border,
+    backgroundColor: C.white, borderRadius: 20,
+    marginHorizontal: 20, marginTop: 12,
+    padding: 20, borderWidth: 1, borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 1, 
-    shadowRadius: 12, 
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3,
   },
-  settingsCardHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 10, 
-    marginBottom: 18 
-  },
+  settingsCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
   formCardIconWrap: {
-    width: 32, 
-    height: 32, 
-    borderRadius: 9,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
-    borderColor: C.tealLine,
-    alignItems: 'center', 
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center',
   },
-  settingsCardTitle: { 
-    fontSize: 15, 
-    fontWeight: '800', 
-    color: C.navy 
-  },
-
+  settingsCardTitle: { fontSize: 15, fontWeight: '800', color: C.navy },
   prefRow: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    paddingVertical: 13, 
-    borderBottomWidth: 1, 
-    borderBottomColor: C.border,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  prefLeft:    { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 12, 
-    flex: 1, 
-    marginRight: 12 
+  prefLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 },
+  prefIconWrap: {
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center',
   },
-  prefIconWrap: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 9, 
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
-    borderColor: C.tealLine, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
-  },
-  prefLabel:   { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: C.navy, 
-    marginBottom: 2 
-  },
-  prefDesc:    { 
-    fontSize: 11, 
-    color: C.slateL 
-  },
+  prefLabel: { fontSize: 14, fontWeight: '700', color: C.navy, marginBottom: 2 },
+  prefDesc:  { fontSize: 11, color: C.slateL },
 
-  // ── Unread banner ─────────────────────────────────────────────────────────────
+  // Unread banner
   unreadBanner: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    marginHorizontal: 20, 
-    marginTop: 12,
-    backgroundColor: C.tealDim, 
-    borderWidth: 1, 
-    borderColor: C.tealLine,
-    borderRadius: 10, 
-    paddingVertical: 10, 
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 20, marginTop: 12,
+    backgroundColor: C.tealDim, borderWidth: 1, borderColor: C.tealLine,
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
   },
-  unreadBannerLeft:   { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8 
-  },
-  unreadBannerDot:    { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4, 
-    backgroundColor: C.teal 
-  },
-  unreadBannerTxt:    { 
-    fontSize: 12, 
-    color: C.tealDark, 
-    fontWeight: '600' 
-  },
-  unreadBannerAction: { 
-    fontSize: 12, 
-    color: C.teal, 
-    fontWeight: '700', 
-    textDecorationLine: 'underline' 
-  },
+  unreadBannerLeft:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  unreadBannerDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: C.teal },
+  unreadBannerTxt:    { fontSize: 12, color: C.tealDark, fontWeight: '600' },
+  unreadBannerAction: { fontSize: 12, color: C.teal, fontWeight: '700', textDecorationLine: 'underline' },
 
-  // ── List ─────────────────────────────────────────────────────────────────────
-  listContent: { 
-    paddingHorizontal: 20, 
-    paddingTop: 12, 
-    paddingBottom: 40 
-  },
+  // List
+  listContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
 
-  // ── Notification card ─────────────────────────────────────────────────────────
+  // Notification card
   notifCard: {
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    gap: 12,
-    backgroundColor: C.white, 
-    borderRadius: 16, 
-    padding: 14, 
-    marginBottom: 10,
-    borderWidth: 1, 
-    borderColor: C.border,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: C.white, borderRadius: 16, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: C.border,
     shadowColor: 'rgba(7,27,46,0.07)',
-    shadowOffset: { width: 0, height: 3 }, 
-    shadowOpacity: 1, 
-    shadowRadius: 8, 
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
   },
   notifIconWrap: {
-    width: 42, 
-    height: 42, 
-    borderRadius: 12,
-    borderWidth: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 44, height: 44, borderRadius: 13,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  notifContent: { 
-    flex: 1 
+  notifContent: { flex: 1 },
+  notifTopRow:  {
+    flexDirection: 'row', alignItems: 'flex-start',
+    justifyContent: 'space-between', marginBottom: 5,
   },
-  notifTopRow:  { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    justifyContent: 'space-between', 
-    marginBottom: 5 
+  notifTitle:   { fontSize: 14, fontWeight: '800', color: C.navy, flex: 1, marginRight: 8 },
+  typeBadge:    { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
+  typeBadgeTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+  notifMsg:     { fontSize: 12, color: C.slate, lineHeight: 18, marginBottom: 8 },
+  notifFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  timeRow:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  timeTxt:      { fontSize: 11, color: C.slateL },
+  newBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
   },
-  notifTitle:   { 
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: C.navy, 
-    flex: 1, 
-    marginRight: 8 
-  },
-  typeBadge: {
-    borderWidth: 1, 
-    borderRadius: 6, 
-    paddingHorizontal: 7, 
-    paddingVertical: 3, 
-    flexShrink: 0,
-  },
-  typeBadgeTxt: { 
-    fontSize: 9, 
-    fontWeight: '800', 
-    letterSpacing: 0.4 
-  },
-  notifMsg:     { 
-    fontSize: 12, 
-    color: C.slate, 
-    lineHeight: 18, 
-    marginBottom: 8 
-  },
-  notifFooter:  { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between' 
-  },
-  timeRow:      { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4 
-  },
-  timeTxt:      { 
-    fontSize: 11, 
-    color: C.slateL 
-  },
-  newBadge:     { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4, 
-    borderWidth: 1, 
-    borderRadius: 6, 
-    paddingHorizontal: 7, 
-    paddingVertical: 3 
-  },
-  newDot:       { 
-    width: 5, 
-    height: 5, 
-    borderRadius: 3 
-  },
-  newTxt:       { 
-    fontSize: 9, 
-    fontWeight: '800', 
-    letterSpacing: 0.4 
-  },
+  newDot:       { width: 5, height: 5, borderRadius: 3 },
+  newTxt:       { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+  readHint:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  readHintTxt:  { fontSize: 10, color: C.slateL, fontStyle: 'italic' },
 
-  // ── Empty ─────────────────────────────────────────────────────────────────────
-  emptyWrap:    { 
-    alignItems: 'center', 
-    paddingTop: 80, 
-    paddingHorizontal: 40 
+  // Empty
+  emptyWrap:    { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
+  emptyIconWrap: {
+    width: 80, height: 80, borderRadius: 22,
+    backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.tealLine,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
   },
-  emptyIconWrap: { 
-    width: 80, 
-    height: 80, 
-    borderRadius: 22, 
-    backgroundColor: C.tealDim, 
-    borderWidth: 1.5, 
-    borderColor: C.tealLine, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 18 
-  },
-  emptyTitle:   { 
-    fontSize: 20, 
-    fontWeight: '900', 
-    color: C.navy, 
-    marginBottom: 8 
-  },
-  emptyText:    { 
-    fontSize: 14, 
-    color: C.slate, 
-    textAlign: 'center', 
-    lineHeight: 21 
-  },
+  emptyTitle:   { fontSize: 20, fontWeight: '900', color: C.navy, marginBottom: 8 },
+  emptyText:    { fontSize: 14, color: C.slate, textAlign: 'center', lineHeight: 21 },
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
-  loadingWrap: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
-  },
-  loadingTxt:  { 
-    marginTop: 14, 
-    fontSize: 14, 
-    color: C.slate, 
-    fontWeight: '600' 
-  },
+  // Loading
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingTxt:  { marginTop: 14, fontSize: 14, color: C.slate, fontWeight: '600' },
 });

@@ -30,22 +30,25 @@ const parseFormData = upload.none();
 const uploadSingleImage = upload.single('profile');
 
 // ==================== REGISTER (SEND VERIFICATION CODE) ====================
+// ==================== REGISTER (SEND VERIFICATION CODE) ====================
 router.post('/register', async (req, res) => {
-  const { username, email, password, bod, gender, address, role, pushToken } = req.body;
+  const { username, email, password, bod, gender, address, role, pushToken, barangay, fullAddress } = req.body;
 
   console.log('=========================================');
   console.log('📝 REGISTRATION ATTEMPT RECEIVED!');
   console.log('📧 Email:', email);
   console.log('👤 Username:', username);
-  console.log('📍 Address:', address);
+  console.log('📍 Address (combined):', address);
+  console.log('📍 Full Address:', fullAddress);
+  console.log('📍 Barangay (separate):', barangay);
   console.log('🔑 Password length:', password ? password.length : 0);
   console.log('=========================================');
 
   try {
     // Validate required fields
-    if (!username || !email || !password || !address) {
+    if (!username || !email || !password) {
       console.log('❌ Missing required fields');
-      return res.status(400).json({ message: 'Username, email, password, and address are required' });
+      return res.status(400).json({ message: 'Username, email, and password are required' });
     }
 
     // Validate email format
@@ -60,6 +63,56 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       console.log('❌ Email already exists:', email);
       return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Process address fields - prioritize separate fields if provided
+    let finalFullAddress = '';
+    let finalBarangay = '';
+    let finalAddress = '';
+
+    // Check if separate fields are provided (from frontend)
+    if (fullAddress && barangay) {
+      finalFullAddress = fullAddress;
+      finalBarangay = barangay;
+      finalAddress = `${fullAddress}, ${barangay}`;
+      console.log('✅ Using separate address fields');
+    } 
+    // Check if separate barangay is provided
+    else if (barangay && !fullAddress) {
+      finalBarangay = barangay;
+      finalAddress = barangay;
+      console.log('✅ Using only barangay field');
+    }
+    // Check if combined address is provided
+    else if (address && typeof address === 'string') {
+      finalAddress = address;
+      
+      // Try to parse the combined address
+      if (address.includes(',')) {
+        const parts = address.split(',');
+        finalFullAddress = parts[0].trim();
+        finalBarangay = parts.slice(1).join(',').trim();
+        console.log('✅ Parsed combined address:', { finalFullAddress, finalBarangay });
+      } else {
+        // Check if the address is actually a barangay
+        if (address === 'South Signal' || address === 'Central Bicutan') {
+          finalBarangay = address;
+          finalFullAddress = '';
+        } else {
+          finalFullAddress = address;
+          finalBarangay = '';
+        }
+        console.log('✅ Address without comma:', { finalFullAddress, finalBarangay });
+      }
+    }
+    else {
+      return res.status(400).json({ message: 'Address information is required' });
+    }
+
+    // Validate barangay if provided
+    if (finalBarangay && !['South Signal', 'Central Bicutan'].includes(finalBarangay)) {
+      console.log('❌ Invalid barangay:', finalBarangay);
+      return res.status(400).json({ message: 'Please select a valid barangay (South Signal or Central Bicutan)' });
     }
 
     // Hash password
@@ -86,33 +139,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Parse address to separate barangay and full address
-    let fullAddress = address;
-    let barangay = '';
-    
-    // Check if address contains comma (separator)
-    if (address && typeof address === 'string' && address.includes(',')) {
-      const parts = address.split(',');
-      fullAddress = parts[0].trim();
-      barangay = parts.slice(1).join(',').trim();
-    } else if (address && typeof address === 'string') {
-      // If no comma, assume the whole thing is the barangay or full address
-      // Check if it matches barangay options
-      if (address === 'South Signal' || address === 'Central Bicutan') {
-        barangay = address;
-        fullAddress = '';
-      } else {
-        fullAddress = address;
-        barangay = '';
-      }
-    }
-    
-    // Validate barangay if provided
-    if (barangay && !['South Signal', 'Central Bicutan'].includes(barangay)) {
-      console.log('❌ Invalid barangay:', barangay);
-      return res.status(400).json({ message: 'Please select a valid barangay (South Signal or Central Bicutan)' });
-    }
-
     // Create new user
     const newUser = new User({
       username,
@@ -120,9 +146,9 @@ router.post('/register', async (req, res) => {
       password: hashedPassword,
       bod: bod || '',
       gender: gender || '',
-      address: address, // Store the combined address
-      fullAddress: fullAddress || '', // Store only the full address part
-      barangay: barangay || '', // Store only the barangay part
+      address: finalAddress, // Store the combined address
+      fullAddress: finalFullAddress || '', // Store only the full address part
+      barangay: finalBarangay || '', // Store only the barangay part
       role: role || 'user',
       pushToken: pushToken || null,
       status: 'pending',
@@ -135,8 +161,9 @@ router.post('/register', async (req, res) => {
     
     console.log('✅ User saved to database with ID:', newUser._id);
     console.log('✅ Registration complete for:', email);
-    console.log('   Full Address:', fullAddress);
-    console.log('   Barangay:', barangay);
+    console.log('   Full Address:', finalFullAddress);
+    console.log('   Barangay:', finalBarangay);
+    console.log('   Combined Address:', finalAddress);
     console.log('=========================================');
     
     res.status(201).json({ 
@@ -150,7 +177,6 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ message: 'Server error during registration: ' + error.message });
   }
 });
-
 // ==================== VERIFY EMAIL CODE ====================
 router.post('/verify-email', async (req, res) => {
   const { email, verificationCode } = req.body;

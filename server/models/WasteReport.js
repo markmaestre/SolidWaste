@@ -67,14 +67,28 @@ const wasteReportSchema = new mongoose.Schema({
     required: true
   },
 
-
   status: {
     type: String,
     enum: ['pending', 'processed', 'scheduled', 'recycled', 'disposed', 'rejected', 'completed'],
     default: 'pending'
   },
 
-  // Admin proof images
+  // Archive fields
+  isArchived: {
+    type: Boolean,
+    default: false
+  },
+  archivedAt: {
+    type: Date,
+    default: null
+  },
+  archivedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+
+  // Admin proof images - Updated with more enum values
   adminProofImages: [{
     url: String,
     cloudinaryId: String,
@@ -85,7 +99,7 @@ const wasteReportSchema = new mongoose.Schema({
     description: String,
     type: {
       type: String,
-      enum: ['pickup_scheduled', 'collected', 'processed', 'recycled', 'disposed'],
+      enum: ['pickup_scheduled', 'collected', 'processed', 'recycled', 'disposed', 'completed', 'hazardous_waste'],
       default: 'processed'
     }
   }],
@@ -174,5 +188,12 @@ wasteReportSchema.index({ classification: 1 });
 wasteReportSchema.index({ assignedBarangay: 1 });
 wasteReportSchema.index({ assignedBarangay: 1, status: 1 });
 wasteReportSchema.index({ 'scheduledPickup.scheduledDate': 1 });
+
+// Archive indexes
+wasteReportSchema.index({ isArchived: 1 });
+wasteReportSchema.index({ archivedAt: -1 });
+wasteReportSchema.index({ isArchived: 1, assignedBarangay: 1 });
+wasteReportSchema.index({ isArchived: 1, status: 1 });
+wasteReportSchema.index({ archivedBy: 1 });
 
 module.exports = mongoose.model('WasteReport', wasteReportSchema);

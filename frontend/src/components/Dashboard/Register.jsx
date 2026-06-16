@@ -176,47 +176,90 @@ const Register = () => {
       Alert.alert('No Connection', 'Please check your internet connection');
       return;
     }
+    
+    // Validate barangay is selected
+    if (!form.barangay) {
+      Alert.alert('Barangay Required', 'Please select a barangay (South Signal or Central Bicutan)');
+      return;
+    }
+    
+    // Validate barangay is valid
+    if (form.barangay !== 'South Signal' && form.barangay !== 'Central Bicutan') {
+      Alert.alert('Invalid Barangay', 'Please select either South Signal or Central Bicutan');
+      return;
+    }
+    
     if (!validateAll()) {
       Alert.alert('Incomplete', 'Please fill in all required fields correctly.');
       return;
     }
+    
     if (!validateEmail(form.email)) {
       setEmailError('Please enter a valid email');
       return;
     }
+    
     if (!termsAccepted) {
       setTermsError('You must agree to the Terms & Conditions to continue.');
       Alert.alert('Terms & Conditions', 'Please read and accept the Terms & Conditions before creating your account.');
       return;
     }
+    
     const ok = await checkEmailAvailability(form.email);
     if (!ok) return;
-    const combinedAddress = `${form.fullAddress}, ${form.barangay}`;
-    setForm(prev => ({ ...prev, address: combinedAddress }));
+    
     setShowVerificationModal(true);
   };
 
   const sendVerificationCode = async () => {
+    // Double-check barangay is selected before sending
+    if (!form.barangay || (form.barangay !== 'South Signal' && form.barangay !== 'Central Bicutan')) {
+      Alert.alert('Error', 'Please select a valid barangay (South Signal or Central Bicutan)');
+      setShowVerificationModal(false);
+      return;
+    }
+    
+    // Create submission data with proper barangay field
     const submissionData = {
       username: form.username,
       email: form.email,
       password: form.password,
       bod: form.bod,
       gender: form.gender,
+      barangay: form.barangay, // Send barangay as separate field
+      fullAddress: form.fullAddress,
       address: `${form.fullAddress}, ${form.barangay}`,
       role: form.role,
     };
+    
+    console.log('📤 Submitting registration with data:', {
+      ...submissionData,
+      password: '***HIDDEN***'
+    });
+    
     try {
       const result = await dispatch(registerUser(submissionData)).unwrap();
-      // unwrap succeeded — code was sent
+      console.log('✅ Registration successful:', result);
       Alert.alert(
         'Verification Code Sent',
         `We've sent a 6-digit verification code to ${form.email}. Please check your inbox.`,
         [{ text: 'OK' }]
       );
-    } catch (_) {
-      // Error already in Redux state; hide modal silently
-      setShowVerificationModal(false);
+    } catch (error) {
+      console.error('❌ Registration error:', error);
+      // Show specific error message
+      let errorMessage = 'Failed to register. Please try again.';
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert(
+        'Registration Failed',
+        errorMessage,
+        [{ text: 'OK', onPress: () => setShowVerificationModal(false) }]
+      );
     }
   };
 
@@ -240,7 +283,8 @@ const Register = () => {
         'Your email has been verified. Please login to continue.',
         [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
       );
-    } catch (_) {
+    } catch (error) {
+      console.error('❌ Verification error:', error);
       Alert.alert('Verification Failed', 'Invalid or expired verification code. Please try again.');
     } finally {
       setIsVerifying(false);
@@ -258,7 +302,8 @@ const Register = () => {
     try {
       await dispatch(resendVerificationCode({ email: form.email })).unwrap();
       Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
-    } catch (_) {
+    } catch (error) {
+      console.error('❌ Resend error:', error);
       Alert.alert('Error', 'Failed to resend code. Please try again.');
       setCanResend(true);
       setResendTimer(0);

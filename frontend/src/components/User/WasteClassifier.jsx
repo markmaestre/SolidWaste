@@ -26,9 +26,14 @@ const COHERE_API_KEY = Constants.expoConfig?.extra?.COHERE_API_KEY || process.en
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
-const API_BASE = "http://192.168.1.45:8000";
+const API_BASE = "http://10.136.44.73:8000";
 export const API_URL = `${API_BASE}/detect`;
 export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
+
+// const API_BASE = "https://yolo-backend-d3rc.onrender.com";
+// export const API_URL = `${API_BASE}/detect`;
+// export const WS_URL = `${API_BASE.replace(/^https/, "wss").replace(/^http/, "ws")}/detect/live`;
+
 
 const GEMINI_API_KEY = "AIzaSyAlWb77h51IFFJHVGpPffYC9KfehZPDRvk";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -39,7 +44,7 @@ const BOX_DECAY        = 5;
 const GOOGLE_PLACES_KEY = "YOUR_GOOGLE_PLACES_API_KEY";
 
 const BACKEND_CLASSIFICATION_MAP = {
-  "Recyclable":                "Recyclabl",
+  "Recyclable":                "Recyclable",
   "Special / Hazardous Waste": "Special Waste",           
   "Biodegradable":             "Biodegradable",
   "Residual / Non-Recyclable": "Residual / Non-Recyclable",
@@ -340,14 +345,7 @@ const BARANGAY_OPTIONS = [
     allowedTypes: null,
     locationKeywords: ["central bicutan", "central", "bicutan"],
   },
-  {
-    key: "tup_taguig",
-    label: "TUP Taguig / Western Bicutan",
-    color: "#558B2F",
-    icon: "school",
-    allowedTypes: null,
-    locationKeywords: ["tup", "western bicutan", "tup taguig"],
-  },
+ 
 ];
 
 const BARANGAY_MAP = Object.fromEntries(BARANGAY_OPTIONS.map((b) => [b.key, b]));
@@ -2401,5 +2399,5 @@ const styles = StyleSheet.create({
   plasticDetailsSectionTitle: { fontSize: 12, fontWeight: "700", color: C.textMid },
   plasticDetailsText:  { fontSize: 12, color: C.textLight, lineHeight: 17, marginLeft: 20 },
 });
-
+  
 export default WasteDetection;

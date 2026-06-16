@@ -237,7 +237,8 @@ router.get('/my-reports', auth, async (req, res) => {
   try {
     const { page = 1, limit = 10, status, sort = 'newest' } = req.query;
 
-    const query = { user: req.user.id };
+    // Exclude archived reports from user view
+    const query = { user: req.user.id, isArchived: { $ne: true } };
     if (status && status !== 'all') query.status = status;
 
     const sortConfig = {
@@ -275,22 +276,23 @@ router.get('/my-reports', auth, async (req, res) => {
 router.get('/stats/overview', auth, async (req, res) => {
   try {
     const userId = req.user.id;
+    const query = { user: userId, isArchived: { $ne: true } };
 
     const [totalReports, byStatus, byClassification, avgResult, recentReports] = await Promise.all([
-      WasteReport.countDocuments({ user: userId }),
+      WasteReport.countDocuments(query),
       WasteReport.aggregate([
-        { $match: { user: userId } },
+        { $match: query },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       WasteReport.aggregate([
-        { $match: { user: userId } },
+        { $match: query },
         { $group: { _id: '$classification', count: { $sum: 1 } } },
       ]),
       WasteReport.aggregate([
-        { $match: { user: userId } },
+        { $match: query },
         { $group: { _id: null, avg: { $avg: '$classificationConfidence' } } },
       ]),
-      WasteReport.find({ user: userId })
+      WasteReport.find(query)
         .sort({ scanDate: -1 })
         .limit(5)
         .select('classification status scanDate classificationConfidence assignedBarangayLabel'),
@@ -322,6 +324,7 @@ router.get('/search', auth, async (req, res) => {
 
     const searchQuery = {
       user: req.user.id,
+      isArchived: { $ne: true },
       $or: [
         { classification:             { $regex: q, $options: 'i' } },
         { 'detectedObjects.label':    { $regex: q, $options: 'i' } },
@@ -390,9 +393,16 @@ router.get('/', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    const { page = 1, limit = 10, status, user, dateFrom, dateTo, barangay } = req.query;
+    const { page = 1, limit = 10, status, user, dateFrom, dateTo, barangay, showArchived = 'false' } = req.query;
 
     const query = {};
+
+    // Filter archived status
+    if (showArchived === 'true') {
+      query.isArchived = true;
+    } else {
+      query.isArchived = { $ne: true };
+    }
 
     // Barangay admins are always scoped to their own barangay
     if (isBarangayAdmin) {
@@ -433,12 +443,115 @@ router.get('/', auth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/waste-reports/:id/archive
+// Archive or restore a report (soft delete)
+// ─────────────────────────────────────────────────────────────────────────────
+router.put('/:id/archive', auth, async (req, res) => {
+  try {
+    const report = await WasteReport.findById(req.params.id);
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+
+    const isOwner         = report.user.toString() === req.user.id;
+    const isAdmin         = req.user.role === 'admin';
+    const isScopedAdmin   = req.user.role === 'barangay_admin' && req.user.barangay === report.assignedBarangay;
+
+    if (!isOwner && !isAdmin && !isScopedAdmin) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const session = await WasteReport.startSession();
+    session.startTransaction();
+
+    try {
+      // If already archived, restore it
+      if (report.isArchived) {
+        report.isArchived = false;
+        report.archivedAt = null;
+        report.archivedBy = null;
+        
+        report.statusHistory.push({
+          status: report.status,
+          changedAt: new Date(),
+          changedBy: req.user.id,
+          changedByName: req.user.name || req.user.email,
+          changedByRole: req.user.role,
+          notes: 'Report restored from archive'
+        });
+        
+        await report.save({ session });
+
+        const notification = new Notification({
+          user: report.user,
+          title: 'Report Restored',
+          message: `Your waste report has been restored from archive.`,
+          type: 'report_restored',
+          relatedReport: report._id,
+        });
+        await notification.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+          success: true,
+          message: 'Report restored from archive successfully',
+          report
+        });
+      }
+      
+      // Archive the report
+      report.isArchived = true;
+      report.archivedAt = new Date();
+      report.archivedBy = req.user.id;
+      
+      report.statusHistory.push({
+        status: report.status,
+        changedAt: new Date(),
+        changedBy: req.user.id,
+        changedByName: req.user.name || req.user.email,
+        changedByRole: req.user.role,
+        notes: `Report archived by ${req.user.role}`
+      });
+      
+      await report.save({ session });
+      
+      // Create notification for the user
+      const notification = new Notification({
+        user: report.user,
+        title: 'Report Archived',
+        message: `Your waste report has been archived. You can still view it in your archived reports.`,
+        type: 'report_archived',
+        relatedReport: report._id
+      });
+      await notification.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.json({
+        success: true,
+        message: 'Report archived successfully',
+        report
+      });
+      
+    } catch (txErr) {
+      await session.abortTransaction();
+      session.endSession();
+      throw txErr;
+    }
+  } catch (err) {
+    console.error('Archive report error:', err);
+    res.status(500).json({ success: false, error: 'Failed to archive report' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PUT /api/waste-reports/:id/status
 // ─────────────────────────────────────────────────────────────────────────────
 router.put(
   '/:id/status',
   auth,
-  [body('status').isIn(['pending', 'processed', 'recycled', 'disposed', 'rejected']).withMessage('Invalid status')],
+  [body('status').isIn(['pending', 'processed', 'recycled', 'disposed', 'rejected', 'scheduled', 'completed']).withMessage('Invalid status')],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -459,8 +572,20 @@ router.put(
       const session = await WasteReport.startSession();
       session.startTransaction();
       try {
+        const oldStatus = report.status;
         report.status = status;
         if (adminNotes && (isAdmin || isScopedAdmin)) report.adminNotes = adminNotes;
+        
+        // Add to status history
+        report.statusHistory.push({
+          status: status,
+          changedAt: new Date(),
+          changedBy: req.user.id,
+          changedByName: req.user.name || req.user.email,
+          changedByRole: req.user.role,
+          notes: adminNotes || `Status changed from ${oldStatus} to ${status}`
+        });
+        
         await report.save({ session });
 
         const notification = new Notification({
@@ -508,32 +633,6 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE /api/waste-reports/:id
-// ─────────────────────────────────────────────────────────────────────────────
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const report = await WasteReport.findById(req.params.id);
-    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
-
-    const isOwner       = report.user.toString() === req.user.id;
-    const isAdmin       = req.user.role === 'admin';
-    const isScopedAdmin = req.user.role === 'barangay_admin' && req.user.barangay === report.assignedBarangay;
-
-    if (!isOwner && !isAdmin && !isScopedAdmin) {
-      return res.status(403).json({ success: false, error: 'Access denied' });
-    }
-
-    if (report.cloudinaryId) {
-      try { await cloudinary.uploader.destroy(report.cloudinaryId); } catch (e) { console.error('Cloudinary delete:', e); }
-    }
-
-    await WasteReport.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Report deleted successfully' });
-  } catch (err) {
-    console.error('Delete report error:', err);
-    res.status(500).json({ success: false, error: 'Failed to delete report' });
-  }
-});
+// ─── DELETE ROUTE REMOVED - Use archive instead ──────────────────────────────
 
 module.exports = router;
