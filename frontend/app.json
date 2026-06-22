@@ -5,13 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/TMFK.png",
-    "scheme": "SolidWaste",
+    "scheme": "solidwaste",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+
+    "newArchEnabled": true,
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kram_maestre.frontend",
+      "bundleIdentifier": "com.krammaestre.frontend",
       "infoPlist": {
         "NSCameraUsageDescription": "SolidWaste uses your camera to scan and classify waste items in real-time for proper disposal.",
         "NSPhotoLibraryUsageDescription": "SolidWaste accesses your photos to classify waste items for proper disposal.",
@@ -22,15 +23,13 @@
     },
 
     "android": {
-      "package": "com.kram_maestre.frontend",
+      "package": "com.krammaestre.frontend",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/TMFK.png",
         "backgroundColor": "#001f3f"
       },
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.VIBRATE"
@@ -40,22 +39,20 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/TMF.K.png"
+      "favicon": "./assets/images/TMFK.png"
     },
 
     "plugins": [
       "expo-router",
-
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/TMFK.png",
           "imageWidth": 300,
           "resizeMode": "contain",
-         "backgroundColor": "#0000FF"
+          "backgroundColor": "#0000FF"
         }
       ],
-
       [
         "expo-notifications",
         {
@@ -63,10 +60,8 @@
           "color": "#001f3f"
         }
       ],
-
       "expo-font",
       "expo-web-browser",
-
       [
         "expo-image-picker",
         {
@@ -75,7 +70,6 @@
           "microphonePermission": false
         }
       ],
-
       "expo-asset"
     ],
 
@@ -83,13 +77,13 @@
       "typedRoutes": true
     },
 
+    "owner": "markmaestre",
+
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a1ef8d28-aa47-4b60-9536-7d5cb172031a"
+        "projectId": "2dfac57e-1e22-4ddd-a14b-6ff53425ebec"
       }
-    },
-
-    "owner": "kram_maestre"
+    }
   }
 }

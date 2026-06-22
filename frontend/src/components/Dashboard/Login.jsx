@@ -1,17 +1,3 @@
-// ─── SETUP INSTRUCTIONS ───────────────────────────────────────────────────────
-// 1. npx expo install expo-auth-session expo-crypto expo-web-browser
-// 2. npx expo install react-native-svg
-// 3. Configure Google Cloud Console:
-//    - Web Client ID: 788493942495-760hv4s84v7qg3fr3rv6nc5n3mo8uqqs.apps.googleusercontent.com
-//    - Android Client ID: 788493942495-1iimp0qk5jajjnivampc9mkihoaq64ea.apps.googleusercontent.com
-//    - Add these Redirect URIs:
-//      https://auth.expo.io/@kram_maestre/frontend
-//      http://localhost:19000
-//      exp://127.0.0.1:19000
-// 4. Add your email as Test User in OAuth consent screen
-// 5. This works with Expo Go and Development Builds
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, TextInput, TouchableOpacity, StyleSheet, Alert,
@@ -32,18 +18,20 @@ import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 
-// Complete the WebBrowser session - IMPORTANTE ITO!
 WebBrowser.maybeCompleteAuthSession();
 
-// ── GOOGLE CLIENT IDS ──────────────────────────────────────────────────────
-// Web Client ID (galing sa Google Cloud Console)
 const WEB_CLIENT_ID = '788493942495-760hv4s84v7qg3fr3rv6nc5n3mo8uqqs.apps.googleusercontent.com';
-// Android Client ID (galing sa Google Cloud Console)
-const ANDROID_CLIENT_ID = '788493942495-1iimp0qk5jajjnivampc9mkihoaq64ea.apps.googleusercontent.com';
+const ANDROID_CLIENT_ID = '788493942495-1iimp0q5jajjnivampc9mkihoaq64ea.apps.googleusercontent.com';
 
-// ── EXPO REDIRECT URI ──────────────────────────────────────────────────────
-// For Expo Go, use the auth.expo.io redirect URI
-const EXPO_REDIRECT_URI = 'https://auth.expo.io/@kram_maestre/frontend';
+const getRedirectUri = () => {
+  if (Platform.OS === 'android' && !__DEV__) {
+    return 'com.googleusercontent.apps.788493942495-1iimp0q5jajjnivampc9mkihoaq64ea:/oauth2redirect/google';
+  }
+  return makeRedirectUri({
+    scheme: 'com.googleusercontent.apps.788493942495-1iimp0q5jajjnivampc9mkihoaq64ea',
+    useProxy: true,
+  });
+};
 
 const noop = () => {};
 console.log = noop;
@@ -73,7 +61,6 @@ const C = {
   red:      '#EF4444',
 };
 
-// ── Official Google "G" logo via inline SVG ──────────────────────────────────
 const GoogleLogo = ({ size = 22 }) => (
   <Svg width={size} height={size} viewBox="0 0 48 48">
     <Defs>
@@ -90,7 +77,6 @@ const GoogleLogo = ({ size = 22 }) => (
   </Svg>
 );
 
-// ── No-signal banner ──────────────────────────────────────────────────────────
 const OfflineBanner = ({ visible }) => {
   const translateY = useRef(new Animated.Value(-80)).current;
   const opacity    = useRef(new Animated.Value(0)).current;
@@ -126,7 +112,6 @@ const OfflineBanner = ({ visible }) => {
   );
 };
 
-// ── Fade-in animation ─────────────────────────────────────────────────────────
 const FadeIn = ({ children, delay = 0 }) => {
   const opacity    = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(18)).current;
@@ -143,8 +128,6 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 const Login = () => {
   const [form, setForm]                   = useState({ email: '', password: '' });
   const [focusedField, setFocusedField]   = useState(null);
@@ -160,25 +143,19 @@ const Login = () => {
 
   const ADMIN_EMAIL = 'admin@tmfkwaste.com';
 
-  // ── Google Sign-In Configuration ──────────────────────────────────────────
-  // For Expo Go - use proxy with the auth.expo.io redirect URI
-  // The Android client ID is used for native Android builds
+  const redirectUri = getRedirectUri();
+  
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: WEB_CLIENT_ID,
-    // For native Android builds, you can use:
-    // androidClientId: ANDROID_CLIENT_ID,
-    // For iOS, you'd add:
-    // iosClientId: YOUR_IOS_CLIENT_ID,
-    redirectUri: EXPO_REDIRECT_URI,
+    androidClientId: ANDROID_CLIENT_ID,
+    redirectUri: redirectUri,
     scopes: ['profile', 'email', 'openid'],
-    useProxy: true, // IMPORTANT: Set to true for Expo Go
+    useProxy: true,
     extraParams: {
-      // Force to use the web flow
       prompt: 'select_account',
     },
   });
 
-  // ── Network listener ──────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = null;
@@ -208,7 +185,6 @@ const Login = () => {
     };
   }, []);
 
-  // ── Push notifications ────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     const registerForPushNotifications = async () => {
@@ -226,7 +202,6 @@ const Login = () => {
     return () => { isMounted = false; };
   }, []);
 
-  // ── Handle Google Sign-In Response ──────────────────────────────────────
   useEffect(() => {
     const handleGoogleResponse = async () => {
       if (response?.type === 'success') {
@@ -236,15 +211,20 @@ const Login = () => {
           
           console.log('✅ Google auth successful!');
           console.log('ID Token:', id_token ? 'Present' : 'Missing');
+          console.log('Access Token:', access_token ? 'Present' : 'Missing');
           
           if (id_token) {
-            // Store the token
             await AsyncStorage.setItem('googleIdToken', id_token);
             if (pushToken) await AsyncStorage.setItem('userPushToken', pushToken);
             
-            // You might want to verify the token with your backend here
-            // For now, navigate to dashboard
-            navigation.navigate('UserDashboard');
+            const userData = {
+              email: 'google.user@gmail.com',
+              name: 'Google User',
+              role: 'user',
+              googleId: id_token,
+            };
+            
+            await handleLoginSuccess({ user: userData, token: id_token });
           } else {
             Alert.alert('Error', 'No ID token received from Google');
           }
@@ -266,7 +246,6 @@ const Login = () => {
     handleGoogleResponse();
   }, [response]);
 
-  // ── Validation ────────────────────────────────────────────────────────────
   const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   const validateField = (field, value) => {
@@ -291,7 +270,6 @@ const Login = () => {
     if (fieldErrors[field]) setFieldErrors((p) => ({ ...p, [field]: '' }));
   };
 
-  // ── Login success handler ─────────────────────────────────────────────────
   const handleLoginSuccess = async ({ user, token }) => {
     try {
       if (token) await AsyncStorage.setItem('userToken', token);
@@ -304,7 +282,6 @@ const Login = () => {
     else Alert.alert('Login failed', 'Invalid role assigned to user');
   };
 
-  // ── Email/password login ──────────────────────────────────────────────────
   const handleLogin = async () => {
     if (isOffline) {
       Alert.alert('No Connection', 'Please check your internet connection');
@@ -324,7 +301,6 @@ const Login = () => {
     }
   };
 
-  // ── Google Sign-In Handler ──────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
     if (isOffline) {
       Alert.alert('No Connection', 'Please check your internet connection');
@@ -339,9 +315,9 @@ const Login = () => {
     try {
       setGoogleLoading(true);
       console.log('🚀 Starting Google Sign-In...');
-      console.log('Redirect URI:', EXPO_REDIRECT_URI);
+      console.log('Redirect URI:', redirectUri);
       console.log('Using Web Client ID:', WEB_CLIENT_ID);
-      console.log('Android Client ID available:', ANDROID_CLIENT_ID);
+      console.log('Android Client ID:', ANDROID_CLIENT_ID);
       
       const result = await promptAsync();
       console.log('Google prompt result:', result);
@@ -357,7 +333,6 @@ const Login = () => {
     }
   };
 
-  // ── Input style helper ────────────────────────────────────────────────────
   const inputStyle = (field) => [
     s.input,
     focusedField === field && s.inputFocused,
@@ -377,11 +352,9 @@ const Login = () => {
       >
         <OfflineBanner visible={isOffline} />
 
-        {/* Decorative blobs */}
         <View style={s.blob1} />
         <View style={s.blob2} />
 
-        {/* Home button */}
         <TouchableOpacity
           style={s.homeBtn}
           onPress={() => navigation.navigate('Dashboard')}
@@ -395,7 +368,6 @@ const Login = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Header ── */}
           <FadeIn delay={0}>
             <View style={s.header}>
               <View style={s.logoRing}>
@@ -410,7 +382,6 @@ const Login = () => {
             </View>
           </FadeIn>
 
-          {/* Badge */}
           <FadeIn delay={60}>
             <View style={s.badgeWrap}>
               <View style={s.badge}>
@@ -420,13 +391,11 @@ const Login = () => {
             </View>
           </FadeIn>
 
-          {/* ── Card ── */}
           <FadeIn delay={120}>
             <View style={s.card}>
               <Text style={s.cardTitle}>Welcome Back</Text>
               <Text style={s.cardSub}>Sign in to your account to continue</Text>
 
-              {/* Error banner */}
               {error && typeof error === 'string' && (
                 <View style={[s.errorBanner, isBanned && s.errorBannerWarn]}>
                   <Ionicons
@@ -445,7 +414,6 @@ const Login = () => {
                 </View>
               )}
 
-              {/* ── Google Sign-In Button ── */}
               <TouchableOpacity
                 style={[s.btnGoogle, (googleLoading || isOffline) && { opacity: 0.55 }]}
                 onPress={handleGoogleSignIn}
@@ -463,14 +431,12 @@ const Login = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* ── Divider ── */}
               <View style={s.divider}>
                 <View style={s.dividerLine} />
                 <Text style={s.dividerTxt}>or continue with email</Text>
                 <View style={s.dividerLine} />
               </View>
 
-              {/* Email */}
               <View style={s.fieldWrap}>
                 <View style={s.fieldLabelRow}>
                   <Ionicons name="mail-outline" size={13} color={C.slateL} />
@@ -496,7 +462,6 @@ const Login = () => {
                 ) : null}
               </View>
 
-              {/* Password */}
               <View style={s.fieldWrap}>
                 <View style={s.fieldLabelRow}>
                   <Ionicons name="lock-closed-outline" size={13} color={C.slateL} />
@@ -535,12 +500,15 @@ const Login = () => {
                 ) : null}
               </View>
 
-              {/* Forgot password */}
-              <TouchableOpacity style={s.forgotWrap} activeOpacity={0.7}>
+              {/* UPDATED: Forgot Password with navigation */}
+              <TouchableOpacity 
+                style={s.forgotWrap} 
+                onPress={() => navigation.navigate('ForgotPassword')}
+                activeOpacity={0.7}
+              >
                 <Text style={s.forgotTxt}>Forgot password?</Text>
               </TouchableOpacity>
 
-              {/* Sign In button */}
               <TouchableOpacity
                 style={[s.btnPrimary, (loading || isOffline) && { opacity: 0.6 }]}
                 onPress={handleLogin}
@@ -560,7 +528,6 @@ const Login = () => {
                 )}
               </TouchableOpacity>
 
-              {/* Register link */}
               <View style={s.registerRow}>
                 <Text style={s.registerTxt}>Don't have an account?</Text>
                 <TouchableOpacity
@@ -575,7 +542,6 @@ const Login = () => {
             </View>
           </FadeIn>
 
-          {/* Footer */}
           <FadeIn delay={200}>
             <View style={s.footer}>
               <Text style={s.footerTxt}>Creating sustainable communities together</Text>
@@ -590,12 +556,10 @@ const Login = () => {
 
 export default Login;
 
-// ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: C.ink },
   keyboardView:{ flex: 1 },
 
-  // ── Offline banner ────────────────────────────────────────────────────────
   offlineBanner: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 52 : 28,
@@ -674,7 +638,6 @@ const s = StyleSheet.create({
   errorTextWarn:   { color: '#D97706' },
   errorContact:    { fontSize: 12, color: '#D97706', marginTop: 3 },
 
-  // ── Google button ────────────────────────────────────────────────────────
   btnGoogle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,7 +666,6 @@ const s = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  // ── Divider ──────────────────────────────────────────────────────────────
   divider:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
   dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
   dividerTxt:  { fontSize: 11, color: C.slateL, fontWeight: '600' },

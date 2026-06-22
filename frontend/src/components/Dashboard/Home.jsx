@@ -318,28 +318,28 @@ const HomeScreen = ({ navigation }) => {
 
   const TEAM = [
     { 
-      initials: 'TP', 
+      initials: 'T', 
       name: 'Theodore Palma', 
       role: 'Frontend Developer', 
       isLead: false,
       description: 'A passionate BSIT student at TUP Taguig with expertise in frontend development. Specializes in creating responsive and user-friendly interfaces using React Native and modern web technologies.'
     },
     { 
-      initials: 'MM', 
+      initials: 'M', 
       name: 'Mark Ranier M. Maestre', 
       role: 'Team Leader Developer', 
       isLead: true,
       description: 'A dedicated BSIT student at TUP Taguig serving as the Team Leader. Experienced in full-stack development with a focus on AI integration and waste management solutions. Leads the team with vision and technical excellence.'
     },
     { 
-      initials: 'FB', 
+      initials: 'F', 
       name: 'Franz Baribar', 
       role: 'Frontend Developer', 
       isLead: false,
       description: 'A creative BSIT student from TUP Taguig with a passion for frontend development. Skilled in building intuitive user interfaces and ensuring seamless user experiences across multiple platforms.'
     },
     { 
-      initials: 'KC', 
+      initials: 'K', 
       name: 'Kriste Kaye Cabalbag', 
       role: 'Frontend Developer', 
       isLead: false,

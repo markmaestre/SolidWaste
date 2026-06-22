@@ -1,5 +1,7 @@
+// redux/slices/authSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../../utils/axiosInstance';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const initialState = {
   user: null,
@@ -10,6 +12,8 @@ const initialState = {
   emailCheckLoading: false,
   emailCheckError: null,
   profileUpdateLoading: false,
+  isAuthenticated: false,
+  isRestoring: true,
   
   // Feedback & Support states
   feedback: [],
@@ -28,7 +32,7 @@ const initialState = {
 
 // ==================== AUTH THUNKS ====================
 
-// Register User - Updated to handle new address structure
+// Register User
 export const registerUser = createAsyncThunk('users/register', async (formData, thunkAPI) => {
   try {
     const res = await axiosInstance.post('/users/register', formData);
@@ -69,6 +73,15 @@ export const loginUser = createAsyncThunk('users/login', async ({ email, passwor
       password, 
       pushToken 
     });
+    
+    if (res.data.token && res.data.user) {
+      await AsyncStorage.setItem('userToken', res.data.token);
+      await AsyncStorage.setItem('userInfo', JSON.stringify(res.data.user));
+      if (pushToken) {
+        await AsyncStorage.setItem('userPushToken', pushToken);
+      }
+    }
+    
     return res.data;
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'Login failed';
@@ -88,7 +101,7 @@ export const updatePushToken = createAsyncThunk(
         { pushToken }, 
         {
           headers: {
-            Authorization: token,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -101,30 +114,25 @@ export const updatePushToken = createAsyncThunk(
   }
 );
 
-// Edit Profile - Updated to properly handle address fields
+// Edit Profile
 export const editProfile = createAsyncThunk('users/editProfile', async (formData, thunkAPI) => {
   try {
     const state = thunkAPI.getState();
     const token = state.auth.token;
     
-    // Create a new FormData object to send
     const submitData = new FormData();
     
-    // Process each field
     for (let pair of formData.entries()) {
       const key = pair[0];
       const value = pair[1];
       
-      // Handle address fields specially
       if (key === 'fullAddress' || key === 'barangay') {
-        // Skip for now, we'll handle them together
         continue;
       } else {
         submitData.append(key, value);
       }
     }
     
-    // Combine fullAddress and barangay into address field
     const fullAddress = formData.get('fullAddress');
     const barangay = formData.get('barangay');
     
@@ -140,29 +148,28 @@ export const editProfile = createAsyncThunk('users/editProfile', async (formData
       
       if (combinedAddress) {
         submitData.append('address', combinedAddress);
-        console.log('📝 Combined address for submission:', combinedAddress);
       }
     }
     
-    // If there's an address field directly in formData, use that instead
     const directAddress = formData.get('address');
     if (directAddress) {
       submitData.append('address', directAddress);
     }
     
-    console.log('📤 Submitting profile update with fields:', [...submitData.keys()]);
-    
     const res = await axiosInstance.put('/users/profile', submitData, {
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'multipart/form-data',
       },
     });
 
+    if (res.data.user) {
+      await AsyncStorage.setItem('userInfo', JSON.stringify(res.data.user));
+    }
+
     return res.data.user;
   } catch (error) {
     console.error('❌ Edit profile error:', error.response?.data);
-    // Return a string error message instead of an object
     const errorMessage = error.response?.data?.message || 'Profile update failed';
     return thunkAPI.rejectWithValue(errorMessage);
   }
@@ -176,9 +183,13 @@ export const getCurrentUser = createAsyncThunk('users/getCurrentUser', async (_,
 
     const res = await axiosInstance.get('/users/me', {
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
       },
     });
+
+    if (res.data.user) {
+      await AsyncStorage.setItem('userInfo', JSON.stringify(res.data.user));
+    }
 
     return res.data.user;
   } catch (error) {
@@ -195,7 +206,7 @@ export const fetchAllUsers = createAsyncThunk('users/fetchAllUsers', async (_, t
 
     const res = await axiosInstance.get('/users/all-users', {
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -216,7 +227,7 @@ export const updateUserStatus = createAsyncThunk(
 
       const res = await axiosInstance.put(`/users/ban/${id}`, { status }, {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -242,6 +253,50 @@ export const checkEmail = createAsyncThunk(
   }
 );
 
+// ==================== FORGOT PASSWORD THUNKS ====================
+
+// Request password reset (send verification code)
+export const forgotPasswordRequest = createAsyncThunk(
+  'auth/forgotPasswordRequest',
+  async ({ email }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/forgot-password', { email });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to send reset code';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Verify reset code
+export const verifyResetCode = createAsyncThunk(
+  'auth/verifyResetCode',
+  async ({ email, code }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/verify-reset-code', { email, code });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Invalid or expired code';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Reset password
+export const resetPassword = createAsyncThunk(
+  'auth/resetPassword',
+  async ({ email, code, newPassword }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/reset-password', { email, code, newPassword });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to reset password';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
 // ==================== FEEDBACK & SUPPORT THUNKS ====================
 
 // Submit Feedback
@@ -254,7 +309,7 @@ export const submitFeedback = createAsyncThunk(
 
       const res = await axiosInstance.post('/feedback/submit', feedbackData, {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -276,7 +331,7 @@ export const getUserFeedback = createAsyncThunk(
 
       const res = await axiosInstance.get('/feedback/my-feedback', {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -298,7 +353,7 @@ export const getAllFeedback = createAsyncThunk(
 
       const res = await axiosInstance.get(`/feedback/all?page=${page}&limit=${limit}`, {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -322,7 +377,7 @@ export const updateFeedbackStatus = createAsyncThunk(
         { status, adminReply }, 
         {
           headers: {
-            Authorization: token,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -345,7 +400,7 @@ export const getFeedbackStats = createAsyncThunk(
 
       const res = await axiosInstance.get('/feedback/stats', {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -357,6 +412,41 @@ export const getFeedbackStats = createAsyncThunk(
   }
 );
 
+// ==================== RESTORE SESSION ====================
+export const restoreSession = createAsyncThunk(
+  'auth/restoreSession',
+  async (_, thunkAPI) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      
+      if (token && userInfo) {
+        const user = JSON.parse(userInfo);
+        return { token, user };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Failed to restore session:', error);
+      return null;
+    }
+  }
+);
+
+// ==================== LOGOUT ====================
+export const logoutUserThunk = createAsyncThunk(
+  'auth/logout',
+  async (_, thunkAPI) => {
+    try {
+      await AsyncStorage.multiRemove(['userToken', 'userInfo', 'userPushToken']);
+      return true;
+    } catch (error) {
+      console.error('Logout error:', error);
+      return false;
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -364,6 +454,7 @@ const authSlice = createSlice({
     logoutUser: (state) => {
       state.user = null;
       state.token = null;
+      state.isAuthenticated = false;
       state.users = [];
       state.emailCheckError = null;
       state.error = null;
@@ -371,6 +462,8 @@ const authSlice = createSlice({
       state.allFeedback = [];
       state.feedbackStats = null;
       state.feedbackSubmitSuccess = false;
+      
+      AsyncStorage.multiRemove(['userToken', 'userInfo', 'userPushToken']).catch(console.error);
     },
     clearEmailError: (state) => {
       state.emailCheckError = null;
@@ -384,6 +477,7 @@ const authSlice = createSlice({
     updateUserProfileLocal: (state, action) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
+        AsyncStorage.setItem('userInfo', JSON.stringify(state.user)).catch(console.error);
       }
     },
     updateUserInList: (state, action) => {
@@ -395,10 +489,18 @@ const authSlice = createSlice({
     setCredentials: (state, action) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
+      state.isAuthenticated = true;
+      state.isRestoring = false;
+      
+      if (action.payload.token && action.payload.user) {
+        AsyncStorage.setItem('userToken', action.payload.token).catch(console.error);
+        AsyncStorage.setItem('userInfo', JSON.stringify(action.payload.user)).catch(console.error);
+      }
     },
     setPushToken: (state, action) => {
       if (state.user) {
         state.user.pushToken = action.payload;
+        AsyncStorage.setItem('userInfo', JSON.stringify(state.user)).catch(console.error);
       }
     },
     clearFeedbackError: (state) => {
@@ -419,6 +521,9 @@ const authSlice = createSlice({
       state.allFeedback = state.allFeedback.map((item) =>
         item._id === updatedFeedback._id ? updatedFeedback : item
       );
+    },
+    setRestoringComplete: (state) => {
+      state.isRestoring = false;
     },
   },
   extraReducers: (builder) => {
@@ -470,10 +575,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.token = action.payload.token;
         state.user = action.payload.user;
+        state.isAuthenticated = true;
+        state.isRestoring = false;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.isAuthenticated = false;
       })
       
       // Update Push Token
@@ -484,6 +592,7 @@ const authSlice = createSlice({
         state.loading = false;
         if (state.user) {
           state.user.pushToken = action.payload.user.pushToken;
+          AsyncStorage.setItem('userInfo', JSON.stringify(state.user)).catch(console.error);
         }
       })
       .addCase(updatePushToken.rejected, (state, action) => {
@@ -548,6 +657,7 @@ const authSlice = createSlice({
         );
         if (state.user && state.user.id === updatedUser._id) {
           state.user = { ...state.user, status: updatedUser.status };
+          AsyncStorage.setItem('userInfo', JSON.stringify(state.user)).catch(console.error);
         }
       })
       .addCase(updateUserStatus.rejected, (state, action) => {
@@ -566,6 +676,45 @@ const authSlice = createSlice({
       .addCase(checkEmail.rejected, (state, action) => {
         state.emailCheckLoading = false;
         state.emailCheckError = action.payload;
+      })
+
+      // Forgot Password Request
+      .addCase(forgotPasswordRequest.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(forgotPasswordRequest.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(forgotPasswordRequest.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Verify Reset Code
+      .addCase(verifyResetCode.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyResetCode.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(verifyResetCode.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Reset Password
+      .addCase(resetPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(resetPassword.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(resetPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       })
 
       // Submit Feedback
@@ -646,6 +795,35 @@ const authSlice = createSlice({
       .addCase(getFeedbackStats.rejected, (state, action) => {
         state.feedbackStatsLoading = false;
         state.error = action.payload;
+      })
+      
+      // Restore Session
+      .addCase(restoreSession.pending, (state) => {
+        state.isRestoring = true;
+      })
+      .addCase(restoreSession.fulfilled, (state, action) => {
+        state.isRestoring = false;
+        if (action.payload) {
+          state.token = action.payload.token;
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+        }
+      })
+      .addCase(restoreSession.rejected, (state) => {
+        state.isRestoring = false;
+        state.isAuthenticated = false;
+      })
+      
+      // Logout
+      .addCase(logoutUserThunk.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.users = [];
+        state.error = null;
+        state.feedback = [];
+        state.allFeedback = [];
+        state.feedbackStats = null;
       });
   },
 });
@@ -663,6 +841,7 @@ export const {
   clearFeedbackSubmitSuccess,
   clearAllFeedback,
   updateFeedbackInList,
+  setRestoringComplete,
 } = authSlice.actions;
 
 export default authSlice.reducer;

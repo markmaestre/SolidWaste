@@ -18,6 +18,7 @@ import Learning from '../components/User/Learning';
 import WasteAnalytics from '../components/User/WasteAnalytics';
 import WasteClassifier from '../components/User/WasteClassifier';
 import LiveWasteDetector from '../components/User/LiveWasteDetector';
+import ForgotPassword from '../components/Dashboard/ForgotPassword';
 
 const Stack = createStackNavigator();
 
@@ -52,6 +53,7 @@ const Navigator = () => {
       <Stack.Screen name="WasteAnalytics" component={WasteAnalytics} />
       <Stack.Screen name="WasteClassifier" component={WasteClassifier} />
       <Stack.Screen name="LiveWasteDetector" component={LiveWasteDetector} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
     </Stack.Navigator>
   );
 };

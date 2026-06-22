@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema({
   emailVerificationCode: { type: String, default: null },
   emailVerificationExpires: { type: Date, default: null },
   
+  // Password reset fields
+  passwordResetCode: { type: String, default: null },
+  passwordResetExpires: { type: Date, default: null },
+  
   notificationPreferences: {
     reportUpdates: { type: Boolean, default: true },
     recyclingTips: { type: Boolean, default: true },

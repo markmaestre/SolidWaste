@@ -30,13 +30,13 @@ const { width: SW, height: SH } = Dimensions.get("window");
 // export const API_URL = `${API_BASE}/detect`;
 // export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
 
-const API_BASE = "http://192.168.1.44:8000";
-export const API_URL = `${API_BASE}/detect`;
-export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
-
-// const API_BASE = "https://yolo-backend-d3rc.onrender.com";
+// const API_BASE = "http://192.168.1.44:8000";
 // export const API_URL = `${API_BASE}/detect`;
-// export const WS_URL = `${API_BASE.replace(/^https/, "wss").replace(/^http/, "ws")}/detect/live`;
+// export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
+
+const API_BASE = "https://yolo-backend-d3rc.onrender.com";
+export const API_URL = `${API_BASE}/detect`;
+export const WS_URL = `${API_BASE.replace(/^https/, "wss").replace(/^http/, "ws")}/detect/live`;
 
 
 const GEMINI_API_KEY = "AIzaSyAlWb77h51IFFJHVGpPffYC9KfehZPDRvk";
