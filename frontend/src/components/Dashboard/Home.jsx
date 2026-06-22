@@ -1,3 +1,35 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -12,6 +44,8 @@ import {
   Image,
   Animated,
   FlatList,
+  Modal,
+  Pressable,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -82,11 +116,12 @@ const NavTab = ({ label, tab, activeTab, onPress }) => {
   );
 };
 
+// ── Feature card (2-column) ───────────────────────────────────────────────────
 const FeatureCard = ({ iconName, title, text, delay }) => (
   <FadeIn delay={delay}>
     <View style={s.featureCard}>
       <View style={s.featureIconRing}>
-        <MaterialCommunityIcons name={iconName} size={24} color={C.teal} />
+        <MaterialCommunityIcons name={iconName} size={22} color={C.teal} />
       </View>
       <Text style={s.featureTitle}>{title}</Text>
       <Text style={s.featureText}>{text}</Text>
@@ -94,6 +129,7 @@ const FeatureCard = ({ iconName, title, text, delay }) => (
   </FadeIn>
 );
 
+// ── Service card (horizontal scroll) ─────────────────────────────────────────
 const ServiceCard = ({ number, title, desc }) => (
   <View style={s.serviceCard}>
     <View style={s.serviceCardTop}>
@@ -162,11 +198,97 @@ const Field = ({ label, value, onChange, placeholder, keyboard, caps, multiline,
   </View>
 );
 
+// ── Team member card with modal ──────────────────────────────────────────────
+const TeamCard = ({ initials, name, role, isLead, description, onPress }) => (
+  <TouchableOpacity style={s.teamCard} onPress={onPress} activeOpacity={0.8}>
+    <View style={[s.teamAvatar, isLead ? s.teamAvatarLead : s.teamAvatarFe]}>
+      <Text style={[s.teamInitials, isLead ? s.teamInitialsLead : s.teamInitialsFe]}>
+        {initials}
+      </Text>
+    </View>
+    <Text style={s.teamName}>{name}</Text>
+    <View style={[s.teamRoleBadge, isLead ? s.teamRoleBadgeLead : s.teamRoleBadgeFe]}>
+      <Text style={[s.teamRoleTxt, isLead ? s.teamRoleTxtLead : s.teamRoleTxtFe]}>
+        {role}
+      </Text>
+    </View>
+  </TouchableOpacity>
+);
+
+// ── Team Member Modal ─────────────────────────────────────────────────────────
+const TeamMemberModal = ({ visible, member, onClose }) => {
+  if (!member) return null;
+  
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <Pressable style={s.modalOverlay} onPress={onClose}>
+        <View style={s.modalContent}>
+          <View style={s.modalHeader}>
+            <TouchableOpacity onPress={onClose} style={s.modalCloseBtn}>
+              <Ionicons name="close" size={24} color={C.navy} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={s.modalAvatarContainer}>
+            <View style={[s.modalAvatar, member.isLead ? s.teamAvatarLead : s.teamAvatarFe]}>
+              <Text style={[s.modalInitials, member.isLead ? s.teamInitialsLead : s.teamInitialsFe]}>
+                {member.initials}
+              </Text>
+            </View>
+          </View>
+          
+          <Text style={s.modalName}>{member.name}</Text>
+          <View style={[s.modalRoleBadge, member.isLead ? s.teamRoleBadgeLead : s.teamRoleBadgeFe]}>
+            <Text style={[s.modalRoleText, member.isLead ? s.teamRoleTxtLead : s.teamRoleTxtFe]}>
+              {member.role}
+            </Text>
+          </View>
+          
+          <Divider style={{ marginVertical: 16 }} />
+          
+          <Text style={s.modalDescription}>{member.description}</Text>
+          
+          <View style={s.modalTags}>
+            <View style={s.modalTag}>
+              <Ionicons name="school-outline" size={16} color={C.teal} />
+              <Text style={s.modalTagText}>BSIT Student</Text>
+            </View>
+            <View style={s.modalTag}>
+              <Ionicons name="location-outline" size={16} color={C.teal} />
+              <Text style={s.modalTagText}>TUP Taguig</Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// ── Service row card (2-column grid) ─────────────────────────────────────────
+const ServiceGridCard = ({ number, title, desc, delay }) => (
+  <FadeIn delay={delay}>
+    <View style={s.serviceGridCard}>
+      <View style={s.serviceGridNum}>
+        <Text style={s.serviceGridNumTxt}>{number}</Text>
+      </View>
+      <Text style={s.serviceGridTitle}>{title}</Text>
+      <Text style={s.serviceGridDesc}>{desc}</Text>
+    </View>
+  </FadeIn>
+);
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [form, setForm] = useState({ name: '', email: '', phone: '', organization: '', message: '' });
   const scrollRef = useRef(null);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const setField = (f) => (v) => setForm((p) => ({ ...p, [f]: v }));
 
@@ -180,6 +302,11 @@ const HomeScreen = ({ navigation }) => {
     setForm({ name: '', email: '', phone: '', organization: '', message: '' });
   };
 
+  const handleMemberPress = (member) => {
+    setSelectedMember(member);
+    setModalVisible(true);
+  };
+
   const SERVICES = [
     { n: '01', title: 'Waste Classification AI',       desc: 'Industry-leading ML algorithms delivering accurate, real-time identification across all waste categories.' },
     { n: '02', title: 'Smart Detection Platform',      desc: "Instant scanning on mobile and web — identification and disposal recommendations at the user's fingertips." },
@@ -189,6 +316,49 @@ const HomeScreen = ({ navigation }) => {
     { n: '06', title: 'Training & Education',          desc: 'Extensive programs and resources for professionals committed to responsible waste management.' },
   ];
 
+  const TEAM = [
+    { 
+      initials: 'TP', 
+      name: 'Theodore Palma', 
+      role: 'Frontend Developer', 
+      isLead: false,
+      description: 'A passionate BSIT student at TUP Taguig with expertise in frontend development. Specializes in creating responsive and user-friendly interfaces using React Native and modern web technologies.'
+    },
+    { 
+      initials: 'MM', 
+      name: 'Mark Ranier M. Maestre', 
+      role: 'Team Leader Developer', 
+      isLead: true,
+      description: 'A dedicated BSIT student at TUP Taguig serving as the Team Leader. Experienced in full-stack development with a focus on AI integration and waste management solutions. Leads the team with vision and technical excellence.'
+    },
+    { 
+      initials: 'FB', 
+      name: 'Franz Baribar', 
+      role: 'Frontend Developer', 
+      isLead: false,
+      description: 'A creative BSIT student from TUP Taguig with a passion for frontend development. Skilled in building intuitive user interfaces and ensuring seamless user experiences across multiple platforms.'
+    },
+    { 
+      initials: 'KC', 
+      name: 'Kriste Kaye Cabalbag', 
+      role: 'Frontend Developer', 
+      isLead: false,
+      description: 'An innovative BSIT student at TUP Taguig specializing in frontend development. Committed to creating accessible and visually appealing web applications that solve real-world problems.'
+    },
+  ];
+
+  // Split services into pairs for 2-column grid
+  const servicePairs = [];
+  for (let i = 0; i < SERVICES.length; i += 2) {
+    servicePairs.push(SERVICES.slice(i, i + 2));
+  }
+
+  // Split team into pairs for 2-column grid
+  const teamPairs = [];
+  for (let i = 0; i < TEAM.length; i += 2) {
+    teamPairs.push(TEAM.slice(i, i + 2));
+  }
+
   return (
     <SafeAreaView style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.ink} />
@@ -196,7 +366,7 @@ const HomeScreen = ({ navigation }) => {
       {/* ── Header ── */}
       <View style={s.header}>
 
-        {/* Logo row — logo on left, Login button on right */}
+        {/* Logo row */}
         <View style={s.logoRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
             <View style={s.logoImgBox}>
@@ -208,7 +378,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Login button - redirects to Login screen */}
+          {/* Login button */}
           <TouchableOpacity
             style={s.loginBtn}
             onPress={() => navigation.navigate('Login')}
@@ -284,7 +454,6 @@ const HomeScreen = ({ navigation }) => {
                     <Text style={s.btnOutlineTxt}>Learn More</Text>
                   </TouchableOpacity>
                 </View>
-                
               </FadeIn>
             </View>
 
@@ -295,7 +464,7 @@ const HomeScreen = ({ navigation }) => {
               <View style={s.scrollHintLine} />
             </View>
 
-            {/* Features */}
+            {/* Features — 2-column grid */}
             <View style={s.section}>
               <FadeIn>
                 <Badge label="Core Features" light />
@@ -304,12 +473,11 @@ const HomeScreen = ({ navigation }) => {
 
               <View style={s.featureGrid}>
                 <FeatureCard delay={0}   iconName="robot-outline"    title="AI Classification" text="State-of-the-art ML for precise, real-time waste identification across all material types." />
-                <FeatureCard delay={80}  iconName="chart-areaspline" title="Live Analytics"    text="Dashboards and reports that turn waste data into clear, actionable sustainability insights." />
-                <FeatureCard delay={160} iconName="server-network"   title="Scalable Platform" text="From a household to a municipality — the infrastructure grows with your operations." />
+                <FeatureCard delay={80}  iconName="chart-areaspline" title="Live Analytics"    text="Dashboards that turn waste data into clear, actionable sustainability insights." />
+                <FeatureCard delay={160} iconName="server-network"   title="Scalable Platform" text="Infrastructure that grows from a household to a municipality." />
+                <FeatureCard delay={240} iconName="recycle"          title="Recycling Network" text="Connection to certified partners with full environmental impact tracking." />
               </View>
             </View>
-
-           
           </>
         )}
 
@@ -327,7 +495,6 @@ const HomeScreen = ({ navigation }) => {
                   SolidWaste is dedicated to revolutionising waste management through cutting-edge
                   AI and data-driven insights — empowering organisations and communities to achieve
                   sustainable practices and contribute to a cleaner environment.
-                  
                 </Text>
               </InfoCard>
             </FadeIn>
@@ -363,6 +530,31 @@ const HomeScreen = ({ navigation }) => {
                 ].map((cap, i) => <CapRow key={cap} text={cap} delay={i * 50} />)}
               </InfoCard>
             </FadeIn>
+
+            {/* ── Meet the Team — 2-column grid ── */}
+            <FadeIn delay={300}>
+              <InfoCard title="Meet the Team" iconName="account-group-outline">
+                <View style={s.teamGrid}>
+                  {teamPairs.map((pair, rowIndex) => (
+                    <View key={rowIndex} style={s.teamRow}>
+                      {pair.map((member) => (
+                        <TeamCard
+                          key={member.initials}
+                          initials={member.initials}
+                          name={member.name}
+                          role={member.role}
+                          isLead={member.isLead}
+                          description={member.description}
+                          onPress={() => handleMemberPress(member)}
+                        />
+                      ))}
+                      {/* Add empty placeholder if odd number in row */}
+                      {pair.length === 1 && <View style={s.teamCardPlaceholder} />}
+                    </View>
+                  ))}
+                </View>
+              </InfoCard>
+            </FadeIn>
           </View>
         )}
 
@@ -379,6 +571,7 @@ const HomeScreen = ({ navigation }) => {
               </FadeIn>
             </View>
 
+            {/* Horizontal scroll cards */}
             <FlatList
               data={SERVICES}
               keyExtractor={(item) => item.n}
@@ -392,21 +585,19 @@ const HomeScreen = ({ navigation }) => {
               )}
             />
 
-            <View style={[s.section, { paddingTop: 8 }]}>
-              {SERVICES.map((item, i) => (
-                <FadeIn key={item.n} delay={i * 50}>
-                  <View style={s.serviceRow}>
-                    <View style={s.serviceRowNum}>
-                      <Text style={s.serviceRowNumTxt}>{item.n}</Text>
-                    </View>
-                    <View style={s.serviceRowBody}>
-                      <Text style={s.serviceRowTitle}>{item.title}</Text>
-                      <Text style={s.serviceRowDesc}>{item.desc}</Text>
-                    </View>
-                    <MaterialCommunityIcons name="arrow-right" size={18} color={C.teal} />
-                  </View>
-                </FadeIn>
-              ))}
+            {/* 2-column service grid */}
+            <View style={[s.section, { paddingTop: 16 }]}>
+              <View style={s.serviceGrid}>
+                {SERVICES.map((item, i) => (
+                  <ServiceGridCard
+                    key={item.n}
+                    number={item.n}
+                    title={item.title}
+                    desc={item.desc}
+                    delay={i * 50}
+                  />
+                ))}
+              </View>
             </View>
           </>
         )}
@@ -425,17 +616,17 @@ const HomeScreen = ({ navigation }) => {
                 <View style={s.contactStripDiv} />
                 <ContactRow iconName="call-outline"     label="Phone"    value="+63 981 174 7940" />
                 <View style={s.contactStripDiv} />
-                <ContactRow iconName="location-outline" label="Location" value=" Taguig Metro Manila, PH" />
+                <ContactRow iconName="location-outline" label="Location" value="Taguig Metro Manila, PH" />
               </View>
             </FadeIn>
 
             <FadeIn delay={120}>
               <InfoCard title="Send Us a Message" iconName="email-send-outline">
-                <Field label="Full Name"     value={form.name}         onChange={setField('name')}         placeholder="Your full name"             caps="words"             required />
-                <Field label="Email Address" value={form.email}        onChange={setField('email')}        placeholder="your@email.com"             keyboard="email-address" caps="none" required />
-                <Field label="Phone Number"  value={form.phone}        onChange={setField('phone')}        placeholder="+63 XXX XXX XXXX"           keyboard="phone-pad"     caps="none" />
-                <Field label="Organisation"  value={form.organization} onChange={setField('organization')} placeholder="Company or organisation"    caps="words" />
-                <Field label="Message"       value={form.message}      onChange={setField('message')}      placeholder="Tell us about your inquiry…" multiline={5}           required />
+                <Field label="Full Name"     value={form.name}         onChange={setField('name')}         placeholder="Your full name"              caps="words"             required />
+                <Field label="Email Address" value={form.email}        onChange={setField('email')}        placeholder="your@email.com"              keyboard="email-address" caps="none" required />
+                <Field label="Phone Number"  value={form.phone}        onChange={setField('phone')}        placeholder="+63 XXX XXX XXXX"            keyboard="phone-pad"     caps="none" />
+                <Field label="Organisation"  value={form.organization} onChange={setField('organization')} placeholder="Company or organisation"     caps="words" />
+                <Field label="Message"       value={form.message}      onChange={setField('message')}      placeholder="Tell us about your inquiry…"  multiline={5}           required />
 
                 <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
                   <Text style={s.submitTxt}>Send Message</Text>
@@ -465,18 +656,31 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Footer ── */}
         <View style={s.footer}>
-         <View style={s.footerTop}>
-          </View>
+          <View style={s.footerTop} />
           <Divider style={{ borderColor: C.borderDk, marginVertical: 20 }} />
           <Text style={s.footerCopy}>© 2026 T.M.F.K Waste Innovations. All rights reserved.</Text>
         </View>
 
       </ScrollView>
+
+      {/* ── Team Member Modal ── */}
+      <TeamMemberModal 
+        visible={modalVisible} 
+        member={selectedMember} 
+        onClose={() => setModalVisible(false)} 
+      />
     </SafeAreaView>
   );
 };
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
+const CARD_GAP = 12;
+const SECTION_H_PAD = 20;
+// Width available inside an InfoCard (infoCard has 22px padding on each side)
+const INFO_CARD_INNER = width - SECTION_H_PAD * 2 - 22 * 2;
+// Width for 2-col grid inside the section (no inner card padding)
+const GRID_COL = (width - SECTION_H_PAD * 2 - CARD_GAP) / 2;
+
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: C.offWhite },
   scroll: { flex: 1 },
@@ -599,7 +803,7 @@ const s = StyleSheet.create({
   scrollHintTxt:  { fontSize: 11, color: C.slateL, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
 
   // ── Section ──────────────────────────────────────────────────────────────────
-  section:      { paddingHorizontal: 20, paddingVertical: 24 },
+  section:      { paddingHorizontal: SECTION_H_PAD, paddingVertical: 24 },
   sectionTitle: {
     fontSize: 30, fontWeight: '900', color: C.navy,
     letterSpacing: -0.6, lineHeight: 38, marginBottom: 24,
@@ -610,41 +814,33 @@ const s = StyleSheet.create({
   },
   pageSubtitle: { fontSize: 14, color: C.slate, lineHeight: 21, marginBottom: 24 },
 
-  // ── Feature grid ─────────────────────────────────────────────────────────────
-  featureGrid: { gap: 14 },
+  // ── Feature grid — 2 columns ─────────────────────────────────────────────────
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: CARD_GAP,
+  },
   featureCard: {
-    backgroundColor: C.white, borderRadius: 18, padding: 22,
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: C.inkA10, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1, shadowRadius: 12, elevation: 3,
+    width: GRID_COL,
+    backgroundColor: C.white,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: C.inkA10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   featureIconRing: {
-    width: 50, height: 50, borderRadius: 14,
+    width: 46, height: 46, borderRadius: 13,
     backgroundColor: C.tealDim,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
     borderWidth: 1, borderColor: C.tealLine,
   },
-  featureTitle: { fontSize: 17, fontWeight: '700', color: C.navy, marginBottom: 8 },
-  featureText:  { fontSize: 14, color: C.slate, lineHeight: 21 },
-
-  // ── CTA Banner ───────────────────────────────────────────────────────────────
-  ctaBanner: {
-    backgroundColor: C.navy, marginHorizontal: 20, marginBottom: 24,
-    borderRadius: 22, padding: 30, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.navyMid,
-  },
-  ctaBlob: {
-    position: 'absolute', width: 220, height: 220, borderRadius: 110,
-    backgroundColor: C.tealGlow, top: -80, right: -80,
-  },
-  ctaEyebrow: { fontSize: 11, color: C.teal, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
-  ctaTitle: {
-    fontSize: 28, fontWeight: '900', color: C.white,
-    lineHeight: 36, letterSpacing: -0.5, marginBottom: 12,
-  },
-  ctaSub:   { fontSize: 14, color: C.ghost, lineHeight: 21, marginBottom: 28 },
-  ctaBtns:  { gap: 16 },
-  ctaSignIn: { color: C.teal, fontSize: 13, fontWeight: '600' },
+  featureTitle: { fontSize: 14, fontWeight: '700', color: C.navy, marginBottom: 6 },
+  featureText:  { fontSize: 12, color: C.slate, lineHeight: 18 },
 
   // ── Info cards ───────────────────────────────────────────────────────────────
   infoCard: {
@@ -669,7 +865,137 @@ const s = StyleSheet.create({
   },
   capText: { flex: 1, fontSize: 14, color: C.slate, lineHeight: 21 },
 
-  // ── Services – horizontal scroll cards ───────────────────────────────────────
+  // ── Team — 2-column grid ──────────────────────────────────────────────────
+  teamGrid: {
+    flexDirection: 'column',
+    gap: CARD_GAP,
+    marginTop: 4,
+  },
+  teamRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: CARD_GAP,
+  },
+  teamCard: {
+    flex: 1,
+    backgroundColor: C.offWhite,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 140,
+  },
+  teamCardPlaceholder: {
+    flex: 1,
+    opacity: 0,
+  },
+  teamAvatar: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  teamAvatarLead: { backgroundColor: C.tealDim, borderWidth: 1.5, borderColor: C.teal },
+  teamAvatarFe:   { backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.3)' },
+  teamInitials: { fontSize: 16, fontWeight: '800' },
+  teamInitialsLead: { color: C.teal },
+  teamInitialsFe:   { color: '#3B82F6' },
+  teamName: {
+    fontSize: 12, fontWeight: '700', color: C.navy,
+    textAlign: 'center', lineHeight: 17,
+  },
+  teamRoleBadge: {
+    borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8,
+  },
+  teamRoleBadgeLead: { backgroundColor: C.tealDim },
+  teamRoleBadgeFe:   { backgroundColor: 'rgba(59,130,246,0.10)' },
+  teamRoleTxt: { fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  teamRoleTxtLead: { color: C.tealDark },
+  teamRoleTxtFe:   { color: '#2563EB' },
+
+  // ── Modal Styles ────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: C.white,
+    borderRadius: 24,
+    padding: 24,
+    width: width * 0.85,
+    maxHeight: height * 0.7,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalAvatarContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalInitials: {
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  modalName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: C.navy,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalRoleBadge: {
+    alignSelf: 'center',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    marginBottom: 4,
+  },
+  modalRoleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: C.slate,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalTags: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  modalTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.tealDim,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  modalTagText: {
+    fontSize: 12,
+    color: C.tealDark,
+    fontWeight: '600',
+  },
+
+  // ── Services — horizontal scroll cards ───────────────────────────────────────
   servicesScroll: { paddingHorizontal: 20, paddingBottom: 8, gap: 14 },
   serviceCard: {
     width: width * 0.68, backgroundColor: C.navy,
@@ -686,22 +1012,38 @@ const s = StyleSheet.create({
   serviceTitle:   { fontSize: 17, fontWeight: '700', color: C.white, marginBottom: 10 },
   serviceDesc:    { fontSize: 13, color: C.slateL, lineHeight: 20 },
 
-  // Services – full-width list rows
-  serviceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: C.white, borderRadius: 14, padding: 18, marginBottom: 10,
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: C.inkA10, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 6, elevation: 2,
+  // ── Services — 2-column grid ─────────────────────────────────────────────────
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: CARD_GAP,
   },
-  serviceRowNum: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: C.tealDim,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  serviceGridCard: {
+    width: GRID_COL,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 8,
+    shadowColor: C.inkA10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  serviceRowNumTxt: { fontSize: 12, fontWeight: '800', color: C.teal },
-  serviceRowBody:   { flex: 1 },
-  serviceRowTitle:  { fontSize: 15, fontWeight: '700', color: C.navy, marginBottom: 3 },
-  serviceRowDesc:   { fontSize: 13, color: C.slate, lineHeight: 19 },
+  serviceGridNum: {
+    alignSelf: 'flex-start',
+    backgroundColor: C.tealDim,
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 9,
+    borderWidth: 1,
+    borderColor: C.tealLine,
+  },
+  serviceGridNumTxt:   { fontSize: 11, fontWeight: '800', color: C.teal },
+  serviceGridTitle:    { fontSize: 13, fontWeight: '700', color: C.navy, lineHeight: 18 },
+  serviceGridDesc:     { fontSize: 12, color: C.slate, lineHeight: 18 },
 
   // ── Contact ──────────────────────────────────────────────────────────────────
   contactStrip: {
@@ -741,19 +1083,15 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  hourDay:        { fontSize: 14, color: C.navy, fontWeight: '600' },
-  hourBadge:      { backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 9 },
+  hourDay:         { fontSize: 14, color: C.navy, fontWeight: '600' },
+  hourBadge:       { backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 9 },
   hourBadgeClosed: { backgroundColor: 'rgba(239,68,68,0.1)' },
-  hourTime:       { fontSize: 13, color: C.green, fontWeight: '600' },
+  hourTime:        { fontSize: 13, color: C.green, fontWeight: '600' },
 
   // ── Footer ───────────────────────────────────────────────────────────────────
-  footer:       { backgroundColor: C.ink, paddingVertical: 36, paddingHorizontal: 24 },
-  footerInner:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  footerBrand:  { fontSize: 20, fontWeight: '900', color: C.white, letterSpacing: 1.2 },
-  footerSub:    { fontSize: 10, color: C.teal, fontWeight: '600', letterSpacing: 0.6, marginTop: 2 },
-  footerNav:    { gap: 10, alignItems: 'flex-end' },
-  footerNavTxt: { fontSize: 13, color: C.ghost, fontWeight: '500' },
-  footerCopy:   { fontSize: 12, color: 'rgba(255,255,255,0.25)', textAlign: 'center' },
+  footer:      { backgroundColor: C.ink, paddingVertical: 36, paddingHorizontal: 24 },
+  footerTop:   {},
+  footerCopy:  { fontSize: 12, color: 'rgba(255,255,255,0.25)', textAlign: 'center' },
 });
 
 export default HomeScreen;

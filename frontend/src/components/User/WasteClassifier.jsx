@@ -26,7 +26,11 @@ const COHERE_API_KEY = Constants.expoConfig?.extra?.COHERE_API_KEY || process.en
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
-const API_BASE = "http://10.136.44.73:8000";
+// const API_BASE = "http://172.34.21.122:8000";
+// export const API_URL = `${API_BASE}/detect`;
+// export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
+
+const API_BASE = "http://192.168.1.44:8000";
 export const API_URL = `${API_BASE}/detect`;
 export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
 
@@ -37,7 +41,7 @@ export const WS_URL  = `${API_BASE.replace(/^http/, "ws")}/detect/live`;
 
 const GEMINI_API_KEY = "AIzaSyAlWb77h51IFFJHVGpPffYC9KfehZPDRvk";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-const MIN_FRAME_GAP_MS = 400;
+const MIN_FRAME_GAP_MS = 4000;
 const CAPTURE_SIZE     = { width: 640, height: 480 };
 const BOX_DECAY        = 5;
 

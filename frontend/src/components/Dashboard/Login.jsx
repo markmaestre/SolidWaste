@@ -1,3 +1,17 @@
+// ─── SETUP INSTRUCTIONS ───────────────────────────────────────────────────────
+// 1. npx expo install expo-auth-session expo-crypto expo-web-browser
+// 2. npx expo install react-native-svg
+// 3. Configure Google Cloud Console:
+//    - Web Client ID: 788493942495-760hv4s84v7qg3fr3rv6nc5n3mo8uqqs.apps.googleusercontent.com
+//    - Android Client ID: 788493942495-1iimp0qk5jajjnivampc9mkihoaq64ea.apps.googleusercontent.com
+//    - Add these Redirect URIs:
+//      https://auth.expo.io/@kram_maestre/frontend
+//      http://localhost:19000
+//      exp://127.0.0.1:19000
+// 4. Add your email as Test User in OAuth consent screen
+// 5. This works with Expo Go and Development Builds
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, TextInput, TouchableOpacity, StyleSheet, Alert,
@@ -13,8 +27,24 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import NetInfo from '@react-native-community/netinfo';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
+import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 
-// Complete silence - override all console methods
+// Complete the WebBrowser session - IMPORTANTE ITO!
+WebBrowser.maybeCompleteAuthSession();
+
+// ── GOOGLE CLIENT IDS ──────────────────────────────────────────────────────
+// Web Client ID (galing sa Google Cloud Console)
+const WEB_CLIENT_ID = '788493942495-760hv4s84v7qg3fr3rv6nc5n3mo8uqqs.apps.googleusercontent.com';
+// Android Client ID (galing sa Google Cloud Console)
+const ANDROID_CLIENT_ID = '788493942495-1iimp0qk5jajjnivampc9mkihoaq64ea.apps.googleusercontent.com';
+
+// ── EXPO REDIRECT URI ──────────────────────────────────────────────────────
+// For Expo Go, use the auth.expo.io redirect URI
+const EXPO_REDIRECT_URI = 'https://auth.expo.io/@kram_maestre/frontend';
+
 const noop = () => {};
 console.log = noop;
 console.error = noop;
@@ -42,6 +72,23 @@ const C = {
   ghost:    'rgba(255,255,255,0.55)',
   red:      '#EF4444',
 };
+
+// ── Official Google "G" logo via inline SVG ──────────────────────────────────
+const GoogleLogo = ({ size = 22 }) => (
+  <Svg width={size} height={size} viewBox="0 0 48 48">
+    <Defs>
+      <ClipPath id="clip">
+        <Rect width="48" height="48" rx="24" />
+      </ClipPath>
+    </Defs>
+    <G clipPath="url(#clip)">
+      <Path d="M47.532 24.552c0-1.636-.132-3.2-.388-4.688H24v9.02h13.196c-.576 3.036-2.296 5.608-4.876 7.332v6.1h7.888c4.616-4.252 7.324-10.52 7.324-17.764z" fill="#4285F4"/>
+      <Path d="M24 48c6.636 0 12.204-2.196 16.272-5.952l-7.888-6.1c-2.196 1.468-5.004 2.34-8.384 2.34-6.444 0-11.9-4.352-13.852-10.192H2.056v6.3C6.112 42.824 14.436 48 24 48z" fill="#34A853"/>
+      <Path d="M10.148 28.096A14.96 14.96 0 0 1 9.6 24c0-1.42.196-2.8.548-4.096v-6.3H2.056A23.964 23.964 0 0 0 0 24c0 3.876.932 7.54 2.056 10.396l8.092-6.3z" fill="#FBBC05"/>
+      <Path d="M24 9.712c3.624 0 6.876 1.244 9.436 3.692l7.08-7.08C36.196 2.196 30.628 0 24 0 14.436 0 6.112 5.176 2.056 13.604l8.092 6.3C12.1 14.064 17.556 9.712 24 9.712z" fill="#EA4335"/>
+    </G>
+  </Svg>
+);
 
 // ── No-signal banner ──────────────────────────────────────────────────────────
 const OfflineBanner = ({ visible }) => {
@@ -96,13 +143,16 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Login = () => {
-  const [form, setForm]                 = useState({ email: '', password: '' });
-  const [focusedField, setFocusedField] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [pushToken, setPushToken]       = useState(null);
-  const [fieldErrors, setFieldErrors]   = useState({ email: '', password: '' });
-  const [isOffline, setIsOffline]       = useState(false);
+  const [form, setForm]                   = useState({ email: '', password: '' });
+  const [focusedField, setFocusedField]   = useState(null);
+  const [showPassword, setShowPassword]   = useState(false);
+  const [pushToken, setPushToken]         = useState(null);
+  const [fieldErrors, setFieldErrors]     = useState({ email: '', password: '' });
+  const [isOffline, setIsOffline]         = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const dispatch   = useDispatch();
   const navigation = useNavigation();
@@ -110,57 +160,57 @@ const Login = () => {
 
   const ADMIN_EMAIL = 'admin@tmfkwaste.com';
 
-  // ── Network listener with error handling ─────────────────────────────────────────
+  // ── Google Sign-In Configuration ──────────────────────────────────────────
+  // For Expo Go - use proxy with the auth.expo.io redirect URI
+  // The Android client ID is used for native Android builds
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: WEB_CLIENT_ID,
+    // For native Android builds, you can use:
+    // androidClientId: ANDROID_CLIENT_ID,
+    // For iOS, you'd add:
+    // iosClientId: YOUR_IOS_CLIENT_ID,
+    redirectUri: EXPO_REDIRECT_URI,
+    scopes: ['profile', 'email', 'openid'],
+    useProxy: true, // IMPORTANT: Set to true for Expo Go
+    extraParams: {
+      // Force to use the web flow
+      prompt: 'select_account',
+    },
+  });
+
+  // ── Network listener ──────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = null;
-    
+
     const setupNetInfo = async () => {
       try {
-        // Initial fetch
         const state = await NetInfo.fetch().catch(() => ({ isConnected: true }));
-        if (isMounted) {
-          setIsOffline(!state.isConnected);
-        }
-        
-        // Add event listener with try-catch
+        if (isMounted) setIsOffline(!state.isConnected);
         try {
           unsubscribe = NetInfo.addEventListener((state) => {
-            if (isMounted) {
-              setIsOffline(!state.isConnected);
-            }
+            if (isMounted) setIsOffline(!state.isConnected);
           });
-        } catch (listenerError) {
-          // Silently handle listener error
-          if (isMounted) {
-            setIsOffline(false);
-          }
+        } catch {
+          if (isMounted) setIsOffline(false);
         }
-      } catch (error) {
-        if (isMounted) {
-          setIsOffline(false);
-        }
+      } catch {
+        if (isMounted) setIsOffline(false);
       }
     };
-    
+
     setupNetInfo();
-    
     return () => {
       isMounted = false;
       if (unsubscribe && typeof unsubscribe === 'function') {
-        try {
-          unsubscribe();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
+        try { unsubscribe(); } catch {}
       }
     };
   }, []);
 
-  // ── Push notifications with error handling ───────────────────────────────────────
-  useEffect(() => { 
+  // ── Push notifications ────────────────────────────────────────────────────
+  useEffect(() => {
     let isMounted = true;
-    
     const registerForPushNotifications = async () => {
       try {
         const { status: existing } = await Notifications.getPermissionsAsync();
@@ -169,22 +219,54 @@ const Login = () => {
           : { status: existing };
         if (status !== 'granted') return;
         const token = (await Notifications.getExpoPushTokenAsync()).data;
-        if (isMounted) {
-          setPushToken(token);
-        }
-      } catch (_) {
-        // Silently ignore — push token is optional
-      }
+        if (isMounted) setPushToken(token);
+      } catch {}
     };
-    
     registerForPushNotifications();
-    
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
-  // ── Validation ───────────────────────────────────────────────────────────────
+  // ── Handle Google Sign-In Response ──────────────────────────────────────
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success') {
+        try {
+          setGoogleLoading(true);
+          const { id_token, access_token } = response.params;
+          
+          console.log('✅ Google auth successful!');
+          console.log('ID Token:', id_token ? 'Present' : 'Missing');
+          
+          if (id_token) {
+            // Store the token
+            await AsyncStorage.setItem('googleIdToken', id_token);
+            if (pushToken) await AsyncStorage.setItem('userPushToken', pushToken);
+            
+            // You might want to verify the token with your backend here
+            // For now, navigate to dashboard
+            navigation.navigate('UserDashboard');
+          } else {
+            Alert.alert('Error', 'No ID token received from Google');
+          }
+        } catch (error) {
+          console.error('❌ Google sign-in error:', error);
+          Alert.alert('Sign-in Failed', 'Could not complete Google sign-in. Please try again.');
+        } finally {
+          setGoogleLoading(false);
+        }
+      } else if (response?.type === 'error') {
+        setGoogleLoading(false);
+        console.log('Google auth error:', response.error);
+        if (response.error?.message && !response.error.message.includes('cancel')) {
+          Alert.alert('Error', 'Google sign-in failed. Please try again.');
+        }
+      }
+    };
+
+    handleGoogleResponse();
+  }, [response]);
+
+  // ── Validation ────────────────────────────────────────────────────────────
   const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   const validateField = (field, value) => {
@@ -209,22 +291,20 @@ const Login = () => {
     if (fieldErrors[field]) setFieldErrors((p) => ({ ...p, [field]: '' }));
   };
 
-  // ── Login success handler ────────────────────────────────────────────────────
+  // ── Login success handler ─────────────────────────────────────────────────
   const handleLoginSuccess = async ({ user, token }) => {
     try {
       if (token) await AsyncStorage.setItem('userToken', token);
       await AsyncStorage.setItem('userInfo', JSON.stringify(user));
       if (pushToken) await AsyncStorage.setItem('userPushToken', pushToken);
-    } catch (_) {
-      // Storage errors are non-fatal — still proceed to navigate
-    }
+    } catch {}
 
     if (user.role === 'admin')     navigation.navigate('AdminDashboard');
     else if (user.role === 'user') navigation.navigate('UserDashboard');
     else Alert.alert('Login failed', 'Invalid role assigned to user');
   };
 
-  // ── Email/password login ─────────────────────────────────────────────────────
+  // ── Email/password login ──────────────────────────────────────────────────
   const handleLogin = async () => {
     if (isOffline) {
       Alert.alert('No Connection', 'Please check your internet connection');
@@ -239,31 +319,62 @@ const Login = () => {
         loginUser({ email: form.email, password: form.password, pushToken })
       ).unwrap();
       await handleLoginSuccess(resultAction);
-    } catch (_) {
-      // Error is handled by Redux state - silent catch
+    } catch (err) {
+      console.error('Login error:', err);
     }
   };
 
-  // ── Input style helper ───────────────────────────────────────────────────────
+  // ── Google Sign-In Handler ──────────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    if (isOffline) {
+      Alert.alert('No Connection', 'Please check your internet connection');
+      return;
+    }
+
+    if (!request) {
+      Alert.alert('Error', 'Google Sign-In is not ready. Please try again.');
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+      console.log('🚀 Starting Google Sign-In...');
+      console.log('Redirect URI:', EXPO_REDIRECT_URI);
+      console.log('Using Web Client ID:', WEB_CLIENT_ID);
+      console.log('Android Client ID available:', ANDROID_CLIENT_ID);
+      
+      const result = await promptAsync();
+      console.log('Google prompt result:', result);
+      
+      if (result?.type === 'cancel') {
+        console.log('User cancelled Google Sign-In');
+        setGoogleLoading(false);
+      }
+    } catch (error) {
+      console.error('❌ Google sign-in error:', error);
+      Alert.alert('Error', 'Could not start Google sign-in. Please try again.');
+      setGoogleLoading(false);
+    }
+  };
+
+  // ── Input style helper ────────────────────────────────────────────────────
   const inputStyle = (field) => [
     s.input,
     focusedField === field && s.inputFocused,
     fieldErrors[field]    && s.inputError,
   ];
 
-  const isBanned = error && typeof error === 'string' && ['banned', 'suspended', 'disabled'].some((w) =>
-    error.toLowerCase().includes(w)
-  );
+  const isBanned = error && typeof error === 'string' &&
+    ['banned', 'suspended', 'disabled'].some((w) => error.toLowerCase().includes(w));
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar style="light" backgroundColor={C.ink} />
-      
+
       <KeyboardAvoidingView
         style={s.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* ── Offline banner (slides from top) ── */}
         <OfflineBanner visible={isOffline} />
 
         {/* Decorative blobs */}
@@ -328,13 +439,36 @@ const Login = () => {
                       {isBanned ? `Account Suspended: ${error}` : error}
                     </Text>
                     {isBanned && (
-                      <Text style={s.errorContact}>
-                        Contact admin: {ADMIN_EMAIL}
-                      </Text>
+                      <Text style={s.errorContact}>Contact admin: {ADMIN_EMAIL}</Text>
                     )}
                   </View>
                 </View>
               )}
+
+              {/* ── Google Sign-In Button ── */}
+              <TouchableOpacity
+                style={[s.btnGoogle, (googleLoading || isOffline) && { opacity: 0.55 }]}
+                onPress={handleGoogleSignIn}
+                disabled={googleLoading || isOffline}
+                activeOpacity={0.82}
+              >
+                <View style={s.googleLogoWrap}>
+                  {googleLoading
+                    ? <MaterialCommunityIcons name="loading" size={20} color="#3C4043" />
+                    : <GoogleLogo size={20} />
+                  }
+                </View>
+                <Text style={s.btnGoogleTxt}>
+                  {googleLoading ? 'Signing in…' : 'Sign in with Google'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* ── Divider ── */}
+              <View style={s.divider}>
+                <View style={s.dividerLine} />
+                <Text style={s.dividerTxt}>or continue with email</Text>
+                <View style={s.dividerLine} />
+              </View>
 
               {/* Email */}
               <View style={s.fieldWrap}>
@@ -458,331 +592,161 @@ export default Login;
 
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: C.ink 
-  },
-  keyboardView: {
-    flex: 1,
-  },
+  root:        { flex: 1, backgroundColor: C.ink },
+  keyboardView:{ flex: 1 },
 
   // ── Offline banner ────────────────────────────────────────────────────────
   offlineBanner: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 52 : 28,
-    left: 20, 
-    right: 20,
-    zIndex: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    left: 20, right: 20, zIndex: 50,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#FEF3C7',
-    borderWidth: 1, 
-    borderColor: '#FCD34D',
-    borderRadius: 12,
-    paddingVertical: 11, 
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18, 
-    shadowRadius: 12,
-    elevation: 10,
+    borderWidth: 1, borderColor: '#FCD34D',
+    borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 10,
   },
-  offlineTextWrap: { 
-    flex: 1 
-  },
-  offlineTitle: {
-    fontSize: 13, 
-    fontWeight: '700',
-    color: '#78350F', 
-    letterSpacing: 0.1,
-  },
-  offlineSub: {
-    fontSize: 11, 
-    color: '#92400E', 
-    marginTop: 1,
-  },
-  offlineDot: {
-    width: 7, 
-    height: 7, 
-    borderRadius: 4,
-    backgroundColor: '#F59E0B',
-  },
+  offlineTextWrap: { flex: 1 },
+  offlineTitle:    { fontSize: 13, fontWeight: '700', color: '#78350F', letterSpacing: 0.1 },
+  offlineSub:      { fontSize: 11, color: '#92400E', marginTop: 1 },
+  offlineDot:      { width: 7, height: 7, borderRadius: 4, backgroundColor: '#F59E0B' },
 
   blob1: {
-    position: 'absolute', 
-    width: 320, 
-    height: 320, 
-    borderRadius: 160,
-    backgroundColor: C.tealGlow, 
-    top: -100, 
-    right: -130,
+    position: 'absolute', width: 320, height: 320, borderRadius: 160,
+    backgroundColor: C.tealGlow, top: -100, right: -130,
   },
   blob2: {
-    position: 'absolute', 
-    width: 200, 
-    height: 200, 
-    borderRadius: 100,
-    backgroundColor: 'rgba(0,201,167,0.06)', 
-    bottom: 160, 
-    left: -70,
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(0,201,167,0.06)', bottom: 160, left: -70,
   },
 
   homeBtn: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 52 : 24,
-    right: 20, 
-    zIndex: 20,
+    right: 20, zIndex: 20,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, 
-    borderColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 20, 
-    paddingVertical: 8, 
-    paddingHorizontal: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
   },
-  homeBtnTxt: { 
-    color: C.white, 
-    fontSize: 12, 
-    fontWeight: '700', 
-    letterSpacing: 1 
-  },
+  homeBtnTxt: { color: C.white, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
 
-  scroll: { 
-    flexGrow: 1, 
-    paddingHorizontal: 24, 
-    paddingBottom: 48,
+  scroll: {
+    flexGrow: 1, paddingHorizontal: 24, paddingBottom: 48,
     paddingTop: Platform.OS === 'ios' ? 0 : 20,
   },
 
-  header: { 
-    alignItems: 'center', 
-    paddingTop: 80, 
-    marginBottom: 24 
+  header:    { alignItems: 'center', paddingTop: 80, marginBottom: 24 },
+  logoRing:  {
+    width: 72, height: 72, borderRadius: 20,
+    backgroundColor: C.navyMid, borderWidth: 1, borderColor: C.borderDk,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  logoRing: {
-    width: 72, 
-    height: 72, 
-    borderRadius: 20,
-    backgroundColor: C.navyMid, 
-    borderWidth: 1, 
-    borderColor: C.borderDk,
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 14,
-  },
-  logoImg:   { 
-    width: 46, 
-    height: 46 
-  },
-  brandName: { 
-    fontSize: 20, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: 1.5, 
-    marginBottom: 4 
-  },
-  brandSub: { 
-    fontSize: 10, 
-    fontWeight: '700', 
-    color: C.teal, 
-    letterSpacing: 0.8, 
-    textTransform: 'uppercase' 
-  },
+  logoImg:   { width: 46, height: 46 },
+  brandName: { fontSize: 20, fontWeight: '900', color: C.white, letterSpacing: 1.5, marginBottom: 4 },
+  brandSub:  { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 0.8, textTransform: 'uppercase' },
 
-  badgeWrap: { 
-    alignItems: 'center', 
-    marginBottom: 20 
-  },
+  badgeWrap: { alignItems: 'center', marginBottom: 20 },
   badge: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6,
-    backgroundColor: C.tealDim, 
-    borderRadius: 20,
-    paddingVertical: 5, 
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.tealDim, borderRadius: 20,
+    paddingVertical: 5, paddingHorizontal: 14,
   },
-  badgeDot: { 
-    width: 6, 
-    height: 6, 
-    borderRadius: 3, 
-    backgroundColor: C.teal 
-  },
-  badgeText: { 
-    fontSize: 10, 
-    fontWeight: '700', 
-    color: C.teal, 
-    letterSpacing: 1, 
-    textTransform: 'uppercase' 
-  },
+  badgeDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: C.teal },
+  badgeText: { fontSize: 10, fontWeight: '700', color: C.teal, letterSpacing: 1, textTransform: 'uppercase' },
 
   card: {
     backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, 
-    borderColor: C.borderDk,
-    borderRadius: 22, 
-    padding: 28,
+    borderWidth: 1, borderColor: C.borderDk,
+    borderRadius: 22, padding: 28,
   },
-  cardTitle: { 
-    fontSize: 24, 
-    fontWeight: '900', 
-    color: C.white, 
-    letterSpacing: -0.4, 
-    marginBottom: 4 
-  },
-  cardSub: { 
-    fontSize: 13, 
-    color: C.ghost, 
-    marginBottom: 28 
-  },
+  cardTitle: { fontSize: 24, fontWeight: '900', color: C.white, letterSpacing: -0.4, marginBottom: 4 },
+  cardSub:   { fontSize: 13, color: C.ghost, marginBottom: 24 },
 
   errorBanner: {
-    flexDirection: 'row', 
-    alignItems: 'flex-start',
+    flexDirection: 'row', alignItems: 'flex-start',
     backgroundColor: 'rgba(239,68,68,0.12)',
-    borderLeftWidth: 3, 
-    borderLeftColor: C.red,
-    borderRadius: 10, 
-    padding: 14, 
-    marginBottom: 18,
+    borderLeftWidth: 3, borderLeftColor: C.red,
+    borderRadius: 10, padding: 14, marginBottom: 18,
   },
-  errorBannerWarn: { 
-    backgroundColor: 'rgba(217,119,6,0.12)', 
-    borderLeftColor: '#D97706' 
+  errorBannerWarn: { backgroundColor: 'rgba(217,119,6,0.12)', borderLeftColor: '#D97706' },
+  errorText:       { fontSize: 13, color: C.red, fontWeight: '600' },
+  errorTextWarn:   { color: '#D97706' },
+  errorContact:    { fontSize: 12, color: '#D97706', marginTop: 3 },
+
+  // ── Google button ────────────────────────────────────────────────────────
+  btnGoogle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DADCE0',
+    height: 52,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  errorText: { 
-    fontSize: 13, 
-    color: C.red, 
-    fontWeight: '600' 
+  googleLogoWrap: {
+    width: 24, height: 24,
+    alignItems: 'center', justifyContent: 'center',
   },
-  errorTextWarn: { 
-    color: '#D97706' 
-  },
-  errorContact: { 
-    fontSize: 12, 
-    color: '#D97706', 
-    marginTop: 3 
+  btnGoogleTxt: {
+    color: '#3C4043',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
 
-  fieldWrap: { 
-    marginBottom: 18 
-  },
-  fieldLabelRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5, 
-    marginBottom: 8 
-  },
-  fieldLabel: { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    color: C.slateL, 
-    letterSpacing: 0.5, 
-    textTransform: 'uppercase' 
-  },
-  req: { 
-    color: C.teal 
-  },
+  // ── Divider ──────────────────────────────────────────────────────────────
+  divider:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+  dividerTxt:  { fontSize: 11, color: C.slateL, fontWeight: '600' },
+
+  fieldWrap:     { marginBottom: 18 },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  fieldLabel:    { fontSize: 11, fontWeight: '700', color: C.slateL, letterSpacing: 0.5, textTransform: 'uppercase' },
+  req:           { color: C.teal },
 
   input: {
-    height: 50, 
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1.5, 
-    borderColor: C.borderDk,
-    borderRadius: 12, 
-    paddingHorizontal: 16,
-    fontSize: 15, 
-    color: C.white,
+    height: 50, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1.5, borderColor: C.borderDk,
+    borderRadius: 12, paddingHorizontal: 16,
+    fontSize: 15, color: C.white,
   },
-  inputFocused: { 
-    borderColor: C.tealLine, 
-    backgroundColor: 'rgba(0,201,167,0.07)' 
-  },
-  inputError: { 
-    borderColor: C.red, 
-    backgroundColor: 'rgba(239,68,68,0.08)' 
-  },
+  inputFocused: { borderColor: C.tealLine, backgroundColor: 'rgba(0,201,167,0.07)' },
+  inputError:   { borderColor: C.red, backgroundColor: 'rgba(239,68,68,0.08)' },
 
-  eyeBtn: { 
-    position: 'absolute', 
-    right: 14, 
-    top: 14 
-  },
+  eyeBtn: { position: 'absolute', right: 14, top: 14 },
 
-  fieldErr: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5, 
-    marginTop: 6 
-  },
-  fieldErrTxt: { 
-    fontSize: 12, 
-    color: C.red 
-  },
+  fieldErr:    { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  fieldErrTxt: { fontSize: 12, color: C.red },
 
-  forgotWrap: { 
-    alignItems: 'flex-end', 
-    marginTop: -6, 
-    marginBottom: 22 
-  },
-  forgotTxt: { 
-    fontSize: 12, 
-    color: C.teal, 
-    fontWeight: '600' 
-  },
+  forgotWrap: { alignItems: 'flex-end', marginTop: -6, marginBottom: 22 },
+  forgotTxt:  { fontSize: 12, color: C.teal, fontWeight: '600' },
 
   btnPrimary: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: C.teal, 
-    height: 52, 
-    borderRadius: 12, 
-    marginBottom: 20,
-    shadowColor: C.teal, 
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, 
-    shadowRadius: 12, 
-    elevation: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.teal, height: 52, borderRadius: 12, marginBottom: 20,
+    shadowColor: C.teal, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
-  btnPrimaryTxt: { 
-    color: C.navy, 
-    fontSize: 15, 
-    fontWeight: '800' 
-  },
+  btnPrimaryTxt: { color: C.navy, fontSize: 15, fontWeight: '800' },
 
-  registerRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 6 
+  registerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
   },
-  registerTxt: { 
-    fontSize: 13, 
-    color: C.ghost 
-  },
-  registerBtn: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4 
-  },
-  registerLink: { 
-    fontSize: 13, 
-    color: C.teal, 
-    fontWeight: '700' 
-  },
+  registerTxt:  { fontSize: 13, color: C.ghost },
+  registerBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  registerLink: { fontSize: 13, color: C.teal, fontWeight: '700' },
 
-  footer: { 
-    alignItems: 'center', 
-    paddingVertical: 32 
-  },
-  footerTxt: { 
-    fontSize: 11, 
-    color: 'rgba(255,255,255,0.4)', 
-    marginBottom: 4 
-  },
-  footerCopy: { 
-    fontSize: 11, 
-    color: 'rgba(255,255,255,0.2)' 
-  },
+  footer:    { alignItems: 'center', paddingVertical: 32 },
+  footerTxt: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 },
+  footerCopy:{ fontSize: 11, color: 'rgba(255,255,255,0.2)' },
 });

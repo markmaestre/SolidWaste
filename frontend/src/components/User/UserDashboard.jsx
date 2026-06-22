@@ -886,20 +886,21 @@ const UserDashboard = () => {
       title: null,
       items: [{ icon: 'home-outline', label: 'Home Dashboard', screen: 'Home' }],
     },
-    {
-      title: 'Waste Management',
-      items: [
-        { icon: 'scan-outline',      label: 'Waste Detection', screen: 'WasteDetection' },
-        { icon: 'list-outline',      label: 'Report History',  screen: 'ReportHistory'  },
-        { icon: 'bar-chart-outline', label: 'Waste Analytics', screen: 'WasteAnalytics' },
-      ],
-    },
+   
     {
       title: 'Communication',
       items: [
         { icon: 'chatbubbles-outline',   label: 'Messages',           screen: 'Messages',       badge: unreadMessages },
         { icon: 'notifications-outline', label: 'Notifications',      screen: 'Notifications',  badge: unreadCount    },
-        { icon: 'megaphone-outline',     label: 'Feedback & Support', screen: 'FeedbackSupport'                       },
+      ],
+    },
+
+     {
+      title: 'Waste Management',
+      items: [
+        { icon: 'scan-outline',      label: 'Waste Detection', screen: 'WasteDetection' },
+        { icon: 'list-outline',      label: 'Report History',  screen: 'ReportHistory'  },
+        { icon: 'bar-chart-outline', label: 'Waste Analytics', screen: 'WasteAnalytics' },
       ],
     },
     {
@@ -914,6 +915,7 @@ const UserDashboard = () => {
       items: [
         { icon: 'person-outline',   label: 'Edit Profile', screen: 'EditProfile' },
         { icon: 'settings-outline', label: 'Settings',     screen: 'Settings'    },
+                { icon: 'megaphone-outline',     label: 'Feedback & Support', screen: 'FeedbackSupport'                       },
       ],
     },
   ];
