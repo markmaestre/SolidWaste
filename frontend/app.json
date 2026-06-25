@@ -26,7 +26,7 @@
       "package": "com.krammaestre.frontend",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/TMFK.png",
-        "backgroundColor": "#001f3f"
+        "backgroundColor": "#002147"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -48,16 +48,16 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/TMFK.png",
-          "imageWidth": 300,
+          "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#0000FF"
+          "backgroundColor": "#002147"
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/images/TMFK.png",
-          "color": "#001f3f"
+          "color": "#002147"
         }
       ],
       "expo-font",

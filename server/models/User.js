@@ -1,3 +1,4 @@
+// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -27,6 +28,10 @@ const userSchema = new mongoose.Schema({
   // Password reset fields
   passwordResetCode: { type: String, default: null },
   passwordResetExpires: { type: Date, default: null },
+  
+  // Google Email Login fields
+  isGoogleUser: { type: Boolean, default: false },
+  googleEmail: { type: String, default: null },
   
   notificationPreferences: {
     reportUpdates: { type: Boolean, default: true },

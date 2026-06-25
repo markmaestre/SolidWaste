@@ -297,6 +297,71 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
+// ==================== GOOGLE EMAIL LOGIN THUNKS ====================
+
+// Send OTP to Google Email
+export const googleEmailLogin = createAsyncThunk(
+  'auth/googleEmailLogin',
+  async ({ email }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/google-email-login', { email });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to send verification code';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Verify Google Email OTP
+export const verifyGoogleEmail = createAsyncThunk(
+  'auth/verifyGoogleEmail',
+  async ({ email, verificationCode }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/verify-google-email', { email, verificationCode });
+      
+      // Store token and user data
+      if (res.data.token && res.data.user) {
+        await AsyncStorage.setItem('userToken', res.data.token);
+        await AsyncStorage.setItem('userInfo', JSON.stringify(res.data.user));
+      }
+      
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Verification failed';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Resend Google Email OTP
+export const resendGoogleEmailCode = createAsyncThunk(
+  'auth/resendGoogleEmailCode',
+  async ({ email }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/resend-google-code', { email });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to resend code';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Check if email is Google user
+export const checkGoogleUser = createAsyncThunk(
+  'auth/checkGoogleUser',
+  async ({ email }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post('/users/check-google-user', { email });
+      return res.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to check user';
+      return thunkAPI.rejectWithValue(errorMessage);
+    }
+  }
+);
+
 // ==================== FEEDBACK & SUPPORT THUNKS ====================
 
 // Submit Feedback
@@ -713,6 +778,60 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(resetPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Google Email Login
+      .addCase(googleEmailLogin.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(googleEmailLogin.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(googleEmailLogin.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Verify Google Email
+      .addCase(verifyGoogleEmail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyGoogleEmail.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+        state.isRestoring = false;
+      })
+      .addCase(verifyGoogleEmail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Resend Google Email Code
+      .addCase(resendGoogleEmailCode.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(resendGoogleEmailCode.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(resendGoogleEmailCode.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Check Google User
+      .addCase(checkGoogleUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(checkGoogleUser.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(checkGoogleUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

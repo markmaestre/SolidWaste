@@ -2,8 +2,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const axiosInstance = axios.create({
-  baseURL: 'http://192.168.1.44:5000/api',
-  // baseURL: 'https://solidwaste-ijco.onrender.com/api',
+  // baseURL: 'http://192.168.1.44:5000/api',
+  baseURL: 'https://solidwaste-ijco.onrender.com/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
